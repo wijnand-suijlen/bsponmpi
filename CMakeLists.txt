@@ -1,0 +1,29 @@
+cmake_minimum_required(VERSION 3.13)
+project(BSPonMPI2) 
+
+find_package(MPI)
+
+set(CMAKE_C_FLAGS "-Wall -Wextra -g")
+set(CMAKE_CXX_FLAGS "-Wall -Wextra -g")
+
+enable_testing()
+function( add_c_test NAME NR STATUS )
+    add_executable( "test_${NAME}_${NR}" test/${NAME}.${NR}.${STATUS}.c )
+    target_link_libraries( "test_${NAME}_${NR}" bsponmpi )
+    add_test( "${NAME}_${NR}" "test_${NAME}_${NR}" )
+    if (STATUS STREQUAL fail)
+       set_tests_properties( "${NAME}_${NR}" PROPERTIES WILL_FAIL TRUE)
+       message("${NAME}_${NR} will expect failure " )
+    endif()
+endfunction( add_c_test)
+
+include_directories( ${MPI_INCLUDE_PATH} )
+include_directories( include )
+add_library( bsponmpi src/bsp.cc src/spmd.cc )
+target_link_libraries( bsponmpi ${MPI_C_LIBRARIES})
+
+add_c_test( nprocs 1 ok )
+add_c_test( nprocs 2 ok )
+#add_c_test( abort 1 fail )
+add_c_test( abort 2 fail )
+

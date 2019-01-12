@@ -1,11 +1,23 @@
 #ifndef BSPONMPI_BSP_H
 #define BSPONMPI_BSP_H
 
+#include <stdarg.h>
+
 #ifdef __cplusplus 
 extern "C" {
 #endif
 
 typedef int bsp_pid_t;
+
+#ifdef _GNUC_
+  #define BSPONMPI_PRINTF_FORMAT_ATTRIBUTE(format_idx, first_va)\
+                __attribute__(( format(printf, format_idx, first_va) ))
+#else
+
+  #define BSPONMPI_PRINTF_FORMAT_ATTRIBUTE(format_idx, first_va) /* empty */
+
+#endif
+
 
 /** \defgroup SPMD SPMD Framework
  *
@@ -84,7 +96,10 @@ void bsp_init( void (*spmd_part)(void), int argc, char *argv[]) ;
   \param ...    The values as referenced by the format string
 
   */
-void bsp_abort( const char * format, ... );
+void bsp_abort( const char * format, ... )
+   BSPONMPI_PRINTF_FORMAT_ATTRIBUTE(1,2); 
+
+void bsp_abort_va( const char * format, va_list ap );
 
 /** Returns the number of processes available to the SPMD section. Only
   * when bsp_nprocs() is called from within the SPMD section, the returned
