@@ -10,8 +10,8 @@ Spmd :: Spmd( int nprocs )
     int world_pid = -1;
     
     MPI_Initialized(&mpi_init);
-    if (!mpi_init)
-        MPI_Init(NULL, NULL);
+    assert( mpi_init );
+    MPI_Bcast( &nprocs, 1, MPI_INT, 0, MPI_COMM_WORLD );
 
     MPI_Comm_rank( MPI_COMM_WORLD, & world_pid );
     m_ended = false;
@@ -26,7 +26,6 @@ Spmd :: Spmd( int nprocs )
 
 Spmd :: ~Spmd() {
     MPI_Comm_free( &m_comm );
-    MPI_Finalize();
 }
 
 int Spmd :: end_sync() {
