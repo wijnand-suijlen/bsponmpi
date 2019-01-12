@@ -1,13 +1,16 @@
 #include <bsp.h>
 #include <assert.h>
 
-static int s_some_int = 0;
+#include <stdio.h>
+
+static int s_some_int;
 
 void spmd(void)
 {
+    bsp_pid_t s;
     bsp_begin( bsp_nprocs() / 2 );
 
-    bsp_pid_t s = bsp_pid();
+    s = bsp_pid();
     assert( !(s==0) || s_some_int == 5 );
 
     if (s == 0 )

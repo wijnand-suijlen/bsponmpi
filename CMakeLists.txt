@@ -3,20 +3,19 @@ project(BSPonMPI2)
 
 find_package(MPI)
 
-set(CMAKE_C_FLAGS "-Wall -Wextra -g")
-set(CMAKE_CXX_FLAGS "-Wall -Wextra -g")
+set(CMAKE_C_FLAGS "-Wall -Wextra -g -pedantic -std=c89")
+set(CMAKE_CXX_FLAGS "-Wall -Wextra -g -pedantic -std=c++03")
 
 enable_testing()
-function( add_c_test NAME NR STATUS )
-    add_executable( "test_${NAME}_${NR}" test/${NAME}.${NR}.${STATUS}.c )
-    target_link_libraries( "test_${NAME}_${NR}" bsponmpi )
-    add_test( "${NAME}_${NR}" "test_${NAME}_${NR}" )
-    if (STATUS STREQUAL fail)
-       set_tests_properties( "${NAME}_${NR}" PROPERTIES WILL_FAIL TRUE)
-       message("${NAME}_${NR} will expect failure " )
-    endif()
-endfunction( add_c_test)
 
+function( add_mpi_unit_test NAME P )
+    set( exe "unit_test_${NAME}")
+    add_executable( ${exe} src/${NAME}.t.cc ${ARGN} )
+    target_link_libraries(${exe} ${MPI_C_LIBRARIES} )
+    set( testname "unit_test_${NAME}_p${P}" )
+    add_test( NAME "${testname}" COMMAND ${MPIEXEC} -n ${P} ./${exe} )
+endfunction()
+ 
 function( add_mpi_test NAME NR STATUS P )
     set( exe "test_${NAME}_${NR}")
     add_executable( ${exe} test/${NAME}.${NR}.${STATUS}.c )
@@ -28,12 +27,17 @@ function( add_mpi_test NAME NR STATUS P )
     endif()
 endfunction()
 
-
+# THe library itself
 include_directories( ${MPI_INCLUDE_PATH} )
 include_directories( include )
 add_library( bsponmpi src/bsp.cc src/spmd.cc )
 target_link_libraries( bsponmpi ${MPI_C_LIBRARIES})
 
+
+# Unit tests
+add_mpi_unit_test( a2a 3 src/a2a.cc )
+
+# API tests
 add_mpi_test( nprocs 1 ok 2 )
 add_mpi_test( nprocs 2 ok 4 )
 #add_c_test( abort 1 fail )

@@ -5,9 +5,10 @@ static int s_some_int = 0;
 
 void spmd(void)
 {
+    bsp_pid_t s;
     bsp_begin( bsp_nprocs() );
 
-    bsp_pid_t s = bsp_pid();
+    s = bsp_pid();
     assert( !(s==0) || s_some_int == 5 );
 
     if (s == 0 )

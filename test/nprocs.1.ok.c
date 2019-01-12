@@ -3,9 +3,10 @@
 
 int main( int argc, char ** argv )
 {
+    bsp_pid_t p;
     (void) argc; (void) argv;
 
-    bsp_pid_t p = bsp_nprocs();
+    p = bsp_nprocs();
 
     assert( p > 0 );
 

@@ -16,7 +16,7 @@ Spmd :: Spmd( int nprocs )
     MPI_Comm_rank( MPI_COMM_WORLD, & world_pid );
     m_ended = false;
     m_active = world_pid < nprocs;
-    MPI_Comm_split( MPI_COMM_WORLD, m_active, m_pid, &m_comm );
+    MPI_Comm_split( MPI_COMM_WORLD, m_active, world_pid, &m_comm );
 
     MPI_Comm_size( m_comm, &m_nprocs );
     MPI_Comm_rank( m_comm, &m_pid );

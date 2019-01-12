@@ -3,11 +3,12 @@
 
 int main( int argc, char ** argv )
 {
+    bsp_pid_t p, s;
     (void) argc; (void) argv;
     bsp_begin( bsp_nprocs() );
     
-    bsp_pid_t p = bsp_nprocs();
-    bsp_pid_t s = bsp_pid();
+    p = bsp_nprocs();
+    s = bsp_pid();
 
     assert( p > 0 );
     assert( s < p );

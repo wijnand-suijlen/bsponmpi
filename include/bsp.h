@@ -8,6 +8,7 @@ extern "C" {
 #endif
 
 typedef int bsp_pid_t;
+typedef int bsp_size_t;
 
 #ifdef _GNUC_
   #define BSPONMPI_PRINTF_FORMAT_ATTRIBUTE(format_idx, first_va)\
@@ -147,6 +148,66 @@ void bsp_sync(void);
   * @}
   */
 
+
+/** \defgroup DRMA Direct Remote Memory Access
+ *
+ * @{
+ *
+ */
+
+/** Makes a distributed array accessible to all processes. All processes must
+  * call this function collectively, while supplying the base address and size 
+  * of the locally held part. The registration takes effect after the next call
+  * to bsp_sync().
+  * 
+  * If this process does not have part in this distributed array, i.e it does
+  * not have data to share nor does not need data to read, it may register \c
+  * NULL as a zero size memory block. If, on the contrary, this process does
+  * require to access remote pieces of this array, it must offer at least a
+  * unique address even though the local memory block size is zero. Such unique
+  * addresses may be obtained, for example, by declaring a automatic variable
+  * on the stack.
+  *
+  * \param addr The base address of the local memory block
+  * \param size The size of the local memory block in bytes
+  *
+  * \throws bsp_abort When called outside SPMD section
+  * \throws bsp_abort When NULL is registered with non-zero size
+  * \throws bsp_abort When a negative size is given.
+  *
+  * \warning Registering memory that is not owned by this process will in
+  * general not lead to memory faults (usually called segmentation fault or
+  * general exception errror, depending on the OS) right away. These faults will
+  * usually only surface during a bsp_sync.
+  *
+  */
+void bsp_push_reg( const void * addr, bsp_size_t size );
+
+/** Removes the most recent registration of the memory blocks based at \a addr.
+  *
+  * \param addr The base of the memory area
+  *
+  * \throws bsp_abort When call outside SPMD section
+  * \throws bsp_Abort When no registration exists of a memory block based at \a addr
+  */
+void bsp_pop_reg( const void * addr );
+
+void bsp_put( bsp_pid_t pid, const void * src, void * dst,
+        bsp_size_t offset, bsp_size_t nbytes );
+
+void bsp_hpput( bsp_pid_t pid, const void * src, void * dst,
+        bsp_size_t offset, bsp_size_t nbytes );
+
+void bsp_get( bsp_pid_t pid, const void * src, bsp_size_t offset,
+        void * dst, bsp_size_t nbytes );
+
+void bsp_hpget( bsp_pid_t pid, const void * src, bsp_size_t offset,
+        void * dst, bsp_size_t nbytes );
+
+
+/** 
+ * @}
+ */
 
 #ifdef __cplusplus
 }
