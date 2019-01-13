@@ -35,13 +35,13 @@ void A2A::send( int dst_pid, const void * data, size_t size )
     std::memcpy( &m_send_bufs[dst_pid][offset], data, size );
 }
 
-bool A2A::recv( int src_pid, const void ** data, size_t size ) {
+bool A2A::recv( int src_pid, const void *& data, size_t size ) {
     assert( src_pid >= 0 );
     assert( src_pid < m_nprocs );
 
     size_t o = m_recv_offsets[src_pid];
     if ( m_recv_sizes[src_pid] - o  >= size ) {
-        *data = static_cast< const void *>( &m_recv_bufs[src_pid][o] );
+        data = static_cast< const void *>( &m_recv_bufs[src_pid][o] );
         m_recv_offsets[src_pid] += size;
         return true;
     }

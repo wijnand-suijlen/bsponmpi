@@ -17,7 +17,7 @@ public:
             size_t max_msg_size = std::numeric_limits<int>::max() );
     
     void send( int dst_pid, const void * data, size_t size );
-    bool recv( int src_pid, const void ** data, size_t size );
+    bool recv( int src_pid, const void * & data, size_t size );
     
     void exchange( MPI_Comm comm ) ;
 

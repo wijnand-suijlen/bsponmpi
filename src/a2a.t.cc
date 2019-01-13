@@ -33,7 +33,7 @@ void test_1( MPI_Comm comm, int pid, int nprocs )
             int i = pid;
             const void * data = NULL;
             int m = 0;
-            while ( a2a.recv( p, &data, rs[i] ) ) {
+            while ( a2a.recv( p, data, rs[i] ) ) {
                 if (memcmp( data, recv[i], rs[i] ) != 0 ) {
                     printf("[%d] wrong data from process %d\n", pid, p );
                     printf("[%d] Expected '%s' from %d\n", pid, recv[i], p );
@@ -49,7 +49,7 @@ void test_1( MPI_Comm comm, int pid, int nprocs )
     else {
         const void * data = NULL;
         for (int p = 0; p < nprocs; ++p ) {
-            if ( a2a.recv(p, &data, 1) ) {
+            if ( a2a.recv(p, data, 1) ) {
                 printf("[%d] Unexpected message from %d\n", pid, p );
                 std::abort();
             }

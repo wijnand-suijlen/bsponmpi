@@ -8,6 +8,13 @@ set(CMAKE_CXX_FLAGS "-Wall -Wextra -g -pedantic -std=c++03")
 
 enable_testing()
 
+function( add_unit_test NAME  )
+    set( exe "unit_test_${NAME}")
+    add_executable( ${exe} src/${NAME}.t.cc ${ARGN} )
+    set( testname "unit_test_${NAME}" )
+    add_test( NAME "${testname}" COMMAND ${exe} )
+endfunction()
+
 function( add_mpi_unit_test NAME P )
     set( exe "unit_test_${NAME}")
     add_executable( ${exe} src/${NAME}.t.cc ${ARGN} )
@@ -36,6 +43,7 @@ target_link_libraries( bsponmpi ${MPI_C_LIBRARIES})
 
 # Unit tests
 add_mpi_unit_test( a2a 3 src/a2a.cc )
+add_unit_test( uintserialize )
 
 # API tests
 add_mpi_test( nprocs 1 ok 2 )
