@@ -6,9 +6,7 @@ Unbuf::Unbuf( size_t max_msg_size, MPI_Comm comm)
    : m_comm(MPI_COMM_NULL)
    , m_max_msg_size( max_msg_size )
 {
-    printf("unbuf dup\n");
     MPI_Comm_dup( comm, &m_comm );
-    printf("unbuf succes\n");
 }
 
 Unbuf::~Unbuf() {

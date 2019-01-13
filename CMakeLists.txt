@@ -55,4 +55,5 @@ add_mpi_test( sync 1 ok 3 )
 add_mpi_test( sync 2 fail 4 )
 add_mpi_test( init 1 ok 2 )
 add_mpi_test( init 2 ok 8 )
+add_mpi_test( paper_example_reverse 1 ok 5 ) 
 

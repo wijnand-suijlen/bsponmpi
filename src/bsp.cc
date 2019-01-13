@@ -165,6 +165,30 @@ void bsp_sync()
     }
 }
 
+void bsp_push_reg( const void * addr, bsp_size_t size )
+{
+    if (!s_spmd && !s_spmd->ended())
+        bsp_abort("bsp_push_reg: can only be called within SPMD section\n");
+
+    if (size < 0)
+        bsp_abort("bsp_push_reg: memory size must be positive\n");
+
+    s_rdma->push_reg( const_cast<void*>(addr), size );
+}
+
+void bsp_pop_reg( const void * addr )
+{
+    if (!s_spmd && !s_spmd->ended())
+        bsp_abort("bsp_pop_reg: can only be called within SPMD section\n");
+
+    bsplib::Rdma::MemslotID slot = s_rdma->lookup_reg( addr );
+    if (bsplib::Rdma::MemslotID(-1) == slot )
+        bsp_abort("bsp_pop_reg: memory at address %p was not registered\n",
+                addr );
+
+    s_rdma->pop_reg( slot );
+}
+
 void bsp_put( bsp_pid_t pid, const void * src, void * dst,
         bsp_size_t offset, bsp_size_t nbytes )
 {
