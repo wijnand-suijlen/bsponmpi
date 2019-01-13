@@ -4,7 +4,7 @@ project(BSPonMPI2)
 find_package(MPI)
 
 set(CMAKE_C_FLAGS "-Wall -Wextra -g -pedantic -std=c89")
-set(CMAKE_CXX_FLAGS "-Wall -Wextra -g -pedantic -std=c++03")
+set(CMAKE_CXX_FLAGS "-Wall -Wextra -g -pedantic -std=c++11" )
 
 enable_testing()
 
@@ -37,7 +37,7 @@ endfunction()
 # THe library itself
 include_directories( ${MPI_INCLUDE_PATH} )
 include_directories( include )
-add_library( bsponmpi src/bsp.cc src/spmd.cc )
+add_library( bsponmpi src/bsp.cc src/spmd.cc src/a2a.cc src/unbuf.cc src/rdma.cc)
 target_link_libraries( bsponmpi ${MPI_C_LIBRARIES})
 
 

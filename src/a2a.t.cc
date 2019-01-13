@@ -6,7 +6,7 @@ using namespace bsplib;
 
 void test_1( MPI_Comm comm, int pid, int nprocs )
 {
-    A2A a2a( pid, nprocs, 10 );
+    A2A a2a( comm, 10 );
 
     char msg1[] = "Hi, dit is een test";
     char msg2[] = "Boe";
@@ -16,7 +16,7 @@ void test_1( MPI_Comm comm, int pid, int nprocs )
     a2a.send( 1 % nprocs, msg2, sizeof(msg2) );
     a2a.send( 2 % nprocs, msg3, sizeof(msg3) );
 
-    a2a.exchange( comm );
+    a2a.exchange( );
 
     char recv1[ sizeof(msg1) ];
     char recv2[ sizeof(msg2) ];
@@ -33,7 +33,7 @@ void test_1( MPI_Comm comm, int pid, int nprocs )
             int i = pid;
             const void * data = NULL;
             int m = 0;
-            while ( a2a.recv( p, data, rs[i] ) ) {
+            while ( data = a2a.recv_top(p), a2a.recv_pop( p, rs[i] ) ) {
                 if (memcmp( data, recv[i], rs[i] ) != 0 ) {
                     printf("[%d] wrong data from process %d\n", pid, p );
                     printf("[%d] Expected '%s' from %d\n", pid, recv[i], p );
@@ -49,7 +49,8 @@ void test_1( MPI_Comm comm, int pid, int nprocs )
     else {
         const void * data = NULL;
         for (int p = 0; p < nprocs; ++p ) {
-            if ( a2a.recv(p, data, 1) ) {
+            data = a2a.recv_top(p);
+            if ( a2a.recv_pop(p, 1) ) {
                 printf("[%d] Unexpected message from %d\n", pid, p );
                 std::abort();
             }

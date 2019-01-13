@@ -26,6 +26,7 @@ Spmd :: Spmd( int nprocs )
 
 Spmd :: ~Spmd() {
     MPI_Comm_free( &m_comm );
+    m_comm = MPI_COMM_NULL;
 }
 
 int Spmd :: end_sync() {

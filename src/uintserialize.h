@@ -13,7 +13,7 @@ struct UIntSerialize{
 
     typedef unsigned char Buffer[value];
 
-    int write( UInt x, Buffer & bytes ) {
+    static int write( UInt x, Buffer & bytes ) {
         int i = 0;
         do {
             unsigned char m = (1 << (CHAR_BIT-1));
@@ -25,7 +25,7 @@ struct UIntSerialize{
         return i;
     }
 
-    int read( const unsigned char * cs, UInt & x ) {
+    static int read( const unsigned char * cs, UInt & x ) {
         x = 0;
         int i = 0;
         unsigned char m = (1 << (CHAR_BIT-1));

@@ -20,6 +20,8 @@ public:
     int normal_sync(); // return non-zero on error
     int end_sync();   // return non-zero on error
 
+    MPI_Comm comm() const { return m_comm; }
+
 private:
     MPI_Comm m_comm;
     bool m_ended;

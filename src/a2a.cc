@@ -1,22 +1,43 @@
 #include "a2a.h"
 
 #include <cstring>
+#include <mpi.h>
 
 namespace bsplib {
 
-A2A::A2A( int pid, int nprocs, size_t max_msg_size )
-    : m_pid( pid )
-    , m_nprocs( nprocs )
+A2A::A2A( MPI_Comm comm, size_t max_msg_size )
+    : m_pid( )
+    , m_nprocs( )
     , m_max_msg_size( max_msg_size )
-    , m_send_sizes( nprocs )
-    , m_send_offsets( nprocs )
-    , m_send_bufs( nprocs )
-    , m_recv_sizes( nprocs )
-    , m_recv_offsets( nprocs )
-    , m_recv_bufs( nprocs )
-    , m_reqs( 2*nprocs, MPI_REQUEST_NULL )
-    , m_ready( 2*nprocs )
-{ }
+    , m_send_sizes()
+    , m_send_offsets()
+    , m_send_bufs()
+    , m_recv_sizes()
+    , m_recv_offsets()
+    , m_recv_bufs()
+    , m_reqs()
+    , m_ready()
+    , m_comm( MPI_COMM_NULL )
+{ 
+    MPI_Comm_dup( comm, &m_comm );
+    MPI_Comm_rank(m_comm, &m_pid );
+    MPI_Comm_size(m_comm, &m_nprocs );
+
+    m_send_sizes.resize( m_nprocs );
+    m_send_offsets.resize( m_nprocs );
+    m_send_bufs.resize( m_nprocs );
+    m_recv_sizes.resize( m_nprocs );
+    m_recv_offsets.resize( m_nprocs );
+    m_recv_bufs.resize( m_nprocs );
+    m_reqs.resize( 2*m_nprocs, MPI_REQUEST_NULL );
+    m_ready.resize( 2*m_nprocs );
+}
+
+A2A::~A2A()
+{
+    MPI_Comm_free( &m_comm );
+    m_comm = MPI_COMM_NULL;
+}
 
 void A2A::send( int dst_pid, const void * data, size_t size )
 {
@@ -35,13 +56,20 @@ void A2A::send( int dst_pid, const void * data, size_t size )
     std::memcpy( &m_send_bufs[dst_pid][offset], data, size );
 }
 
-bool A2A::recv( int src_pid, const void *& data, size_t size ) {
+const void * A2A::recv_top( int src_pid ) const {
+    assert( src_pid >= 0 );
+    assert( src_pid < m_nprocs );
+
+    size_t o = m_recv_offsets[src_pid];
+    return static_cast< const void *>( &m_recv_bufs[src_pid][o] );
+}
+
+bool A2A::recv_pop( int src_pid, size_t size ) {
     assert( src_pid >= 0 );
     assert( src_pid < m_nprocs );
 
     size_t o = m_recv_offsets[src_pid];
     if ( m_recv_sizes[src_pid] - o  >= size ) {
-        data = static_cast< const void *>( &m_recv_bufs[src_pid][o] );
         m_recv_offsets[src_pid] += size;
         return true;
     }
@@ -50,14 +78,14 @@ bool A2A::recv( int src_pid, const void *& data, size_t size ) {
     }
 }
 
-void A2A::exchange( MPI_Comm comm ) 
+void A2A::exchange( )
 {
     // exchange data sizes. 
     // In normal cases, Bruck's algorithm will be used, 
     // so this will cost about O( log P )
     MPI_Alltoall( m_send_sizes.data(), sizeof(size_t), MPI_BYTE,
             m_recv_sizes.data(), sizeof(size_t), MPI_BYTE,
-            comm );
+            m_comm );
 
     // Ensure correct size memory buffers
     for (int p = 0; p < m_nprocs; ++p ) {
@@ -87,7 +115,7 @@ void A2A::exchange( MPI_Comm comm )
             if (recv_size > 0 )
                 MPI_Irecv( m_recv_bufs[p].data() + m_recv_offsets[p],
                         recv_size, MPI_BYTE, p,
-                        tag, comm, & m_reqs[p] );
+                        tag, m_comm, & m_reqs[p] );
             
             m_recv_sizes[p] -= recv_size;
             m_recv_offsets[p] += recv_size;
@@ -103,7 +131,7 @@ void A2A::exchange( MPI_Comm comm )
             if (send_size > 0 )
                 MPI_Isend( m_send_bufs[p].data() + m_send_offsets[p],
                         send_size, MPI_BYTE, p,
-                        tag, comm, & m_reqs[m_nprocs + p ] );
+                        tag, m_comm, & m_reqs[m_nprocs + p ] );
             
             m_send_sizes[p] -= send_size;
             m_send_offsets[p] += send_size;
