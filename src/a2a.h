@@ -8,6 +8,8 @@
 
 #include <mpi.h>
 
+#include "uintserialize.h"
+
 namespace bsplib {
  
 class A2A
@@ -20,7 +22,7 @@ public:
     int pid() const { return m_pid; }
     int nprocs() const { return m_nprocs; }
 
-    void send( int dst_pid, const void * data, size_t size );
+    void * send( int dst_pid, const void * data, size_t size );
     size_t send_size( int dst_pid ) const
     { return m_send_sizes[ dst_pid ]; }
 
@@ -65,6 +67,26 @@ private:
     std::vector< int > m_ready;
     MPI_Comm m_comm;
 };
+
+template <typename UInt>
+void serial( A2A & a2a, int pid, UInt x ) {
+    typedef UIntSerialize< UInt > S;     
+    typename S::Buffer buf;
+    { const int n = S::write(x, buf );
+      a2a.send( pid, buf, n );
+    }
+}
+
+template <typename UInt>
+void deserial( A2A & a2a, int pid, UInt & x ) {
+    typedef UIntSerialize< UInt > S;     
+    const unsigned char * m 
+        = static_cast<const unsigned char *>(a2a.recv_top(pid));
+    { const int n = S::read( m , x );
+      a2a.recv_pop( pid, n );
+    }
+}
+
 
 }
 

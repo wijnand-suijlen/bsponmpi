@@ -406,6 +406,9 @@ void bsp_set_tagsize( bsp_size_t *tag_nbytes );
  * \throws bsp_abort When called outside SPMD section
  * \throws bsp_abort When \a pid is not valid.
  * \throws bsp_abort When a negative size is given.
+ * \throws bsp_abort When \a payload_nbytes equals \c bsp_size_t(-1), which may
+ *                   happen if #bsp_size_t is an unsigned data type. 
+ *
  */
 void bsp_send( bsp_pid_t pid, const void * tag, const void * payload, 
         bsp_size_t payload_nbytes);
@@ -420,6 +423,8 @@ void bsp_send( bsp_pid_t pid, const void * tag, const void * payload,
  *
  * \throws bsp_abort When called outside SPMD section
  * \throws bsp_abort When \a nmessages or \a accum_nbytes is set to \c NULL.
+ * \throws bsp_abort When the number of messages exceeds capacity of #bsp_size_t
+ * \throws bsp_abort When the total payload size exceeds capacity of #bsp_size_t
  */
 void bsp_qsize( bsp_size_t * nmessages, bsp_size_t * accum_nbytes );
 
@@ -446,8 +451,10 @@ void bsp_get_tag( bsp_size_t * status, void * tag );
  * 
  * \throws bsp_abort When called outside SPMD section
  * \throws bsp_abort When \a payload is \c NULL and \a reception_nbytes was not zero.
+ * \throws bsp_abort When \a reception_nbytes was negative
+ * \throws bsp_abort When the receive queue was empty.
  */
-void bsp_move( void * payload, int reception_nbytes );
+void bsp_move( void * payload, bsp_size_t reception_nbytes );
 
 /** Returns the length of the payload of the first message in the queue,
  * sets a pointer to the tag and to the payload as held in the buffer, and

@@ -39,7 +39,7 @@ A2A::~A2A()
     m_comm = MPI_COMM_NULL;
 }
 
-void A2A::send( int dst_pid, const void * data, size_t size )
+void * A2A::send( int dst_pid, const void * data, size_t size )
 {
     assert( dst_pid >= 0 );
     assert( dst_pid < m_nprocs );
@@ -53,7 +53,9 @@ void A2A::send( int dst_pid, const void * data, size_t size )
                 );
     }
     m_send_bufs[ dst_pid ].resize( m_send_sizes[ dst_pid ] );
-    std::memcpy( &m_send_bufs[dst_pid][offset], data, size );
+    void * send_buf = &m_send_bufs[dst_pid][offset];
+    std::memcpy( send_buf , data, size );
+    return send_buf;
 }
 
 void A2A::exchange( )

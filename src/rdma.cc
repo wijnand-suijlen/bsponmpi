@@ -1,4 +1,5 @@
 #include "rdma.h"
+#include "exception.h"
 
 namespace bsplib {
 

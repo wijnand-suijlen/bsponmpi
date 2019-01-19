@@ -37,7 +37,10 @@ endfunction()
 # THe library itself
 include_directories( ${MPI_INCLUDE_PATH} )
 include_directories( include )
-add_library( bsponmpi src/bsp.cc src/spmd.cc src/a2a.cc src/unbuf.cc src/rdma.cc)
+add_library( bsponmpi 
+        src/bsp.cc src/spmd.cc src/a2a.cc src/unbuf.cc src/rdma.cc
+        src/bsmp.cc  
+        )
 target_link_libraries( bsponmpi ${MPI_C_LIBRARIES})
 
 

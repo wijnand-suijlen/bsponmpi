@@ -5,10 +5,6 @@
 #include "unbuf.h"
 #include "uintserialize.h"
 
-#include <stdexcept>
-#include <sstream>
-#include <string>
-
 #if __cplusplus >= 201103L
 #include <unordered_map>
 #else
@@ -21,35 +17,7 @@ namespace bsplib {
 
 class Rdma { 
 public:
-    struct exception : std::exception{ 
-    public:
-        explicit exception(const char * name) 
-          : m_stream()
-          , m_buf()
-        { m_stream << name ; }
-
-        exception( const exception & e )
-          : m_stream( e.m_stream.str() )
-          , m_buf( )
-        {}
-
-        template <typename T>
-        exception & operator<<( const T & val )
-        { m_stream << val; return *this; }
-
-        virtual const char * what() const throw()
-        { m_buf = m_stream.str();
-          return m_buf.c_str(); 
-        }
-
-        std::string str() const { return m_stream.str(); }
-
-    private:
-        std::ostringstream m_stream;
-        mutable std::string m_buf;
-    };
-
-    struct Memslot {
+        struct Memslot {
         void * addr;
         size_t size;
     };
@@ -104,25 +72,6 @@ public:
     void sync( );
 
 private:
-    template <typename UInt>
-    static void serial( A2A & a2a, int pid, UInt x ) {
-        typedef UIntSerialize< UInt > S;     
-        typename S::Buffer buf;
-        { const int n = S::write(x, buf );
-          a2a.send( pid, buf, n );
-        }
-    }
-
-    template <typename UInt>
-    static void deserial( A2A & a2a, int pid, UInt & x ) {
-        typedef UIntSerialize< UInt > S;     
-        const unsigned char * m 
-            = static_cast<const unsigned char *>(a2a.recv_top(pid));
-        { const int n = S::read( m , x );
-          a2a.recv_pop( pid, n );
-        }
-    }
-
 #if __cplusplus >= 201103L
     typedef std::unordered_map< void * , std::list< MemslotID > > Reg;
 #else

@@ -1,16 +1,20 @@
 #include "bsp.h"
 #include "spmd.h"
 #include "rdma.h"
+#include "bsmp.h"
+#include "exception.h"
 
 #include <cstdarg>
 #include <cstdio>
 #include <cstdlib>
 #include <cassert>
+#include <limits>
 
 #include <mpi.h>
 
 static bsplib::Spmd * s_spmd = NULL;
 static bsplib::Rdma * s_rdma = NULL;
+static bsplib::Bsmp * s_bsmp = NULL;
 
 static void bsp_finalize(void)
 {
@@ -102,6 +106,7 @@ void bsp_begin( bsp_pid_t maxprocs )
         std::exit(0);
     }
     s_rdma = new bsplib::Rdma( s_spmd->comm(), INT_MAX );
+    s_bsmp = new bsplib::Bsmp( s_spmd->comm(), INT_MAX );
 }
 
 void bsp_end() 
@@ -119,6 +124,8 @@ void bsp_end()
     
     delete s_rdma;
     s_rdma = NULL;
+    delete s_bsmp;
+    s_bsmp = NULL;
 }
 
 bsp_pid_t bsp_nprocs()
@@ -160,8 +167,15 @@ void bsp_sync()
     try {
         s_rdma->sync( );
     }
-    catch( bsplib :: Rdma :: exception & e ) {
-        bsp_abort("bsp_sync/%s\n", e.str().c_str() );
+    catch( bsplib :: exception & e ) {
+        bsp_abort("bsp_sync - RDMA error by %s\n", e.str().c_str() );
+    }
+
+    try {
+        s_bsmp->sync( );
+    }
+    catch( bsplib  :: exception & e ) {
+        bsp_abort("bsp_sync - BSMP error by %s\n", e.str().c_str() );
     }
 }
 
@@ -362,4 +376,122 @@ void bsp_hpget( bsp_pid_t pid, const void * src, bsp_size_t offset,
     else
         s_rdma->hpget( pid, src_slot_id , offset, dst, nbytes );
 }
+
+void bsp_set_tagsize( bsp_size_t * tag_nbytes )
+{
+    if (!s_spmd && !s_spmd->ended())
+        bsp_abort("bsp_set_tagsize: can only be called within SPMD section\n");
+
+    if (tag_nbytes == NULL)
+        bsp_abort("bsp_set_tagsize: NULL ptr as argument is now allowed\n");
+
+    if (*tag_nbytes < 0 )
+        bsp_abort("bsp_set_tagsize: Tag size may not be negative\n");
+
+    *tag_nbytes = s_bsmp->set_tag_size( *tag_nbytes );
+}
+
+void bsp_send( bsp_pid_t pid, const void * tag, const void * payload,
+        bsp_size_t payload_nbytes )
+{
+    if (!s_spmd && !s_spmd->ended())
+        bsp_abort("bsp_send: can only be called within SPMD section\n");
+
+    if (pid < 0 || pid > s_spmd->nprocs())
+        bsp_abort("bsp_send: The source process ID does not exist\n");
+
+    if (payload_nbytes < 0 )
+        bsp_abort("bsp_send: Payload size may not be negative\n");
+
+    if (payload_nbytes == bsp_size_t(-1))
+        bsp_abort("bsp_send: Invalid payload size, becaues it is also "
+                 "used as end marker\n");
+
+    s_bsmp->send( pid, tag, payload, payload_nbytes );
+}
+
+void bsp_qsize( bsp_size_t * nmessages, bsp_size_t * accum_nbytes )
+{
+    if (!s_spmd && !s_spmd->ended())
+        bsp_abort("bsp_qsize: can only be called within SPMD section\n");
+
+    if ( nmessages == NULL || accum_nbytes == NULL )
+        bsp_abort("bsp_qsize: both arguments may not be NULL\n");
+
+    size_t bsp_size_max = std::numeric_limits<bsp_size_t>::max();
+    if ( s_bsmp->n_total_messages() > bsp_size_max )
+        bsp_abort("bsp_qsize: Integer overflow while querying number of "
+                "messages in queue. There are %zu messages while the data"
+                " type allows only %zu\n", s_bsmp->n_total_messages(),
+                bsp_size_max );
+
+   if ( s_bsmp->total_payload() > bsp_size_max )
+        bsp_abort("bsp_qsize: Integer overflow while querying total amount of "
+                "payload in queue. The total payload size is %zu  while the data"
+                " type allows only %zu\n", s_bsmp->total_payload(),
+                bsp_size_max );
+
+   * nmessages = s_bsmp->n_total_messages();
+   * accum_nbytes = s_bsmp->total_payload();
+}
+
+void bsp_get_tag( bsp_size_t * status, void * tag )
+{
+    if (!s_spmd && !s_spmd->ended())
+        bsp_abort("bsp_get_tag: can only be called within SPMD section\n");
+
+    if ( status == NULL )
+        bsp_abort("bsp_get_tag: first arguments may not be NULL\n");
+
+    size_t tag_size = s_bsmp->recv_tag_size();
+    if ( tag == NULL && tag_size  > 0 )
+        bsp_abort("bsp_get_tag: tag must point to a block of available "
+                "memory of at least %zu bytes long\n", tag_size );
+
+    if ( s_bsmp->empty() ) {
+        *status = bsp_size_t(-1);
+    }
+    else {
+        *status = s_bsmp->payload_size();
+        std::memcpy( tag, s_bsmp->tag(), tag_size );
+    }
+}
+
+void bsp_move( void * payload, bsp_size_t reception_nbytes )
+{
+     if (!s_spmd && !s_spmd->ended())
+        bsp_abort("bsp_move: can only be called within SPMD section\n");
+
+     if (reception_nbytes < 0 )
+         bsp_abort("bsp_move: size argument may not be negative\n");
+
+     if ( payload == NULL && reception_nbytes > 0 )
+        bsp_abort("bsp_move: payload may not be NULL if reception_nbytes is non-zero\n");
+
+     if ( s_bsmp->empty() )
+         bsp_abort("bsp_move: Mesaage queue was empty\n");
+
+     size_t size = std::min< size_t >( reception_nbytes, s_bsmp->payload_size() );
+     std::memcpy( payload, s_bsmp->payload(), size );
+     s_bsmp->pop();
+}
+
+bsp_size_t bsp_hpmove( void ** tag_ptr, void ** payload_ptr )
+{
+     if (!s_spmd && !s_spmd->ended())
+        bsp_abort("bsp_hpmove: can only be called within SPMD section\n");
+
+     if ( tag_ptr == NULL || payload_ptr == NULL )
+        bsp_abort("bsp_hpmove: pointer arugments may not be NULL\n");
+
+     if ( s_bsmp->empty() )
+         return bsp_size_t(-1);
+
+     *tag_ptr = s_bsmp->tag();
+     *payload_ptr = s_bsmp->payload();
+     size_t size = s_bsmp->payload_size();
+     s_bsmp->pop();
+     return size;
+}
+
 
