@@ -7,8 +7,24 @@
 extern "C" {
 #endif
 
+/** \defgroup BSP_TYPES Convenience typedefs
+ *
+ * These are used as convenience to switch between compatibility modes.
+ * By default this implementation is compatible with BSPlib 1998.
+ *
+ * @{ 
+ */
+
+/** Data type large enough to store the number of processes */
 typedef int bsp_pid_t;
+
+/** Data type large enough to express the volume in any communication request */
 typedef int bsp_size_t;
+
+/**
+  * @}
+  *
+  */
 
 #ifdef _GNUC_
   #define BSPONMPI_PRINTF_FORMAT_ATTRIBUTE(format_idx, first_va)\
@@ -20,9 +36,57 @@ typedef int bsp_size_t;
 #endif
 
 
-/** \defgroup SPMD SPMD Framework
+/** \defgroup BSP_SPMD SPMD Framework
+ *  The SPMD framework enables writing programs in Single Program Multiple Data
+ * style. This means that the runtime system will start the same program
+ * multiple times and will connect the resulting processes through a communications
+ * system (see \ref BSP_DRMA and \ref BSP_BSMP). A process can identify itself
+ * only through the the bsp_pid() function, which returns a unique value \f$ 0
+ * \leq \texttt{bsp\_pid()} < \texttt{bsp\_nprocs()}\f$ for each process.
  *
-  *  @{
+ * Because the whole need not to be SPMD, the programmer should enclose the SPMD
+ * part of her program in a function which has as first statement bsp_begin()
+ * and as last statement a call to bsp_end(). This function may be main(), but
+ * if it is not, the main() function must call bsp_init() as first statement
+ * with a reference to the SPMD function. 
+ *
+ * Example 1
+ * \code
+ * #include <stdio.h>
+ * #include <bsp.h>
+ *
+ * void main(void) { 
+ *   bsp_begin( bsp_nprocs() );
+ *     printf("Hello BSP Worldwide from process %d of %d\n",
+ *          bsp_pid(), bsp_nprocs() );
+ *   bsp_end();
+ * }
+ * \endcode
+ *
+ *
+ * Example 2
+ * \code
+ * #include <stdio.h>
+ * #include <bsp.h>
+ *
+ * static int s_nprocs;
+ * 
+ * void spmd_part( void ) {
+ *   bsp_begin( s_nprocs );
+ *     printf("Hello BSP Worldwide from process %d of %d\n",
+ *            bsp_pid(), bsp_nprocs() );
+ *   bsp_end();
+ * }
+ *
+ * void main(int argc, char *argv[]) {
+ *    bsp_init( spmd_part, argc, argv);
+ *    printf("Please enter number of processes: ");
+ *    scanf("%d", &s_nprocs );
+ *    spmd_part();
+ * }
+ * \endcode
+ *
+ *  @{
  */
 
 
@@ -96,10 +160,23 @@ void bsp_init( void (*spmd_part)(void), int argc, char *argv[]) ;
   \param format A printf style format string. 
   \param ...    The values as referenced by the format string
 
-  */
+  \returns never
+*/
 void bsp_abort( const char * format, ... )
    BSPONMPI_PRINTF_FORMAT_ATTRIBUTE(1,2); 
 
+
+/** Terminates the program abnormally from any place in the program by 
+  any process, while mentioning the message as produced by the \c printf style
+  format. This does not require a call to bsp_sync(). If more than one process
+  calls bsp_abort() then either one, all, or a subset of processes may print
+  their error message.
+
+  \param format A printf style format string. 
+  \param ap The \c va_list list of arguments to the format string.
+
+  \returns never
+*/
 void bsp_abort_va( const char * format, va_list ap );
 
 /** Returns the number of processes available to the SPMD section. Only
@@ -111,7 +188,7 @@ void bsp_abort_va( const char * format, va_list ap );
 bsp_pid_t bsp_nprocs(void);
 
 /** Returns the process ID \f$ s \f$ of a particular process in the SPMD
- * section. If \f$ p \f$ is the number of processes, then \f$ 0 \leq s < p$.
+ * section. If \f$ p \f$ is the number of processes, then \f$ 0 \leq s < p\f$.
  * This value is unique for this process in that SPMD section.
  *
  * \returns The number of processes. This value will be strictly greater than 0.
@@ -136,10 +213,12 @@ bsp_pid_t bsp_pid(void);
 double bsp_time(void);
 
 
-/* Ends the computation phase and completes the superstep by performing the
+/** Ends the computation phase and completes the superstep by performing the
  * communication phase as prescribed by preceding calls to bsp_put(),
  * bsp_hpput(), bsp_get(), bsp_hpget(), and bsp_send().  A side-effect is that
  * all processes synchronise. After the call, a new superstep begins.
+ *
+ * \throws bsp_abort 
  */
 void bsp_sync(void);
 
@@ -149,7 +228,7 @@ void bsp_sync(void);
   */
 
 
-/** \defgroup DRMA Direct Remote Memory Access
+/** \defgroup BSP_DRMA Direct Remote Memory Access
  *
  * @{
  *
@@ -290,6 +369,7 @@ void bsp_put( bsp_pid_t pid, const void * src, void * dst,
  * \param offset The offset in number of bytes w.r.t to the base pointer at 
  *               the remotely registered memory block on process \a pid where
  *               the data should be read from 
+ * \param dst The local address where the retrieved data should be written.
  * \param nbytes Number of bytes of data that should be copied. The call
  *               has no effect when this is zero.
  *
@@ -328,6 +408,7 @@ void bsp_get( bsp_pid_t pid, const void * src, bsp_size_t offset,
  * \param offset The offset in number of bytes w.r.t to the base pointer at 
  *               the remotely registered memory block on process \a pid where
  *               the data should be read from 
+ * \param dst The local address where the retrieved data should be written.
  * \param nbytes Number of bytes of data that should be copied. The call
  *               has no effect when this is zero.
  *
@@ -350,7 +431,8 @@ void bsp_hpget( bsp_pid_t pid, const void * src, bsp_size_t offset,
  * @}
  */
 
-/** \defgroup BSMP Bulk Synchronous Message Passing
+/** \defgroup BSP_BSMP Bulk Synchronous Message Passing
+  *
   * @{
   */
 
@@ -376,8 +458,8 @@ void bsp_hpget( bsp_pid_t pid, const void * src, bsp_size_t offset,
  * are now being sent, \f$C\f$ the tag size that was given in the last call
  * to bsp_set_tagsize(). Directly after the bsp_begin() the state is
  * \f$(0, 0, 0)\f$. A call to \c bsp_set_tagsize(X) changes the state 
- * \f$(A, B, C) \rightto (A, B, X)\f$ and returns C. A bsp_sync() changes
- * the state \f$(A, B, C) \rightto (B, C, C)\f$.
+ * \f$(A, B, C) \rightarrow (A, B, X)\f$ and returns C. A bsp_sync() changes
+ * the state \f$(A, B, C) \rightarrow (B, C, C)\f$.
  *
  * \param tag_nbytes On entry the value is used to set the tag size for after
  * the next bsp_sync(). On exit the value is changed to the value that was
@@ -474,7 +556,9 @@ void bsp_move( void * payload, bsp_size_t reception_nbytes );
 */
 bsp_size_t bsp_hpmove( void ** tag_ptr, void ** payload_ptr );
 
-/* @} */
+/**
+ * @}
+ */
 
 #ifdef __cplusplus
 }

@@ -2,6 +2,7 @@ cmake_minimum_required(VERSION 3.13)
 project(BSPonMPI2) 
 
 find_package(MPI)
+find_package(doxygen)
 
 set(CMAKE_C_FLAGS "-Wall -Wextra -g -pedantic -std=c89")
 set(CMAKE_CXX_FLAGS "-Wall -Wextra -g -pedantic -std=c++11" )
@@ -37,7 +38,7 @@ endfunction()
 # THe library itself
 include_directories( ${MPI_INCLUDE_PATH} )
 include_directories( include )
-add_library( bsponmpi 
+add_library( bsponmpi SHARED
         src/bsp.cc src/spmd.cc src/a2a.cc src/unbuf.cc src/rdma.cc
         src/bsmp.cc  
         )
@@ -61,3 +62,8 @@ add_mpi_test( init 2 ok 8 )
 add_mpi_test( paper_example_reverse 1 ok 5 ) 
 add_mpi_test( paper_example_put_array 1 ok 7 ) 
 
+# Documentation
+set(DOXYGEN_GENERATE_HTML YES)
+set(DOXYGEN_GENERATE_MAN  YES)
+set(DOXYGEN_MAN_LINKS YES) # create individual entries for each primitive
+doxygen_add_docs( manual include/bsp.h )
