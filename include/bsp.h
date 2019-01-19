@@ -355,8 +355,117 @@ void bsp_hpget( bsp_pid_t pid, const void * src, bsp_size_t offset,
   */
 
 /** Set the tag size of messages for the next superstep and queries the previously
-  set value. */
-void bsp_set_tagsize( int *tag_nbytes );
+ * set value. The message tag is the fixed size part of a message. By default
+ * this value is zero. The function must be collectively called by all processes
+ * with the same value. The value returned through \a tag_nbytes is the 
+ * value that was given in the previous call to bsp_set_tagsize() or \c 0 if 
+ * there were no earlier calls.
+ *
+ * \note The definitions in the original BSPlib paper and the man page in the
+ * Oxford BSP Toolset are rather vague. They both declare that the tag size
+ * value becomes valid after the next bsp_sync(). This implies that it could
+ * have been invalid before the bsp_sync() and that during that time it was not
+ * allowed to send and receive messages. The Oxford BSP Toolset v1.4 implementation
+ * implements slightly inconsistent behaviour, because it allows bsp_send() calls
+ * immediately following the bsp_set_tagsize() while it does not define whether
+ * or how to receive messages after the tag size has changed.
+ *
+ * \note A much preciser description would be to model this behaviour with a
+ * 3-tuple \f$(A, B, C)\f$, where \f$A\f$ is the tag size of the messages
+ * in the current receive queue, \f$B\f$ is the tag size of the messages that
+ * are now being sent, \f$C\f$ the tag size that was given in the last call
+ * to bsp_set_tagsize(). Directly after the bsp_begin() the state is
+ * \f$(0, 0, 0)\f$. A call to \c bsp_set_tagsize(X) changes the state 
+ * \f$(A, B, C) \rightto (A, B, X)\f$ and returns C. A bsp_sync() changes
+ * the state \f$(A, B, C) \rightto (B, C, C)\f$.
+ *
+ * \param tag_nbytes On entry the value is used to set the tag size for after
+ * the next bsp_sync(). On exit the value is changed to the value that was
+ * given in the previous call to bsp_set_tagsize().
+ *
+ * \throws bsp_abort When called outside SPMD section
+ * \throws bsp_abort When NULL is given
+ * \throws bsp_abort When a negative size is given.
+ */
+void bsp_set_tagsize( bsp_size_t *tag_nbytes );
+
+/** Send a message to another process. The tag and payload are copied right
+ * away, so that the memory pointed to by \a tag and \a payload can be reused
+ * right after the call. The message order is not guaranteed to be maintained
+ * at reception, not even for messages between the same process pair.
+ *
+ * \note A message with a zero size tag and no payload will be sent.
+ *  
+ * \param pid The destination process ID
+ * \param tag A pointer to the fixed size part of the message. This may be \c NULL
+ *            if active tag size zero as well.
+ * \param payload A pointer to the variable size part of the message. This may be 
+              \c NULL if the \a payload_nbytes is zero.
+ * \param payload_nbytes The size of the variable size part.
+ *
+ * \throws bsp_abort When called outside SPMD section
+ * \throws bsp_abort When \a pid is not valid.
+ * \throws bsp_abort When a negative size is given.
+ */
+void bsp_send( bsp_pid_t pid, const void * tag, const void * payload, 
+        bsp_size_t payload_nbytes);
+
+/** Returns the number of remaining messages in the message reception queue and
+ * their total size of their payloads. 
+ *
+ * \param nmessages On exit will be set to the number of remaining messages in
+ *                  recepetion queue. 
+ * \param accum_nbytes On exit will be set to the total payload size of all
+ *                  remaining messages in the reception queue. 
+ *
+ * \throws bsp_abort When called outside SPMD section
+ * \throws bsp_abort When \a nmessages or \a accum_nbytes is set to \c NULL.
+ */
+void bsp_qsize( bsp_size_t * nmessages, bsp_size_t * accum_nbytes );
+
+/** Copies the tag of the first message in the reception queue and sets
+  * \a status to the length of the payload. If no messages is available, 
+  * the tag will not be copied and \a status will be set to -1.
+  *
+  * \param status On exit will be set to the size of the payload of the first
+  * message in the reception  queue. If the queue is empty, will be set to -1.
+  * \param tag On exit the memory this pointer refers to will be overwritten
+  *            by the message tag. 
+  *
+  * \throws bsp_abort When called outside SPMD section
+  * \throws bsp_abort When \a tag is \c NULL and the tag size was not zero.
+  * \throws bsp_abort When \a status is \c NULL.
+ */
+void bsp_get_tag( bsp_size_t * status, void * tag );
+
+/** Copies the first \a reception_nbytes bytes from the payload of the first
+ * message in the queue to \a payload and removes it from the queue.
+ *
+ * \param payload the location to copy the payload to.
+ * \param reception_nbytes the number of bytes to copy from the payload
+ * 
+ * \throws bsp_abort When called outside SPMD section
+ * \throws bsp_abort When \a payload is \c NULL and \a reception_nbytes was not zero.
+ */
+void bsp_move( void * payload, int reception_nbytes );
+
+/** Returns the length of the payload of the first message in the queue,
+ * sets a pointer to the tag and to the payload as held in the buffer, and
+ * removes the message. The resulting pointers will be sufficiently aligned to
+ * hold any data type. If the queue was empty, -1 is returned.
+ *
+ * \param tag_ptr On exit this is set to the location where the tag is stored
+ *                in the receive buffer. The location is sufficiently aligned
+ *                to reference any data type.
+ * \param payload_ptr On exit this is set to the location where the payload is
+ *                stored in the receive buffer. The location is sufficently aligned
+ *                to reference any data type.
+ * \returns The size of the payload
+ *
+ * \throws bsp_abort When called outside SPMD section
+ * \throws bsp_abort When \a tag_ptr or \a payload_ptr are NULL. 
+*/
+bsp_size_t bsp_hpmove( void ** tag_ptr, void ** payload_ptr );
 
 /* @} */
 
