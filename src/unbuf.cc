@@ -45,13 +45,15 @@ void Unbuf :: start( )
        MPI_Irecv( addr, u.size, MPI_BYTE, u.pid, tag, m_comm, &m_reqs[j]);
    }
 
+   MPI_Barrier( m_comm ); // so we can use ready sends
+
    for ( size_t i = 0 ; i < m_sends.size(); ++j, ++i ) {
        Entry u = m_sends[i];
        size_t size = std::min( m_max_msg_size, u.size );
        char * addr = const_cast<char *>( u.addr );
        char * next_addr = addr + size;
        u.addr = next_addr;
-       MPI_Isend( addr, u.size, MPI_BYTE, u.pid, tag, m_comm, &m_reqs[j]);
+       MPI_Irsend( addr, u.size, MPI_BYTE, u.pid, tag, m_comm, &m_reqs[j]);
    }
 
    m_ready.resize( m_reqs.size() );

@@ -73,11 +73,17 @@ public:
     void push_reg( void * addr, size_t size );
     void pop_reg( MemslotID slot );
 
+    static MemslotID no_slot() { return MemslotID(-1); }
+    static MemslotID null_slot() { return MemslotID(-2); }
+
     MemslotID lookup_reg( const void * addr ) const
-    {   Reg::const_iterator i = m_register.find( const_cast<void*>(addr) );
+    {   
+        if (addr == NULL ) return null_slot();
+
+        Reg::const_iterator i = m_register.find( const_cast<void*>(addr) );
         if (i != m_register.end())
             return i->second.back();
-        return MemslotID(-1);
+        return no_slot(); 
     }
 
     const Memslot & slot( int pid, MemslotID slot ) const
@@ -140,15 +146,23 @@ private:
         ActionBuf( int nprocs )
             : m_actions()
             , m_counts( nprocs )
+            , m_get_buffer_offset( nprocs )
         {}
 
         std::vector< Action > m_actions;
         std::vector< size_t > m_counts;
+        std::vector< size_t > m_get_buffer_offset;
 
         void push_back( const Action & action )
         {   
             m_actions.push_back( action );
             m_counts[ action.target_pid ] += 1;
+        }
+
+        void set_get_buffer_offset( A2A & buf ) 
+        {
+            for ( int p = 0; p < buf.nprocs(); ++p ) 
+                m_get_buffer_offset[ p ] = buf.send_size( p );
         }
 
         void serialize( A2A & a2a );
@@ -159,6 +173,7 @@ private:
         {
             m_actions.clear();
             std::fill( m_counts.begin(), m_counts.end(), 0);
+            std::fill( m_get_buffer_offset.begin(), m_get_buffer_offset.end(), 0);
         }
     };
 
@@ -184,8 +199,8 @@ private:
     PushPopCommBuf m_send_push_pop_comm_buf;
     PushPopCommBuf m_recv_push_pop_comm_buf;
 
-    // execute puts 
-    void execute_puts();
+    void write_gets();
+    void write_puts();
 
 };
 

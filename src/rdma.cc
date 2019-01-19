@@ -29,14 +29,14 @@ void Rdma::put( const void * src,
 void Rdma::hpput( const void * src,
         int dst_pid, MemslotID dst_slot, size_t dst_offset, size_t size )
 {
-    const int pid = m_second_exchange.pid();
     char * addr = static_cast<char *>( slot(dst_pid, dst_slot).addr );
     char * null = NULL;
     size_t dst_addr = addr - null + dst_offset;
 
     size_t src_addr = static_cast<const char *>(src) - null;
 
-    Action action = { Action::HPPUT, dst_pid, pid, dst_pid, src_addr, dst_addr, size };
+    Action action = { Action::HPPUT, dst_pid, m_pid,
+                      dst_pid, src_addr, dst_addr, size };
     m_send_actions.push_back( action );
    
     m_unbuf.send( dst_pid, src, size );
@@ -45,36 +45,56 @@ void Rdma::hpput( const void * src,
 void Rdma::get( int src_pid, MemslotID src_slot, size_t src_offset,
         void * dst, size_t size )
 {
-    const int pid = m_second_exchange.pid();
     char * null = NULL;
     size_t dst_addr = static_cast<char *>(dst) - null;
 
     char * addr = static_cast<char *>( slot( src_pid, src_slot).addr );
     size_t src_addr = addr - null + src_offset;
 
-    Action action = { Action::GET, src_pid, src_pid, pid, src_addr, dst_addr, size  };
+    Action action = { Action::GET, src_pid, src_pid, m_pid, 
+                      src_addr, dst_addr, size  };
     m_send_actions.push_back( action );
 }
 
 void Rdma::hpget( int src_pid, MemslotID src_slot, size_t src_offset,
         void * dst, size_t size )
 {
-    const int pid = m_second_exchange.pid();
     char * null = NULL;
     size_t dst_addr = static_cast<char *>(dst) - null;
 
     char * addr = static_cast<char *>( slot( src_pid, src_slot ).addr );
     size_t src_addr = addr - null + src_offset;
 
-    Action action = { Action::HPGET, src_pid, src_pid, pid, src_addr, dst_addr, size  };
+    Action action = { Action::HPGET, src_pid, src_pid, m_pid, 
+                      src_addr, dst_addr, size  };
     m_send_actions.push_back( action );
 
     m_unbuf.recv( src_pid, dst, size );
 }
 
-void Rdma::execute_puts()
+void Rdma::write_gets()
 {
     for (int p = 0; p < m_nprocs; ++p){
+        m_second_exchange.recv_pop( p, m_recv_actions.m_get_buffer_offset[p] );
+        while ( m_second_exchange.recv_size( p ) > 0 ) {
+            size_t size, addr;
+            deserial( m_second_exchange, p, size );
+            deserial( m_second_exchange, p, addr );
+           
+            char * dst_addr = NULL;
+            dst_addr += addr;
+
+            memcpy( dst_addr, m_second_exchange.recv_top(p), size );
+            m_second_exchange.recv_pop(p, size );
+        }
+   }
+}
+
+
+void Rdma::write_puts()
+{
+    for (int p = 0; p < m_nprocs; ++p){
+        m_second_exchange.recv_rewind( p );
         while ( m_second_exchange.recv_size( p ) > 0 ) {
             size_t size, addr;
             deserial( m_second_exchange, p, size );
@@ -91,6 +111,8 @@ void Rdma::execute_puts()
 
 void Rdma::sync()
 {
+    m_send_actions.set_get_buffer_offset( m_second_exchange );
+
     // first exchange: gets, unbuffered requests, push/pop registers
     m_send_push_pop_comm_buf.serialize( m_first_exchange );
     m_send_actions.serialize( m_first_exchange );
@@ -107,7 +129,8 @@ void Rdma::sync()
 
     // perform the buffered puts (which includes the buffered gets)
     m_second_exchange.exchange( );
-    execute_puts() ;
+    write_gets();
+    write_puts() ;
 
     // wait for the unbuffered requests to finish
     m_unbuf.wait();
@@ -125,8 +148,10 @@ void Rdma::sync()
 
 void Rdma::ActionBuf::serialize( A2A & a2a ) 
 {
-    for (int p = 0; p < a2a.nprocs(); ++p )
+    for (int p = 0; p < a2a.nprocs(); ++p ) {
+        serial( a2a, p, m_get_buffer_offset[ p ] );
         serial( a2a, p, m_counts[ p ] );
+    }
 
     for (size_t i = 0; i < m_actions.size(); ++i ) 
     {
@@ -145,6 +170,7 @@ void Rdma::ActionBuf::deserialize( A2A & a2a )
     size_t n = 0;
     for (int p = 0; p < a2a.nprocs(); ++p )
     {
+        deserial( a2a, p, m_get_buffer_offset[ p ] );
         deserial( a2a, p, m_counts[ p ] );
         n += m_counts[p];
     }
@@ -224,7 +250,7 @@ void Rdma::PushPopCommBuf::serialize( A2A & a2a )
         }
     } }
 
-    // broadcast pupped slots
+    // broadcast popped slots
     { SizeSer::Buffer nbuf;
       const int n_nbuf = SizeSer::write( n_popped_slots, nbuf );
       for (int p = 0; p < a2a.nprocs(); ++p) {
@@ -273,7 +299,7 @@ void Rdma::PushPopCommBuf::deserialize( A2A & a2a )
 
         if ( p == 0 ) {
             n_popped_slots = n;
-            m_popped_slots.resize( n );
+            m_popped_slots.resize( n, no_slot() );
         } else if (n != n_popped_slots )
             throw exception("bsp_push_reg") <<
                 ": Not all processes registered the same number of memory "
@@ -281,17 +307,20 @@ void Rdma::PushPopCommBuf::deserialize( A2A & a2a )
                 << " blocks, while process " << p << " registerd " << n;
 
         for (size_t s = 0; s < n_popped_slots; ++s) {
-            MemslotID slotid;
+            MemslotID slotid = no_slot();
             deserial( a2a, p, slotid );
+            assert( slotid != no_slot() );
 
-            if (p == 0 ) {
-                m_popped_slots[s] = slotid;
-            }
-            else {
-                if (m_popped_slots[s] != slotid ) {
-                    throw exception("bsp_pop_reg") <<
-                        ": Processes 0 and " << p << " did not pop "
-                        "the same memory registration";
+            if ( slotid != null_slot() ) {
+                if ( m_popped_slots[s] == no_slot() ) {
+                    m_popped_slots[s] = slotid;
+                }
+                else {
+                    if (m_popped_slots[s] != slotid ) {
+                        throw exception("bsp_pop_reg") <<
+                            ": Processes 0 and " << p << " did not pop "
+                            "the same memory registration";
+                    }
                 }
             }
         }
@@ -308,13 +337,53 @@ void Rdma::PushPopCommBuf::execute( Rdma & rdma )
     for (size_t s = 0; s < m_popped_slots.size(); ++s) {
         MemslotID slot = m_popped_slots[s];
 
-        void * addr = rdma.m_used_slots[ pid + nprocs * slot ].addr;
-        rdma.m_register[ addr ].pop_back();
-        for (int p = 0; p < nprocs; ++p) {
-            rdma.m_used_slots[ slot * nprocs + p ].addr = NULL;
-            rdma.m_used_slots[ slot * nprocs + p ].size = 0;
+        if ( slot != no_slot() ) {
+            void * addr = rdma.m_used_slots[ pid + nprocs * slot ].addr;
+            Reg::iterator reg_entry = rdma.m_register.find( addr );
+            assert( reg_entry != rdma.m_register.end() );
+            reg_entry->second.pop_back();
+            if (reg_entry->second.empty())
+                rdma.m_register.erase( reg_entry );
+            
+            for (int p = 0; p < nprocs; ++p) {
+                rdma.m_used_slots[ slot * nprocs + p ].addr = NULL;
+                rdma.m_used_slots[ slot * nprocs + p ].size = 0;
+            }
+            rdma.m_free_slots.push_back( slot );
         }
-        rdma.m_free_slots.push_back( slot );
+        else
+        { // then all processes have popped NULL
+          // Let's delete the first full block of NULL we can encounter
+
+            Reg :: iterator i = rdma.m_register.find( NULL );
+            assert( i != rdma.m_register.end() );
+
+            std::list<MemslotID>::iterator j = i->second.begin();
+            for ( ; j != i->second.end(); ++j) {
+
+                slot = *j;
+
+                bool all_nulls = true;
+                for ( int p = 0; p < nprocs; ++p ) {
+                    if ( rdma.m_used_slots[ slot * nprocs + p ].addr != NULL ) {
+                        all_nulls = false;
+                        break;
+                    }
+                }
+
+                if ( all_nulls ) {
+                    i->second.erase( j );
+                    if (i->second.empty()) {
+                        rdma.m_register.erase( i );
+                    }
+                    break;
+                }
+            }
+            if ( j == i->second.end() ) 
+                throw exception("bsp_pop_reg") <<
+                    ": Tried to deregister NULL on all processes, but could not find a matching regisration (bsp_push_reg)";
+
+        }
     }
 
     /* do memory registrations */

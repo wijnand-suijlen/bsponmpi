@@ -21,9 +21,29 @@ public:
     int nprocs() const { return m_nprocs; }
 
     void send( int dst_pid, const void * data, size_t size );
+    size_t send_size( int dst_pid ) const
+    { return m_send_sizes[ dst_pid ]; }
 
-    const void * recv_top( int src_pid ) const;
-    bool recv_pop( int src_pid, size_t size );
+    const void * recv_top( int src_pid ) const {
+        size_t o = m_recv_offsets[src_pid];
+        return static_cast< const void *>( &m_recv_bufs[src_pid][o] );
+    }
+
+    bool recv_pop( int src_pid, size_t size ){
+        size_t o = m_recv_offsets[src_pid];
+        if ( m_recv_sizes[src_pid] - o  >= size ) {
+            m_recv_offsets[src_pid] += size;
+            return true;
+        }
+        else {
+            return false;
+        }
+    }
+
+    void recv_rewind( int src_pid ) {
+        m_recv_offsets[src_pid] = 0;
+    }
+    
     size_t recv_size( int src_pid ) const
     { return m_recv_sizes[ src_pid ] - m_recv_offsets[ src_pid ]; }
     

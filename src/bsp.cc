@@ -182,7 +182,7 @@ void bsp_pop_reg( const void * addr )
         bsp_abort("bsp_pop_reg: can only be called within SPMD section\n");
 
     bsplib::Rdma::MemslotID slot = s_rdma->lookup_reg( addr );
-    if (bsplib::Rdma::MemslotID(-1) == slot )
+    if ( s_rdma->no_slot() == slot )
         bsp_abort("bsp_pop_reg: memory at address %p was not registered\n",
                 addr );
 
@@ -192,11 +192,11 @@ void bsp_pop_reg( const void * addr )
 void bsp_put( bsp_pid_t pid, const void * src, void * dst,
         bsp_size_t offset, bsp_size_t nbytes )
 {
-    if (!s_spmd && !s_spmd->ended())
-        bsp_abort("bsp_put: can only be called within SPMD section\n");
-
     if (nbytes == 0) // ignore any empty writes
         return;
+
+    if (!s_spmd && !s_spmd->ended())
+        bsp_abort("bsp_put: can only be called within SPMD section\n");
 
     if (pid < 0 || pid > s_spmd->nprocs())
         bsp_abort("bsp_put: The destination process ID does not exist\n");
@@ -207,11 +207,18 @@ void bsp_put( bsp_pid_t pid, const void * src, void * dst,
     if (nbytes< 0)
         bsp_abort("bsp_put: The size was negative, which is illegal\n");
 
+    if ( dst == NULL )
+        bsp_abort("bsp_put: Destination address cannot be identified by NULL\n");
+
     using bsplib :: Rdma;
     Rdma::MemslotID dst_slot_id = s_rdma->lookup_reg( dst );
-    if ( dst_slot_id == Rdma::MemslotID(-1) )
+    if ( dst_slot_id == s_rdma->no_slot() )
         bsp_abort("bsp_put: Destination address %p was not registered\n",
                 dst );
+
+    if ( dst_slot_id == s_rdma->null_slot() )
+        bsp_abort("bsp_put: Destination may not be used because it was registered with NULL\n");
+
 
     Rdma::Memslot dst_slot = s_rdma->slot( pid, dst_slot_id );
 
@@ -227,11 +234,11 @@ void bsp_put( bsp_pid_t pid, const void * src, void * dst,
 void bsp_hpput( bsp_pid_t pid, const void * src, void * dst,
         bsp_size_t offset, bsp_size_t nbytes )
 {
-    if (!s_spmd && !s_spmd->ended())
-        bsp_abort("bsp_put: can only be called within SPMD section\n");
-
     if (nbytes == 0) // ignore any empty writes
         return;
+
+    if (!s_spmd && !s_spmd->ended())
+        bsp_abort("bsp_put: can only be called within SPMD section\n");
 
     if (pid < 0 || pid > s_spmd->nprocs())
         bsp_abort("bsp_hpput: The destination process ID does not exist\n");
@@ -242,12 +249,17 @@ void bsp_hpput( bsp_pid_t pid, const void * src, void * dst,
     if (nbytes< 0)
         bsp_abort("bsp_hpput: The size was negative, which is illegal\n");
 
+    if ( dst == NULL )
+        bsp_abort("bsp_hpput: Destination address cannot be identified by NULL\n");
 
     using bsplib :: Rdma;
     Rdma::MemslotID dst_slot_id = s_rdma->lookup_reg( dst );
-    if ( dst_slot_id == Rdma::MemslotID(-1) )
+    if ( dst_slot_id == s_rdma->no_slot() )
         bsp_abort("bsp_hpput: Destination address %p was not registered\n",
                 dst );
+
+    if ( dst_slot_id == s_rdma->null_slot() )
+        bsp_abort("bsp_hpput: Destination may not be used as it was registered with NULL\n");
 
     Rdma::Memslot dst_slot = s_rdma->slot( pid, dst_slot_id );
 
@@ -260,18 +272,18 @@ void bsp_hpput( bsp_pid_t pid, const void * src, void * dst,
     if (pid == s_spmd->pid() )
         memcpy( dst, src, nbytes);
     else
-        s_rdma->put( src, pid, dst_slot_id, offset, nbytes );
+        s_rdma->hpput( src, pid, dst_slot_id, offset, nbytes );
 
 }
 
 void bsp_get( bsp_pid_t pid, const void * src, bsp_size_t offset,
         void * dst, bsp_size_t nbytes )
 {
-    if (!s_spmd && !s_spmd->ended())
-        bsp_abort("bsp_get: can only be called within SPMD section\n");
-
     if (nbytes == 0) // ignore any empty reads
         return;
+
+    if (!s_spmd && !s_spmd->ended())
+        bsp_abort("bsp_get: can only be called within SPMD section\n");
 
     if (pid < 0 || pid > s_spmd->nprocs())
         bsp_abort("bsp_get: The source process ID does not exist\n");
@@ -282,14 +294,20 @@ void bsp_get( bsp_pid_t pid, const void * src, bsp_size_t offset,
     if (nbytes< 0)
         bsp_abort("bsp_get: The size was negative, which is illegal\n");
 
+    if ( src == NULL )
+        bsp_abort("bsp_get: Source address cannot be identified by NULL\n");
 
     using bsplib :: Rdma;
     Rdma::MemslotID src_slot_id = s_rdma->lookup_reg( src );
-    if ( src_slot_id == Rdma::MemslotID(-1) )
+    if ( src_slot_id == s_rdma->no_slot() )
         bsp_abort("bsp_get: Destination address %p was not registered\n",
                 src );
 
+    if ( src_slot_id == s_rdma->null_slot() )
+        bsp_abort("bsp_get: Source may not be used as it was registered with NULL\n");
+
     Rdma::Memslot src_slot = s_rdma->slot( pid, src_slot_id );
+
 
     if ( size_t(offset + nbytes) > src_slot.size )
         bsp_abort("bsp_get: Reads %zu bytes beyond registered "
@@ -303,11 +321,11 @@ void bsp_get( bsp_pid_t pid, const void * src, bsp_size_t offset,
 void bsp_hpget( bsp_pid_t pid, const void * src, bsp_size_t offset,
         void * dst, bsp_size_t nbytes )
 {
-    if (!s_spmd && !s_spmd->ended())
-        bsp_abort("bsp_hpget: can only be called within SPMD section\n");
-
     if (nbytes == 0) // ignore any empty reads
         return;
+
+    if (!s_spmd && !s_spmd->ended())
+        bsp_abort("bsp_hpget: can only be called within SPMD section\n");
 
     if (pid < 0 || pid > s_spmd->nprocs())
         bsp_abort("bsp_hpget: The source process ID does not exist\n");
@@ -318,14 +336,20 @@ void bsp_hpget( bsp_pid_t pid, const void * src, bsp_size_t offset,
     if (nbytes< 0)
         bsp_abort("bsp_hpget: The size was negative, which is illegal\n");
 
+    if ( src == NULL )
+        bsp_abort("bsp_hpget: Source address cannot be identified by NULL\n");
 
     using bsplib :: Rdma;
     Rdma::MemslotID src_slot_id = s_rdma->lookup_reg( src );
-    if ( src_slot_id == Rdma::MemslotID(-1) )
+    if ( src_slot_id == s_rdma->no_slot() )
         bsp_abort("bsp_get: Destination address %p was not registered\n",
                 src );
 
+    if ( src_slot_id == s_rdma->null_slot() )
+        bsp_abort("bsp_hpget: Source may not be used as it was registered with NULL\n");
+
     Rdma::Memslot src_slot = s_rdma->slot( pid, src_slot_id );
+
 
     if ( size_t(offset + nbytes) > src_slot.size )
         bsp_abort("bsp_get: Reads %zu bytes beyond registered "

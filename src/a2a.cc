@@ -56,28 +56,6 @@ void A2A::send( int dst_pid, const void * data, size_t size )
     std::memcpy( &m_send_bufs[dst_pid][offset], data, size );
 }
 
-const void * A2A::recv_top( int src_pid ) const {
-    assert( src_pid >= 0 );
-    assert( src_pid < m_nprocs );
-
-    size_t o = m_recv_offsets[src_pid];
-    return static_cast< const void *>( &m_recv_bufs[src_pid][o] );
-}
-
-bool A2A::recv_pop( int src_pid, size_t size ) {
-    assert( src_pid >= 0 );
-    assert( src_pid < m_nprocs );
-
-    size_t o = m_recv_offsets[src_pid];
-    if ( m_recv_sizes[src_pid] - o  >= size ) {
-        m_recv_offsets[src_pid] += size;
-        return true;
-    }
-    else {
-        return false;
-    }
-}
-
 void A2A::exchange( )
 {
     // exchange data sizes. 
@@ -105,6 +83,7 @@ void A2A::exchange( )
 
     // Do a personalized exchange
     int outcount = MPI_UNDEFINED;
+    bool first_time = true;
     do {
         for (int p = 0; p < m_nprocs; ++p ) {
             if (m_reqs[p] != MPI_REQUEST_NULL) continue;
@@ -121,6 +100,10 @@ void A2A::exchange( )
             m_recv_offsets[p] += recv_size;
         }
 
+        if (first_time)
+            MPI_Barrier( m_comm ); // Using the barrier the first time
+                                   // allows to use ready sends
+
         for (int p = 0; p < m_nprocs; ++p ) {
             if (m_reqs[m_nprocs + p] != MPI_REQUEST_NULL) continue;
 
@@ -128,14 +111,22 @@ void A2A::exchange( )
 
 
             int tag = 0;
-            if (send_size > 0 )
-                MPI_Isend( m_send_bufs[p].data() + m_send_offsets[p],
+            if (send_size > 0 ) {
+                if (first_time)
+                 MPI_Irsend( m_send_bufs[p].data() + m_send_offsets[p],
                         send_size, MPI_BYTE, p,
                         tag, m_comm, & m_reqs[m_nprocs + p ] );
+                else
+                 MPI_Isend( m_send_bufs[p].data() + m_send_offsets[p],
+                        send_size, MPI_BYTE, p,
+                        tag, m_comm, & m_reqs[m_nprocs + p ] );
+            }
             
             m_send_sizes[p] -= send_size;
             m_send_offsets[p] += send_size;
         }
+        
+        first_time = false;
 
         MPI_Waitsome( m_reqs.size(), m_reqs.data(), &outcount, 
                 m_ready.data(), MPI_STATUSES_IGNORE );

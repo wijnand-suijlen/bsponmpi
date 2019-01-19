@@ -155,52 +155,193 @@ void bsp_sync(void);
  *
  */
 
-/** Makes a distributed array accessible to all processes. All processes must
-  * call this function collectively, while supplying the base address and size 
-  * of the locally held part. The registration takes effect after the next call
-  * to bsp_sync().
-  * 
-  * If this process does not have part in this distributed array, i.e it does
-  * not have data to share nor does not need data to read, it may register \c
-  * NULL as a zero size memory block. If, on the contrary, this process does
-  * require to access remote pieces of this array, it must offer at least a
-  * unique address even though the local memory block size is zero. Such unique
-  * addresses may be obtained, for example, by declaring a automatic variable
-  * on the stack.
-  *
-  * \param addr The base address of the local memory block
-  * \param size The size of the local memory block in bytes
-  *
-  * \throws bsp_abort When called outside SPMD section
-  * \throws bsp_abort When NULL is registered with non-zero size
-  * \throws bsp_abort When a negative size is given.
-  *
-  * \warning Registering memory that is not owned by this process will in
-  * general not lead to memory faults (usually called segmentation fault or
-  * general exception errror, depending on the OS) right away. These faults will
-  * usually only surface during a bsp_sync.
-  *
-  */
+/** By calling this function collectively from all processes, it creates an 
+ * association between the referred memory blocks as if it were 
+ * a disributed array, which is distributed over all processes and locally
+ * identified by the pointer to the locally held block. 
+ *
+ * All processes must call this function collectively and in the same order
+ * w.r.t other calls to bsp_push_reg() and bsp_pop_reg(), while supplying the
+ * base address and size of the locally held part. The registration takes
+ * effect after the next call to bsp_sync().
+ * 
+ * If this process does not have part in this associaten , i.e it does not have
+ * data to share nor does not need data to read, it may register \c NULL as a
+ * zero size memory block. If, on the contrary, this process does require to
+ * access remote pieces of this array, it must offer at least a unique address
+ * even though the local memory block size is zero. Such unique addresses may
+ * be obtained, for example, by declaring a automatic variable on the stack.
+ *
+ * \param addr The base address of the local memory block
+ * \param size The size of the local memory block in bytes
+ *
+ * \throws bsp_abort When called outside SPMD section
+ * \throws bsp_abort When NULL is registered with non-zero size
+ * \throws bsp_abort When a negative size is given.
+ *
+ * \warning Registering memory that is not owned by this process will in
+ * general not lead to memory faults (usually called segmentation fault or
+ * general exception errror, depending on the OS) right away. These faults will
+ * usually only surface during a bsp_sync.
+ *
+ */
 void bsp_push_reg( const void * addr, bsp_size_t size );
 
-/** Removes the most recent registration of the memory blocks based at \a addr.
-  *
-  * \param addr The base of the memory area
+/** Removes the most recent memory association that is identified by
+  * local memory block based at \a addr.  All processes must call this function
+  * collectively and in the same order w.r.t to other calls to bsp_pop_reg()
+  * and bsp_push_reg, with the obvious requirement that the referenced
+  * memory block is the same one on all processes. 
+  * 
+  * \param addr The base of the local memory block
   *
   * \throws bsp_abort When call outside SPMD section
-  * \throws bsp_Abort When no registration exists of a memory block based at \a addr
+  * \throws bsp_Abort When no association exists of a memory block based at \a addr
+  *
+  * \warning Non-respect of collectivity and call order is not always
+  * detectable by the run-time, because logically different memory areas may
+  * have have the same memory address, due to memory reuse by malloc() or by
+  * the C runtime.  When an error is detected, the coinciding error can only
+  * be emitted at the next bsp_sync().
+  * 
   */
 void bsp_pop_reg( const void * addr );
 
+/** Copies locally held data to the memory on another process. The destination
+ * memory must have been registered through bsp_push_reg() before.  The memory
+ * block with the source data can be reused right after the call has finished,
+ * because the data is buffered. The data will be written at the remote process
+ * after all data has been read and written by bsp_get() calls, at the end of
+ * the next bsp_sync(). If the destinations of multiple bsp_put() requests,
+ * which can be issued from multiple processes, overlap, then it will appear as
+ * if the data has been written in some arbitrary, sequential order. 
+ * 
+ * \param pid The destination process
+ * \param src The pointer to the locally held data
+ * \param dst The local base pointer associated to the remote memory. This must
+ * be the same pointer as was used to in the bsp_push_reg() call.
+ * \param offset The offset in number of bytes w.r.t to the base pointer at 
+ *               the remotely registered memory block on process \a pid where
+ *               the data should be written
+ * \param nbytes Number of bytes of data that should be copied. The call
+ *               has no effect when this is zero.
+ *
+ * \throws bsp_abort When called outside SPMD section, unless \a nbytes is zero.
+ * \throws bsp_abort When \a pid is not valid, unless \a nbytes is zero
+ * \throws bsp_abort When \a offset is negative, unless \a nbytes is zero
+ * \throws bsp_abort When \a dst is \c NULL, unless \a nbytes is zero
+ * \throws bsp_abort When \a dst has not been registered before, unless 
+ *                   \a nbytes is zero.
+ * \throws bsp_abort When \a dst refers to memory that has been registered with
+ *                   \c NULL on the remote process \a pid, unless \a nbytes is zero.
+ * \throws bsp_abort When the remote write will be beyond the registered bounds,
+ *                   unless \a nbytes is zero.
+ */
 void bsp_put( bsp_pid_t pid, const void * src, void * dst,
         bsp_size_t offset, bsp_size_t nbytes );
 
-void bsp_hpput( bsp_pid_t pid, const void * src, void * dst,
+/** Copies locally held data to the memory on another process. The destination
+ * memory must have been registered through bsp_push_reg() before. The memory
+ * will not be buffered at the local process nor at the remote process. This
+ * also means that neither the local memory nor the remote memory may be accessed
+ * by any local process nor any other BSPlib primitive call, local or remote, 
+ * until the next call to bsp_sync() . Ignoring that advice, may lead to memory
+ * corruption inside the referenced memory areas.
+ *
+ * \note The \c hp prefix to put may lead to the expectation that there is also
+ * a speed improvement. That is not necessarily true. The BSP cost model does
+ * not assign different costs to buffered and unbuffered communication. Also, from
+ * the perspective of using MPI as communications library, it is complicated to
+ * make unbuffered communication fast. Therefore, the \c hp primitives should only
+ * be used if buffering would require too much memory.
+ * 
+ * \param pid The destination process
+ * \param src The pointer to the locally held data
+ * \param dst The local base pointer associated to the remote memory. This must
+ * be the same pointer as was used to in the bsp_push_reg() call.
+ * \param offset The offset in number of bytes w.r.t to the base pointer at 
+ *               the remotely registered memory block on process \a pid where
+ *               the data should be written
+ * \param nbytes Number of bytes of data that should be copied. The call
+ *               has no effect when this is zero.
+ *
+ * \throws bsp_abort When called outside SPMD section, unless \a nbytes is zero.
+ * \throws bsp_abort When \a pid is not valid, unless \a nbytes is zero
+ * \throws bsp_abort When \a offset is negative, unless \a nbytes is zero
+ * \throws bsp_abort When \a dst is \c NULL, unless \a nbytes is zero
+ * \throws bsp_abort When \a dst has not been registered before, unless 
+ *                   \a nbytes is zero.
+ * \throws bsp_abort When \a dst refers to memory that has been registered with
+ *                   \c NULL on the remote process \a pid, unless \a nbytes is zero.
+ * \throws bsp_abort When the remote write will be beyond the registered bounds,
+ *                   unless \a nbytes is zero.
+ */void bsp_hpput( bsp_pid_t pid, const void * src, void * dst,
         bsp_size_t offset, bsp_size_t nbytes );
 
+/** Copies data held on a remote process to the local process. The source 
+ * memory must have been registered through bsp_push_reg() before. The data
+ * will be read at the start of the next bsp_sync() and written before any
+ * data is written by bsp_put(). If the destination memory blocks overlap, 
+ * it will appear that they have been written in arbitrary sequential order.
+ * 
+ * \param pid The source process
+ * \param src The local base pointer associated to the remote memory area.
+ *            This must the same pointer as was used to in the bsp_push_reg() call.
+ * \param offset The offset in number of bytes w.r.t to the base pointer at 
+ *               the remotely registered memory block on process \a pid where
+ *               the data should be read from 
+ * \param nbytes Number of bytes of data that should be copied. The call
+ *               has no effect when this is zero.
+ *
+ * \throws bsp_abort When called outside SPMD section, unless \a nbytes is zero.
+ * \throws bsp_abort When \a pid is not valid, unless \a nbytes is zero
+ * \throws bsp_abort When \a offset is negative, unless \a nbytes is zero
+ * \throws bsp_abort When \a src is \c NULL, unless \a nbytes is zero
+ * \throws bsp_abort When \a src has not been registered before, unless 
+ *                   \a nbytes is zero.
+ * \throws bsp_abort When \a src refers to memory that has been registered with
+ *                   \c NULL on the remote process \a pid, unless \a nbytes is zero.
+ * \throws bsp_abort When the remote read will be beyond the registered bounds,
+ *                   unless \a nbytes is zero.
+ */
 void bsp_get( bsp_pid_t pid, const void * src, bsp_size_t offset,
         void * dst, bsp_size_t nbytes );
 
+/** Copies data held on a remote process to the local process. The source 
+ * memory must have been registered through bsp_push_reg() before. The memory
+ * will not be buffered at the local process nor at the remote process. This
+ * also means that neither the local memory nor the remote memory may be accessed
+ * by the local process nor any other BSPlib primitive call, local or remote, 
+ * until the next call to bsp_sync(). Ignoring that advice, may lead to memory
+ * corruption inside the referenced memory areas.
+ *
+ * \note The \c hp prefix to put may lead to the expectation that there is also
+ * a speed improvement. That is not necessarily true. The BSP cost model does
+ * not assign different costs to buffered and unbuffered communication. Also, from
+ * the perspective of using MPI as communications library, it is complicated to
+ * make unbuffered communication fast. Therefore, the \c hp primitives should only
+ * be used if buffering would require too much memory.
+ * 
+ * \param pid The source process
+ * \param src The local base pointer associated to the remote memory area.
+ *            This must the same pointer as was used to in the bsp_push_reg() call.
+ * \param offset The offset in number of bytes w.r.t to the base pointer at 
+ *               the remotely registered memory block on process \a pid where
+ *               the data should be read from 
+ * \param nbytes Number of bytes of data that should be copied. The call
+ *               has no effect when this is zero.
+ *
+ * \throws bsp_abort When called outside SPMD section, unless \a nbytes is zero.
+ * \throws bsp_abort When \a pid is not valid, unless \a nbytes is zero
+ * \throws bsp_abort When \a offset is negative, unless \a nbytes is zero
+ * \throws bsp_abort When \a src is \c NULL, unless \a nbytes is zero
+ * \throws bsp_abort When \a src has not been registered before, unless 
+ *                   \a nbytes is zero.
+ * \throws bsp_abort When \a src refers to memory that has been registered with
+ *                   \c NULL on the remote process \a pid, unless \a nbytes is zero.
+ * \throws bsp_abort When the remote read will be beyond the registered bounds,
+ *                   unless \a nbytes is zero.
+ */
 void bsp_hpget( bsp_pid_t pid, const void * src, bsp_size_t offset,
         void * dst, bsp_size_t nbytes );
 
@@ -208,6 +349,16 @@ void bsp_hpget( bsp_pid_t pid, const void * src, bsp_size_t offset,
 /** 
  * @}
  */
+
+/** \defgroup BSMP Bulk Synchronous Message Passing
+  * @{
+  */
+
+/** Set the tag size of messages for the next superstep and queries the previously
+  set value. */
+void bsp_set_tagsize( int *tag_nbytes );
+
+/* @} */
 
 #ifdef __cplusplus
 }
