@@ -3,9 +3,11 @@
 
 #include <mpi.h>
 
+#include "dllexport.h"
+
 namespace bsplib {
 
-class Spmd {
+class DLL_LOCAL Spmd {
 public:
 
     explicit Spmd( int nprocs ); // Collective

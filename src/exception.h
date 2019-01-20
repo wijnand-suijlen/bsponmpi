@@ -5,14 +5,19 @@
 #include <sstream>
 #include <string>
 
+#include "dllexport.h"
+
 namespace bsplib {
 
-struct exception : std::exception{ 
+struct DLL_LOCAL exception : std::exception{ 
 public:
     explicit exception(const char * name) 
       : m_stream()
       , m_buf()
     { m_stream << name ; }
+
+    ~exception() throw() 
+    {}
 
     exception( const exception & e )
       : m_stream( e.m_stream.str() )

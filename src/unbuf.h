@@ -4,9 +4,11 @@
 #include <vector>
 #include <mpi.h>
 
+#include "dllexport.h"
+
 namespace bsplib {
 
-class Unbuf {
+class DLL_LOCAL Unbuf {
 public:
     explicit Unbuf( size_t max_msg_size, MPI_Comm comm );
     ~Unbuf();

@@ -3,11 +3,12 @@
 
 #include "aligned_buf.h"
 #include "a2a.h"
+#include "dllexport.h"
 
 
 namespace bsplib {
 
-class Bsmp {
+class DLL_LOCAL Bsmp {
 public:
     explicit Bsmp(MPI_Comm comm, size_t max_msg_size ) ;
 

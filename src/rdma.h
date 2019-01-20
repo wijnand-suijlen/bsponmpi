@@ -4,8 +4,9 @@
 #include "a2a.h"
 #include "unbuf.h"
 #include "uintserialize.h"
+#include "dllexport.h"
 
-#if __cplusplus >= 201103L
+#ifdef HAS_CXX11_UNORDERED_MAP
 #include <unordered_map>
 #else
 #include <tr1/unordered_map>
@@ -15,7 +16,7 @@
 
 namespace bsplib {
 
-class Rdma { 
+class DLL_LOCAL Rdma { 
 public:
         struct Memslot {
         void * addr;
@@ -75,7 +76,7 @@ public:
     void sync( );
 
 private:
-#if __cplusplus >= 201103L
+#ifdef HAS_CXX11_UNORDERED_MAP
     typedef std::unordered_map< void * , std::list< MemslotID > > Reg;
 #else
     typedef std::tr1::unordered_map< void *, std::list< MemslotID > > Reg;

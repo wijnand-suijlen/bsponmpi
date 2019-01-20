@@ -9,9 +9,11 @@
 #include <cstring>
 #include <algorithm>
 
+#include "dllexport.h"
+
 namespace bsplib {
 
-class AlignedBuf {
+class DLL_LOCAL AlignedBuf {
 public:
     explicit AlignedBuf()
 #if __cplusplus >= 201103L

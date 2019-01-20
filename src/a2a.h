@@ -9,10 +9,11 @@
 #include <mpi.h>
 
 #include "uintserialize.h"
+#include "dllexport.h"
 
 namespace bsplib {
  
-class A2A
+class DLL_LOCAL A2A
 {
 public:
     A2A( MPI_Comm comm,

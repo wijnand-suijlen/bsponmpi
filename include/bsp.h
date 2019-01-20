@@ -74,6 +74,7 @@ typedef int bsp_size_t;
   *
   */
 
+
 #ifdef _GNUC_
   #define BSPONMPI_PRINTF_FORMAT_ATTRIBUTE(format_idx, first_va)\
                 __attribute__(( format(printf, format_idx, first_va) ))
@@ -83,6 +84,38 @@ typedef int bsp_size_t;
 
 #endif
 
+/* copied from https://gcc.gnu.org/wiki/Visibility */
+#if defined DOXYGEN
+  #define DLL_PUBLIC
+  #define DLL_LOCAL
+#elif defined _WIN32 || defined __CYGWIN__
+  #ifdef BUILDING_DLL
+    #ifdef __GNUC__
+      #define DLL_PUBLIC __attribute__ ((dllexport))
+    #elif defined __clang__
+      #define DLL_PUBLIC __attribute__ ((dllexport))
+    #else
+      #define DLL_PUBLIC __declspec(dllexport)
+    #endif
+  #else
+    #ifdef __GNUC__
+      #define DLL_PUBLIC __attribute__ ((dllimport))
+    #elif defined __clang__
+      #define DLL_PUBLIC __attribute__ ((dllimport))
+    #else
+      #define DLL_PUBLIC __declspec(dllimport) 
+    #endif
+  #endif
+  #define DLL_LOCAL
+#else
+  #if __GNUC__ >= 4 || defined __clang__
+    #define DLL_PUBLIC __attribute__ ((visibility ("default")))
+    #define DLL_LOCAL  __attribute__ ((visibility ("hidden")))
+  #else
+    #define DLL_PUBLIC
+    #define DLL_LOCAL
+  #endif
+#endif
 
 /** \defgroup BSP_SPMD BSPlib SPMD Framework
  *  The SPMD framework enables writing programs in Single Program Multiple Data
@@ -165,7 +198,7 @@ typedef int bsp_size_t;
  *          statement. Note that variable or function declarations are not
  *          statements.
 */
-void bsp_begin(bsp_pid_t maxprocs);
+DLL_PUBLIC void bsp_begin(bsp_pid_t maxprocs);
 
 /** Ends an SPMD section. This must be called as the last statement of the
  * function that calls bsp_begin(). There can only be one SPMD section in a
@@ -181,7 +214,7 @@ void bsp_begin(bsp_pid_t maxprocs);
  * \warning Undefined behaviour results when bsp_end() is called in another
  *          function than where bsp_begin() was called.
 */
-void bsp_end(void);
+DLL_PUBLIC void bsp_end(void);
 
 /** Declares that \a spmd_part will be the function containing the SPMD section. 
     Whenever a sequential section has to precede the SPMD section, this function
@@ -197,7 +230,7 @@ void bsp_end(void);
     \warning Undefined behaviour results when bsp_init() or bsp_begin() is not
     the first statement of main()
   */
-void bsp_init( void (*spmd_part)(void), int argc, char *argv[]) ;
+DLL_PUBLIC void bsp_init( void (*spmd_part)(void), int argc, char *argv[]) ;
 
 /** Terminates the program abnormally from any place in the program by 
   any process, while mentioning the message as produced by the \c printf style
@@ -210,7 +243,7 @@ void bsp_init( void (*spmd_part)(void), int argc, char *argv[]) ;
 
   \returns never
 */
-void bsp_abort( const char * format, ... )
+DLL_PUBLIC void bsp_abort( const char * format, ... )
 #ifndef DOXYGEN
    BSPONMPI_PRINTF_FORMAT_ATTRIBUTE(1,2)
 #endif
@@ -228,7 +261,7 @@ void bsp_abort( const char * format, ... )
 
   \returns never
 */
-void bsp_abort_va( const char * format, va_list ap );
+DLL_PUBLIC void bsp_abort_va( const char * format, va_list ap );
 
 /** Returns the number of processes available to the SPMD section. Only
   * when bsp_nprocs() is called from within the SPMD section, the returned
@@ -236,7 +269,7 @@ void bsp_abort_va( const char * format, va_list ap );
   *
   * \returns The number of processes. This value will be strictly greater than 0.
   */
-bsp_pid_t bsp_nprocs(void);
+DLL_PUBLIC bsp_pid_t bsp_nprocs(void);
 
 /** Returns the process ID \f$ s \f$ of a particular process in the SPMD
  * section. If \f$ p \f$ is the number of processes, then \f$ 0 \leq s < p\f$.
@@ -246,7 +279,7 @@ bsp_pid_t bsp_nprocs(void);
  *
  * \throws bsp_abort When called outside SPMD section.
  */
-bsp_pid_t bsp_pid(void);
+DLL_PUBLIC bsp_pid_t bsp_pid(void);
 
 /** Returns the number of seconds elapsed since bsp_begin(). The clocks will
   * be monotonic for each process individually, but are not guaranteed to be
@@ -261,7 +294,7 @@ bsp_pid_t bsp_pid(void);
   *
   * \throws bsp_abort When called outside SPMD section
  */
-double bsp_time(void);
+DLL_PUBLIC double bsp_time(void);
 
 
 /** Ends the computation phase and completes the superstep by performing the
@@ -271,7 +304,7 @@ double bsp_time(void);
  *
  * \throws bsp_abort 
  */
-void bsp_sync(void);
+DLL_PUBLIC void bsp_sync(void);
 
 
 /** 
@@ -352,7 +385,7 @@ void bsp_sync(void);
  * usually only surface during a bsp_sync.
  *
  */
-void bsp_push_reg( const void * addr, bsp_size_t size );
+DLL_PUBLIC void bsp_push_reg( const void * addr, bsp_size_t size );
 
 /** Removes the most recent memory association that is identified by
   * local memory block based at \a addr.  All processes must call this function
@@ -372,7 +405,7 @@ void bsp_push_reg( const void * addr, bsp_size_t size );
   * be emitted at the next bsp_sync().
   * 
   */
-void bsp_pop_reg( const void * addr );
+DLL_PUBLIC void bsp_pop_reg( const void * addr );
 
 /** Copies locally held data to the memory on another process. The destination
  * memory must have been registered through bsp_push_reg() before.  The memory
@@ -404,7 +437,7 @@ void bsp_pop_reg( const void * addr );
  * \throws bsp_abort When the remote write will be beyond the registered bounds,
  *                   unless \a nbytes is zero.
  */
-void bsp_put( bsp_pid_t pid, const void * src, void * dst,
+DLL_PUBLIC void bsp_put( bsp_pid_t pid, const void * src, void * dst,
         bsp_size_t offset, bsp_size_t nbytes );
 
 /** Copies locally held data to the memory on another process. The destination
@@ -442,7 +475,8 @@ void bsp_put( bsp_pid_t pid, const void * src, void * dst,
  *                   \c NULL on the remote process \a pid, unless \a nbytes is zero.
  * \throws bsp_abort When the remote write will be beyond the registered bounds,
  *                   unless \a nbytes is zero.
- */void bsp_hpput( bsp_pid_t pid, const void * src, void * dst,
+ */
+DLL_PUBLIC void bsp_hpput( bsp_pid_t pid, const void * src, void * dst,
         bsp_size_t offset, bsp_size_t nbytes );
 
 /** Copies data held on a remote process to the local process. The source 
@@ -472,7 +506,7 @@ void bsp_put( bsp_pid_t pid, const void * src, void * dst,
  * \throws bsp_abort When the remote read will be beyond the registered bounds,
  *                   unless \a nbytes is zero.
  */
-void bsp_get( bsp_pid_t pid, const void * src, bsp_size_t offset,
+DLL_PUBLIC void bsp_get( bsp_pid_t pid, const void * src, bsp_size_t offset,
         void * dst, bsp_size_t nbytes );
 
 /** Copies data held on a remote process to the local process. The source 
@@ -511,7 +545,7 @@ void bsp_get( bsp_pid_t pid, const void * src, bsp_size_t offset,
  * \throws bsp_abort When the remote read will be beyond the registered bounds,
  *                   unless \a nbytes is zero.
  */
-void bsp_hpget( bsp_pid_t pid, const void * src, bsp_size_t offset,
+DLL_PUBLIC void bsp_hpget( bsp_pid_t pid, const void * src, bsp_size_t offset,
         void * dst, bsp_size_t nbytes );
 
 
@@ -606,7 +640,7 @@ void bsp_hpget( bsp_pid_t pid, const void * src, bsp_size_t offset,
  * \throws bsp_abort When NULL is given
  * \throws bsp_abort When a negative size is given.
  */
-void bsp_set_tagsize( bsp_size_t *tag_nbytes );
+DLL_PUBLIC void bsp_set_tagsize( bsp_size_t *tag_nbytes );
 
 /** Send a message to another process. The tag and payload are copied right
  * away, so that the memory pointed to by \a tag and \a payload can be reused
@@ -629,7 +663,7 @@ void bsp_set_tagsize( bsp_size_t *tag_nbytes );
  *                   happen if #bsp_size_t is an unsigned data type. 
  *
  */
-void bsp_send( bsp_pid_t pid, const void * tag, const void * payload, 
+DLL_PUBLIC void bsp_send( bsp_pid_t pid, const void * tag, const void * payload, 
         bsp_size_t payload_nbytes);
 
 /** Returns the number of remaining messages in the message reception queue and
@@ -645,7 +679,7 @@ void bsp_send( bsp_pid_t pid, const void * tag, const void * payload,
  * \throws bsp_abort When the number of messages exceeds capacity of #bsp_size_t
  * \throws bsp_abort When the total payload size exceeds capacity of #bsp_size_t
  */
-void bsp_qsize( bsp_size_t * nmessages, bsp_size_t * accum_nbytes );
+DLL_PUBLIC void bsp_qsize( bsp_size_t * nmessages, bsp_size_t * accum_nbytes );
 
 /** Copies the tag of the first message in the reception queue and sets
   * \a status to the length of the payload. If no messages is available, 
@@ -660,7 +694,7 @@ void bsp_qsize( bsp_size_t * nmessages, bsp_size_t * accum_nbytes );
   * \throws bsp_abort When \a tag is \c NULL and the tag size was not zero.
   * \throws bsp_abort When \a status is \c NULL.
  */
-void bsp_get_tag( bsp_size_t * status, void * tag );
+DLL_PUBLIC void bsp_get_tag( bsp_size_t * status, void * tag );
 
 /** Copies the first \a reception_nbytes bytes from the payload of the first
  * message in the queue to \a payload and removes it from the queue.
@@ -673,7 +707,7 @@ void bsp_get_tag( bsp_size_t * status, void * tag );
  * \throws bsp_abort When \a reception_nbytes was negative
  * \throws bsp_abort When the receive queue was empty.
  */
-void bsp_move( void * payload, bsp_size_t reception_nbytes );
+DLL_PUBLIC void bsp_move( void * payload, bsp_size_t reception_nbytes );
 
 /** Returns the length of the payload of the first message in the queue,
  * sets a pointer to the tag and to the payload as held in the buffer, and
@@ -691,7 +725,7 @@ void bsp_move( void * payload, bsp_size_t reception_nbytes );
  * \throws bsp_abort When called outside SPMD section
  * \throws bsp_abort When \a tag_ptr or \a payload_ptr are NULL. 
 */
-bsp_size_t bsp_hpmove( void ** tag_ptr, void ** payload_ptr );
+DLL_PUBLIC bsp_size_t bsp_hpmove( void ** tag_ptr, void ** payload_ptr );
 
 /**
  * @}

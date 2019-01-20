@@ -1,0 +1,70 @@
+ ______     ______   _______                   ____    ____  _______  _____  
+|_   _ \  .' ____ \ |_   __ \                 |_   \  /   _||_   __ \|_   _| 
+  | |_) | | (___ \_|  | |__) | .--.   _ .--.    |   \/   |    | |__) | | |   
+  |  __'.  _.____`.   |  ___// .'`\ \[ `.-. |   | |\  /| |    |  ___/  | |   
+ _| |__) || \____) | _| |_   | \__. | | | | |  _| |_\/_| |_  _| |_    _| |_  
+|_______/  \______.'|_____|   '.__.' [___||__]|_____||_____||_____|  |_____| 
+
+
+Introduction
+------------
+
+BSPonMPI offers on any parallel machine supporting MPI a parallel programming
+API that adheres to the BSP cost-model. This API is better known as BSPlib and
+supports Single Program Multiple Data (SPMD) style programs that communicate
+using Direct Remote Memory Access (DRMA) and Bulk Synchronous Message Passing
+(BSMP). This library enables immortal algorithms that once written are
+scalable everywhere, since the BSP-cost model prescribes that a program's
+run-time is bounded by 
+
+                                W + g H + L S
+
+where W, the local computation, H, the total communiation volume, and S, the
+number of supersteps, are determined by the program and g, the message gap
+(i.e. reciprocal throughput), and L, the latency, are determined by the
+machine. 
+
+Getting Started
+---------------
+
+Prerequisites
+  - CMake 
+
+  - An MPI-1 implementation, such as MPICH, OpenMPI, MVAPICH, IBM Platform,
+    Intel MPI, Microsoft MPI.
+    (note: When using a Linux package manager, make sure you get the '-devel'
+     package)
+
+  - A C and C++ compiler
+
+   
+  - (Optional) Doxygen for generating MAN pages and browseable HTML of the API.
+
+
+Installation
+
+  - Unpack the source in some directory, e.g. $SRCDIR
+  
+  - Make a build directory, e.g. $BUILDDIR
+
+  - Think of a place to install the library, e.g. $INSTALLDIR
+
+  - Then execute the following commands
+
+           $ cd $BUILDDIR
+          
+           $ cmake -DCMAKE_INSTALL_PREFIX=$INSTALLDIR $SRCDIR 
+
+           $ make
+
+(OPTIONAL) $ make test
+
+           $ make install
+  
+
+Compiling programs
+
+
+
+Running programs
+

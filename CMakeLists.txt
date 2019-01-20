@@ -1,11 +1,57 @@
 cmake_minimum_required(VERSION 3.13)
-project(BSPonMPI2) 
+project(BSPonMPI) 
 
-find_package(MPI)
+set(CPACK_PACKAGE_NAME          "BSPonMPI")
+set(CPACK_PACKAGE_VERSION_MAJOR "1" )
+set(CPACK_PACKAGE_VERSION_MINOR "0" )
+set(CPACK_PACKAGE_VERSION_PATCH "0")
+set(CPACK_PACKAGE_DESCRIPTION_SUMMARY 
+        "BSPonMPI implements the BSPlib parallel programming framework on MPI")
+set(CPACK_RESOURCE_FILE_LICENSE "${PROJECT_SOURCE_DIR}/LICENSE")
+set(CPACK_STRIP_FILES TRUE)
+set(CPACK_PACKAGE_CONTACT "wijnandsuijlen@gmail.com")
+set(CPACK_RPM_PACKAGE_LICENSE "MIT License")
+set(CPACK_RPM_PACKAGE_REQUIRES "mpi-devel")
+
+include(CPack)
+
+set(SOVERSION "${CPACK_PACKAGE_VERSION_MAJOR}.${CPACK_PACKAGE_VERSION_MINOR}.${CPACK_PACKAGE_VERSION_PATCH}")
+
 find_package(doxygen)
+find_package(MPI)
+string(REPLACE mpiexec mpirun MPIRUN_EXECUTABLE ${MPIEXEC_EXECUTABLE})
 
-set(CMAKE_C_FLAGS "-Wall -Wextra -g -pedantic -std=c89")
-set(CMAKE_CXX_FLAGS "-Wall -Wextra -g -pedantic -std=c++11" )
+# do some compile dependent set-up
+if (CMAKE_COMPILER_IS_GNUCC)
+set(CMAKE_C_FLAGS_DEBUG 
+        "${CMAKE_C_FLAGS_DEBUG} -Wall -Wextra -g  -pedantic -std=c89")
+
+set(CMAKE_C_FLAGS_RELEASE 
+        "${CMAKE_C_FLAGS_RELEASE} -Wall -Wextra -pedantic -std=c89")
+endif()
+
+try_compile(HAS_TR1_UNORDERED_MAP 
+        ${CMAKE_BINARY_DIR}/cmake 
+        ${CMAKE_SOURCE_DIR}/cmake/has_tr1_unordered_map.cc)
+
+try_compile(HAS_CXX11_UNORDERED_MAP 
+        ${CMAKE_BINARY_DIR}/cmake
+        ${CMAKE_SOURCE_DIR}/cmake/has_cxx11_unordered_map.cc)
+
+if (HAS_TR1_UNORDERED_MAP)
+    add_definitions(-DHAS_TR1_UNORDERED_MAP)
+endif()
+
+if (HAS_CXX11_UNORDERED_MAP)
+    add_definitions(-DHAS_CXX11_UNORDERED_MAP)
+endif()
+
+if (CMAKE_COMPILER_IS_GNUCXX)
+set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -Wall -Wextra -g -pedantic")
+set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -Wall -Wextra -pedantic")
+endif()
+
+# Testing
 
 enable_testing()
 
@@ -44,6 +90,25 @@ add_library( bsponmpi SHARED
         )
 target_link_libraries( bsponmpi ${MPI_C_LIBRARIES})
 
+install( TARGETS bsponmpi
+         RUNTIME DESTINATION bin
+         LIBRARY DESTINATION lib
+         ARCHIVE DESTINATION lib
+       )
+
+# Compiler and bsprun frontends
+set(BSPONMPI_LIB "-L${CMAKE_INSTALL_PREFIX}/lib -lbsponmpi")
+set(BSPONMPI_INCLUDE "${CMAKE_INSTALL_PREFIX}/include")
+
+configure_file( bspcc.in bspcc @ONLY )
+configure_file( bspcc.in bspcxx @ONLY )
+configure_file( bsprun.in bsprun @ONLY )
+install( PROGRAMS ${CMAKE_BINARY_DIR}/bspcc
+                  ${CMAKE_BINARY_DIR}/bspcxx
+                  ${CMAKE_BINARY_DIR}/bsprun
+         DESTINATION bin
+       )
+
 
 # Unit tests
 add_mpi_unit_test( a2a 3 src/a2a.cc )
@@ -68,7 +133,21 @@ add_mpi_test( paper_example_all_gather_sparse_vec 1 ok 10 )
 # Documentation
 set(DOXYGEN_BRIEF_MEMBER_DESC YES)
 set(DOXYGEN_JAVADOC_AUTOBRIEF YES)
+set(DOXYGEN_MACRO_EXPANSION YES)
+set(DOXYGEN_EXPAND_ONLY_PREDEF YES)
+set(DOXYGEN_EXPAND_AS_DEFINED "DLL_LOCAL;DLL_PUBLIC")
 set(DOXYGEN_GENERATE_HTML YES)
 set(DOXYGEN_GENERATE_MAN  YES)
 set(DOXYGEN_MAN_LINKS YES) # create individual entries for each primitive
 doxygen_add_docs( manual include/bsp.h )
+
+install(FILES include/bsp.h 
+        DESTINATION include )
+install(DIRECTORY ${CMAKE_BINARY_DIR}/man
+        DESTINATION share)
+install(DIRECTORY ${CMAKE_BINARY_DIR}/html 
+        DESTINATION share/doc/bsponmpi)
+install(FILES LICENSE README
+        DESTINATION share/doc/bsponmpi)
+
+

@@ -4,12 +4,14 @@
 #include <climits>
 #include <cassert>
 
+#include "dllexport.h"
+
 namespace bsplib {
 
 // Helper class to serialize and deserialize integers
 // small values need less space
 template <class UInt>
-struct UIntSerialize{ 
+struct DLL_LOCAL UIntSerialize{ 
     enum { value = (sizeof(UInt)*CHAR_BIT + CHAR_BIT - 2 )  / (CHAR_BIT-1) };
 
     typedef unsigned char Buffer[value];
