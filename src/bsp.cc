@@ -313,9 +313,14 @@ void bsp_get( bsp_pid_t pid, const void * src, bsp_size_t offset,
 
     using bsplib :: Rdma;
     Rdma::MemslotID src_slot_id = s_rdma->lookup_reg( src );
-    if ( src_slot_id == s_rdma->no_slot() )
-        bsp_abort("bsp_get: Destination address %p was not registered\n",
-                src );
+    if ( src_slot_id == s_rdma->no_slot() ) {
+        if ( s_rdma->was_just_pushed( src ) )
+          bsp_abort("bsp_get: Destination address %p was just registered "
+                 " with a bsp_push_reg(), but it hasn't become effective yet, "
+                " because bsp_sync() hasn't been performed yet\n", src );
+        else
+          bsp_abort("bsp_get: Destination address %p was not registered\n", src );
+    }
 
     if ( src_slot_id == s_rdma->null_slot() )
         bsp_abort("bsp_get: Source may not be used as it was registered with NULL\n");

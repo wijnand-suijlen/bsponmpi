@@ -53,10 +53,14 @@ void Bsmp::sync()
             m_total_payload += payload_size;
         }
 
-        size_t tag_size = size;
+        size_t tag_size = size_t(-1);
+        deserial( m_a2a, p, tag_size );
         if (tag_size != m_next_tag_size)
             throw exception("bsp_set_tagsize") 
-                << ": Not all processes anncounced the same tag size\n";
+                << ": Not all processes anncounced the same tag size\n"
+                << "  -> process " << m_a2a.pid() 
+                                   << " got " << m_next_tag_size << '\n'
+                << "  -> process " << p << " got " << tag_size << '\n';
     }
     
     // update tag size

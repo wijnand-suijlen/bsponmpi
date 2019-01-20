@@ -54,7 +54,7 @@ void Rdma::get( int src_pid, MemslotID src_slot, size_t src_offset,
     size_t src_addr = addr - null + src_offset;
 
     Action action = { Action::GET, src_pid, src_pid, m_pid, 
-                      -1, src_addr, dst_addr, size  };
+                      0, src_addr, dst_addr, size  };
     m_send_actions.push_back( action );
 }
 
@@ -118,7 +118,7 @@ void Rdma::sync()
     // first exchange: gets, unbuffered requests, push/pop registers
     m_send_push_pop_comm_buf.serialize( m_first_exchange );
     m_send_actions.serialize( m_first_exchange );
-    
+   
     m_first_exchange.exchange( );
 
     m_recv_push_pop_comm_buf.deserialize( m_first_exchange );
@@ -415,6 +415,15 @@ void Rdma::PushPopCommBuf::execute( Rdma & rdma )
         void * addr = m_pushed_slots[ s*nprocs + pid].addr;
         rdma.m_register[ addr ].push_back( newslot );
     }
+}
+
+bool Rdma::PushPopCommBuf::was_pushed( void * ptr ) const
+{
+    for (size_t i = 0; i < m_pushed_slots.size(); ++i)
+        if ( m_pushed_slots[i].addr == ptr )
+            return true;
+
+    return false;
 }
 
 

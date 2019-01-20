@@ -54,6 +54,9 @@ public:
         return no_slot(); 
     }
 
+    bool was_just_pushed( const void * addr ) const 
+    { return m_send_push_pop_comm_buf.was_pushed( const_cast<void*>(addr) ); }
+
     const Memslot & slot( int pid, MemslotID slot ) const
     { return m_used_slots[ slot * m_nprocs + pid ]; }
 
@@ -144,6 +147,8 @@ private:
         void serialize( A2A & a2a );
         void deserialize( A2A & a2a );
         void execute( Rdma & rdma );
+
+        bool was_pushed( void * ptr ) const; // for error messages
     };
     PushPopCommBuf m_send_push_pop_comm_buf;
     PushPopCommBuf m_recv_push_pop_comm_buf;

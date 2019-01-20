@@ -63,6 +63,7 @@ add_mpi_test( init 2 ok 8 )
 add_mpi_test( paper_example_reverse 1 ok 5 ) 
 add_mpi_test( paper_example_put_array 1 ok 7 ) 
 add_mpi_test( paper_example_bsp_sum 1 ok 3 )
+add_mpi_test( paper_example_all_gather_sparse_vec 1 ok 10 )
 
 # Documentation
 set(DOXYGEN_BRIEF_MEMBER_DESC YES)

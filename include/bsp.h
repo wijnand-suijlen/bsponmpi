@@ -532,8 +532,9 @@ void bsp_hpget( bsp_pid_t pid, const void * src, bsp_size_t offset,
   *                            float ** sparse_out,
   *                            int ** sparse_ivec_out) {
   *   int global_idx, i, j, tag_size, p, 
-  *       nonzeros, nonzeros_size, status, *sparse_ivec;
-  *   float *sparse;
+  *       nonzeros, nonzeros_size, status;
+  *   int *sparse_ivec = NULL;
+  *   float *sparse = NULL;
   *
   *   p = bsp_nprocs();
   *   tag_size = sizeof(int);

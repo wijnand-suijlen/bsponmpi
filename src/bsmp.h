@@ -24,8 +24,8 @@ public:
     void send( int pid, const void * tag, const void * payload, size_t nbytes )
     {
         serial( m_a2a, pid, nbytes + 1 );
-        m_a2a.send( pid, payload, nbytes );
         m_a2a.send( pid, tag, m_send_tag_size );
+        m_a2a.send( pid, payload, nbytes );
     }
 
     size_t n_total_messages() const 

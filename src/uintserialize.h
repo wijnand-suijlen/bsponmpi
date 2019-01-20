@@ -2,6 +2,7 @@
 #define BSPONMPI_UINTSERIALIZE_H
 
 #include <climits>
+#include <cassert>
 
 namespace bsplib {
 
@@ -14,6 +15,7 @@ struct UIntSerialize{
     typedef unsigned char Buffer[value];
 
     static int write( UInt x, Buffer & bytes ) {
+        assert( x >= 0 );
         int i = 0;
         do {
             unsigned char m = (1 << (CHAR_BIT-1));
