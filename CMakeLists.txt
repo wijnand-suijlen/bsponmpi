@@ -17,8 +17,12 @@ include(CPack)
 
 set(SOVERSION "${CPACK_PACKAGE_VERSION_MAJOR}.${CPACK_PACKAGE_VERSION_MINOR}.${CPACK_PACKAGE_VERSION_PATCH}")
 
-find_package(doxygen)
+find_package(Doxygen)
 find_package(MPI)
+
+if (NOT MPI_FOUND)
+    message(SEND_ERROR "MPI was not found. Without it, BSPonMPI can't be built nor function")
+endif()
 string(REPLACE mpiexec mpirun MPIRUN_EXECUTABLE ${MPIEXEC_EXECUTABLE})
 
 # do some compile dependent set-up
@@ -131,23 +135,28 @@ add_mpi_test( paper_example_bsp_sum 1 ok 3 )
 add_mpi_test( paper_example_all_gather_sparse_vec 1 ok 10 )
 
 # Documentation
-set(DOXYGEN_BRIEF_MEMBER_DESC YES)
-set(DOXYGEN_JAVADOC_AUTOBRIEF YES)
-set(DOXYGEN_MACRO_EXPANSION YES)
-set(DOXYGEN_EXPAND_ONLY_PREDEF YES)
-set(DOXYGEN_EXPAND_AS_DEFINED "DLL_LOCAL;DLL_PUBLIC")
-set(DOXYGEN_GENERATE_HTML YES)
-set(DOXYGEN_GENERATE_MAN  YES)
-set(DOXYGEN_MAN_LINKS YES) # create individual entries for each primitive
-doxygen_add_docs( manual include/bsp.h )
+if (DOXYGEN_FOUND)
+    message( STATUS "Doxygen was not found - Documentation will not be generated")
+    set(DOXYGEN_BRIEF_MEMBER_DESC YES)
+    set(DOXYGEN_JAVADOC_AUTOBRIEF YES)
+    set(DOXYGEN_MACRO_EXPANSION YES)
+    set(DOXYGEN_EXPAND_ONLY_PREDEF YES)
+    set(DOXYGEN_EXPAND_AS_DEFINED "DLL_LOCAL;DLL_PUBLIC")
+    set(DOXYGEN_GENERATE_HTML YES)
+    set(DOXYGEN_GENERATE_MAN  YES)
+    set(DOXYGEN_MAN_LINKS YES) # create individual entries for each primitive
+    doxygen_add_docs( manual include/bsp.h )
+    add_custom_target(docs ALL DEPENDS manual)
 
-install(FILES include/bsp.h 
-        DESTINATION include )
-install(DIRECTORY ${CMAKE_BINARY_DIR}/man
-        DESTINATION share)
-install(DIRECTORY ${CMAKE_BINARY_DIR}/html 
-        DESTINATION share/doc/bsponmpi)
-install(FILES LICENSE README
-        DESTINATION share/doc/bsponmpi)
+    install(FILES include/bsp.h 
+            DESTINATION include )
+    install(DIRECTORY ${CMAKE_BINARY_DIR}/man
+            DESTINATION share)
+    install(DIRECTORY ${CMAKE_BINARY_DIR}/html 
+            DESTINATION share/doc/bsponmpi)
+    install(FILES LICENSE README
+            DESTINATION share/doc/bsponmpi)
+    
+endif()
 
 
