@@ -63,6 +63,8 @@ add_mpi_test( paper_example_reverse 1 ok 5 )
 add_mpi_test( paper_example_put_array 1 ok 7 ) 
 
 # Documentation
+set(DOXYGEN_BRIEF_MEMBER_DESC YES)
+set(DOXYGEN_JAVADOC_AUTOBRIEF YES)
 set(DOXYGEN_GENERATE_HTML YES)
 set(DOXYGEN_GENERATE_MAN  YES)
 set(DOXYGEN_MAN_LINKS YES) # create individual entries for each primitive

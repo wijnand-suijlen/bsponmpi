@@ -7,10 +7,58 @@
 extern "C" {
 #endif
 
-/** \defgroup BSP_TYPES Convenience typedefs
+/** \mainpage BSPonMPI - A \ref BSPlib implementation on top of MPI
+ *
+ * \author Wijnand J. Suijlen
+ * \copyright MIT License
+ *
+ * \section Introduction Introduction
+ * BSPonMPI offers on any parallel machine supporting MPI a parallel
+ * programming API that adheres to the BSP cost-model. This API is better known
+ * as \ref BSPlib and supports Single Program Multiple Data (\ref BSP_SPMD "SPMD")
+ * style programs that communicate using Direct Remote Memory Access (\ref
+ * BSP_DRMA "DRMA") and Bulk Synchronous Message Passing (\ref BSP_BSMP
+ * "BSMP"). This library enables <i>immortal algorithms</i> that once written
+ * are scalable everywhere, since the BSP-cost model prescribes that a
+ * program's run-time is bounded by 
+ * \f[ W + g H + \ell S, \f]
+ * where \f$W\f$, the local computation, \f$H\f$, the total communiation
+ * volume, and \f$S\f$, the number of supersteps, are determined by the program
+ * and \f$g\f$, the <i>message gap</i> (i.e. reciprocal throughput), and
+ * \f$\ell\f$, the latency, are determined by the machine. 
+ *
+ * The API consists of three parts:
+ *   - \ref BSP_SPMD "The SPMD Framework"
+ *   - \ref BSP_DRMA "Direct Remote Memory Access communications"
+ *   - \ref BSP_BSMP "Bulk Sychronous Message Passing communications"
+ *
+ * In each of these sections, examples are provided how they can be used.
+ *
+ * \section Example Hello World
+ * This example is shamelessly copied from [1].
+ * \code
+ * #include <stdio.h>
+ * #include <bsp.h>
+ *
+ * void main(void) { 
+ *   bsp_begin( bsp_nprocs() );
+ *     printf("Hello BSP Worldwide from process %d of %d\n",
+ *          bsp_pid(), bsp_nprocs() );
+ *   bsp_end();
+ * }
+ * \endcode
+ *
+ * \section References References
+ * \anchor BSPlib [1] "BSPlib: The BSP programming library," by J. M. D. Hill,
+ * W. F. McColl, D. C. Stefanescu, M. W. Goudreau, K. Lang, S. B. Rao, T. Suel,
+ * Th. Tsantilas, R. H. Bisseling, Elsevier, Parallel Computing, Volume 24, 
+ * Issue 14, December 1998, pages 1947--1980. 
+ */
+
+/** \defgroup BSP_TYPES BSPlib convenience typedefs
  *
  * These are used as convenience to switch between compatibility modes.
- * By default this implementation is compatible with BSPlib 1998.
+ * By default this implementation is compatible with \ref BSPlib 1998.
  *
  * @{ 
  */
@@ -36,7 +84,7 @@ typedef int bsp_size_t;
 #endif
 
 
-/** \defgroup BSP_SPMD SPMD Framework
+/** \defgroup BSP_SPMD BSPlib SPMD Framework
  *  The SPMD framework enables writing programs in Single Program Multiple Data
  * style. This means that the runtime system will start the same program
  * multiple times and will connect the resulting processes through a communications
@@ -44,11 +92,11 @@ typedef int bsp_size_t;
  * only through the the bsp_pid() function, which returns a unique value \f$ 0
  * \leq \texttt{bsp\_pid()} < \texttt{bsp\_nprocs()}\f$ for each process.
  *
- * Because the whole need not to be SPMD, the programmer should enclose the SPMD
- * part of her program in a function which has as first statement bsp_begin()
- * and as last statement a call to bsp_end(). This function may be main(), but
- * if it is not, the main() function must call bsp_init() as first statement
- * with a reference to the SPMD function. 
+ * Because the whole program need not to be SPMD, the programmer should enclose
+ * the SPMD part of her program in a function which has as first statement
+ * bsp_begin() and as last statement a call to bsp_end(). This function may be
+ * main(), but if it is not, the main() function must call bsp_init() as first
+ * statement with a reference to the SPMD function. 
  *
  * Example 1
  * \code
@@ -163,7 +211,10 @@ void bsp_init( void (*spmd_part)(void), int argc, char *argv[]) ;
   \returns never
 */
 void bsp_abort( const char * format, ... )
-   BSPONMPI_PRINTF_FORMAT_ATTRIBUTE(1,2); 
+#ifndef DOXYGEN
+   BSPONMPI_PRINTF_FORMAT_ATTRIBUTE(1,2)
+#endif
+   ; 
 
 
 /** Terminates the program abnormally from any place in the program by 
@@ -228,7 +279,44 @@ void bsp_sync(void);
   */
 
 
-/** \defgroup BSP_DRMA Direct Remote Memory Access
+/** \defgroup BSP_DRMA BSPlib Direct Remote Memory Access methods
+ *
+ * Direct Remote Memory Access (DRMA) or RDMA allows processes to write
+ * directly into each other's memory with a minimum of cooperation from 
+ * the remote party.
+ *
+ * Example (from section 3.2.2 in \ref BSPlib "[1]" )
+ *
+ * \code
+ * #include <stdio.h>
+ * #include <bsp.h>
+ *
+ * int reverse( int x )
+ * {
+ *     bsp_push_reg( &x, sizeof(x) );
+ *     bsp_sync();
+ *
+ *     bsp_put( bsp_nprocs() - bsp_pid() - 1, &x, &x, 0, sizeof(x) );
+ *     bsp_pop_reg(&x);
+ *     bsp_sync();
+ *
+ *     return x;
+ * }
+ *
+ * int main( int argc, char ** argv )
+ * {
+ *     int x;
+ *     (void) argc; (void) argv;
+ *     bsp_begin( bsp_nprocs() );
+ *     
+ *     x = reverse( bsp_pid() );
+ *     printf("Process %d/%d has %d after calling reverse\n",
+ *          bsp_pid(), bsp_nprocs(), x );
+ *     
+ *     bsp_end();
+ *     return 0;
+ * }
+ * \endcode
  *
  * @{
  *
@@ -431,7 +519,55 @@ void bsp_hpget( bsp_pid_t pid, const void * src, bsp_size_t offset,
  * @}
  */
 
-/** \defgroup BSP_BSMP Bulk Synchronous Message Passing
+/** \defgroup BSP_BSMP BSPlib Bulk Synchronous Message Passing methods
+  * Bulk Synchronous Message Passing allows processes to send each other
+  * messages. It differs from message-passing like in e.g. MPI in that there is
+  * still only bsp_sync() to synchronize. Point-to-point synchronisations are
+  * not possible, since use of those could possibly lead to unacceptable
+  * slow-down.
+  *
+  * Example (from section 4.5.2 in \ref BSPlib "[1]")
+  * \code
+  * int all_gather_sparse_vec( float * dense, int n_over_p,
+  *                            float ** sparse_out,
+  *                            int ** sparse_ivec_out) {
+  *   int global_idx, i, j, tag_size, p, 
+  *       nonzeros, nonzeros_size, status, *sparse_ivec;
+  *   float *sparse;
+  *
+  *   p = bsp_nprocs();
+  *   tag_size = sizeof(int);
+  *   bsp_set_tagsize(&tag_size);
+  *   bsp_sync();
+  *
+  *   for ( i = 0; i < n_over_p; ++i ) {
+  *     if ( dense[i] != 0.0 ) {
+  *       global_idx = n_over_p * bsp_pid() + i;
+  *       for (j = 0; j < p; ++j)
+  *         bsp_send(j, &global_idx, &dense[i], sizeof(float) );
+  *     }
+  *   }
+  *   bsp_sync();
+  *
+  *   bsp_qsize( &nonzeros, &nonzeros_size );
+  *   if (nonzeros > 0 ) {
+  *     sparse      = calloc( nonzeros, sizeof(float) );
+  *     sparse_ivec = calloc( nonzeros, sizeof(int) );
+  *     if (sparse == NULL || sparse_ivec == NULL)
+  *       bsp_abort("Unable to allocate memory\n");
+  * 
+  *     for ( i = 0 ; i < nonzeros; ++i) {
+  *       bsp_get_tag( &status, &sparse_ivec[i] );
+  *       assert(status == sizeof(float));
+  *       bsp_move( &sparse[i], sizeof(float) );
+  *     }
+  *   }
+  *   bsp_set_tagsize(&tag_size);
+  *   *sparse_out = sparse;
+  *   *sparse_ivec_out = sparse_ivec;
+  *   return nonzeros;
+  * }
+  * \endcode
   *
   * @{
   */
