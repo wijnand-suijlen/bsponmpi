@@ -2,6 +2,12 @@
 
 #include <mpi.h>
 
+#include <cstring>
+#include <cstdio>
+#include <cstdlib>
+
+#include <vector>
+
 using namespace bsplib;
 
 void test_1( MPI_Comm comm, int pid, int nprocs )
@@ -55,10 +61,10 @@ void test_1( MPI_Comm comm, int pid, int nprocs )
         }
         offset += size;
  
-        if (memcmp(ptr, msgs[pid%3], size)) {
-            printf("[%d] wrong data from process %d with tag %d\n", pid, p, tag );
-            printf("[%d] Expected '%s' from %d\n", pid, msgs[p], p );
-            printf("[%d] Got: '%*s'\n", pid, (int) size, ptr );
+        if (std::memcmp(ptr, msgs[pid%3], size)) {
+            std::printf("[%d] wrong data from process %d with tag %d\n", pid, p, tag );
+            std::printf("[%d] Expected '%s' from %d\n", pid, msgs[p], p );
+            std::printf("[%d] Got: '%*s'\n", pid, (int) size, ptr );
             std::abort();
         }
     }

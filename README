@@ -7,7 +7,7 @@
 
 
 Introduction
-------------
+============
 
 BSPonMPI offers on any parallel machine supporting MPI a parallel programming
 API that adheres to the BSP cost-model. This API is better known as BSPlib and
@@ -25,10 +25,11 @@ number of supersteps, are determined by the program and g, the message gap
 machine. 
 
 Getting Started
----------------
+===============
 
 Prerequisites
-  - CMake 
+-------------
+  - CMake version 3.13
 
   - An MPI-1 implementation, such as MPICH, OpenMPI, MVAPICH, IBM Platform,
     Intel MPI, Microsoft MPI.
@@ -36,12 +37,14 @@ Prerequisites
      package)
 
   - A C and C++ compiler
-
    
   - (Optional) Doxygen for generating MAN pages and browseable HTML of the API.
 
+(read section below on Linux distribution specific hints)
+
 
 Installation
+------------
 
   - Unpack the source in some directory, e.g. $SRCDIR
   
@@ -55,16 +58,56 @@ Installation
           
            $ cmake -DCMAKE_INSTALL_PREFIX=$INSTALLDIR $SRCDIR 
 
-           $ make
-
-(OPTIONAL) $ make test
-
            $ make install
   
 
 Compiling programs
+------------------
 
+Assuming you have a source file helloworld.c, you can compile it as follows
+  
+  $ bspcc helloworld.c -o helloworld
+
+Likewise, if you have C++ source file helloworld.cpp, you can do
+
+  $ bspcxx helloworld.cpp -o helloworld
 
 
 Running programs
+----------------
+
+Programs can be ran through the bsprun command, which is a simple replacement
+for mpirun
+
+  $ bsprun -n 5 ./helloworld
+
+
+
+Linux distribution specific installation hints
+==============================================
+
+CentOS 7
+--------
+
+To install the necessary prerequisites do:
+
+  $ sudo yum install epel-release
+ 
+then do
+
+  $ sudo yum install cmake3 mpich-devel
+
+Then before you can run the cmake commands, you have to load MPI into your
+shell environment
+
+  $ module load mpi
+
+
+
+Ubuntu 18.04 LTS (Bionic Beaver)
+--------------------------------
+
+Make sure you have CMake, Doxygen, and an MPI installed. E.g. do
+
+  $ sudo apt install cmake doxygen mpich doxygen
 

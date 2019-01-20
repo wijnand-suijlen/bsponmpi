@@ -1,6 +1,8 @@
 #include "unbuf.h"
 #include "exception.h"
 
+#include <limits>
+
 namespace bsplib {
 
 Unbuf::Unbuf( size_t max_msg_size, MPI_Comm comm)

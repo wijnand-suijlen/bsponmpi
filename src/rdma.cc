@@ -1,6 +1,8 @@
 #include "rdma.h"
 #include "exception.h"
 
+#include <cstring>
+
 namespace bsplib {
 
 void Rdma::push_reg( void * addr, size_t size )
@@ -86,7 +88,7 @@ void Rdma::write_gets()
             char * dst_addr = NULL;
             dst_addr += addr;
 
-            memcpy( dst_addr, m_second_exchange.recv_top(p), size );
+            std::memcpy( dst_addr, m_second_exchange.recv_top(p), size );
             m_second_exchange.recv_pop(p, size );
         }
    }
@@ -105,7 +107,7 @@ void Rdma::write_puts()
             char * dst_addr = NULL;
             dst_addr += addr;
 
-            memcpy( dst_addr, m_second_exchange.recv_top(p), size );
+            std::memcpy( dst_addr, m_second_exchange.recv_top(p), size );
             m_second_exchange.recv_pop(p, size );
         }
    }

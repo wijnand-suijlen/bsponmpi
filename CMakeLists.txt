@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.13)
+cmake_minimum_required(VERSION 3.10)
 project(BSPonMPI) 
 
 set(CPACK_PACKAGE_NAME          "BSPonMPI")
@@ -13,6 +13,19 @@ set(CPACK_PACKAGE_CONTACT "wijnandsuijlen@gmail.com")
 set(CPACK_RPM_PACKAGE_LICENSE "MIT License")
 set(CPACK_RPM_PACKAGE_REQUIRES "mpi-devel")
 
+find_program(RPMBUILD rpmbuild)
+find_program(DPKG     dpkg-deb)
+set(generators)
+if (RPMBUILD)
+    list(APPEND generators "RPM")
+    message(STATUS "Can build RPM package. Do: make package")
+endif()
+if(DPKG)
+    list(APPEND generators "DEB")
+    message(STATUS "Can build DEB package. Do: make package")
+endif()
+set(CPACK_GENERATOR "${generators}" )
+
 include(CPack)
 
 set(SOVERSION "${CPACK_PACKAGE_VERSION_MAJOR}.${CPACK_PACKAGE_VERSION_MINOR}.${CPACK_PACKAGE_VERSION_PATCH}")
@@ -24,6 +37,8 @@ if (NOT MPI_FOUND)
     message(SEND_ERROR "MPI was not found. Without it, BSPonMPI can't be built nor function")
 endif()
 string(REPLACE mpiexec mpirun MPIRUN_EXECUTABLE ${MPIEXEC_EXECUTABLE})
+
+add_definitions(-DOMPI_SKIP_MPICXX)
 
 # do some compile dependent set-up
 if (CMAKE_COMPILER_IS_GNUCC)
@@ -71,7 +86,7 @@ function( add_mpi_unit_test NAME P )
     add_executable( ${exe} src/${NAME}.t.cc ${ARGN} )
     target_link_libraries(${exe} ${MPI_C_LIBRARIES} )
     set( testname "unit_test_${NAME}_p${P}" )
-    add_test( NAME "${testname}" COMMAND ${MPIEXEC} -n ${P} ./${exe} )
+    add_test( NAME "${testname}" COMMAND ${MPIRUN_EXECUTABLE} -n ${P} ./${exe} )
 endfunction()
  
 function( add_mpi_test NAME NR STATUS P )
@@ -79,7 +94,7 @@ function( add_mpi_test NAME NR STATUS P )
     add_executable( ${exe} test/${NAME}.${NR}.${STATUS}.c )
     target_link_libraries( ${exe} bsponmpi )
     set( testname "${NAME}_${NR}_p${P}" )
-    add_test( NAME "${testname}" COMMAND ${MPIEXEC} -n ${P} ./${exe} )
+    add_test( NAME "${testname}" COMMAND ${MPIRUN_EXECUTABLE} -n ${P} ./${exe} )
     if (STATUS STREQUAL fail)
        set_tests_properties( "${testname}" PROPERTIES WILL_FAIL TRUE)
     endif()
@@ -99,6 +114,8 @@ install( TARGETS bsponmpi
          LIBRARY DESTINATION lib
          ARCHIVE DESTINATION lib
        )
+install(FILES include/bsp.h 
+         DESTINATION include )
 
 # Compiler and bsprun frontends
 set(BSPONMPI_LIB "-L${CMAKE_INSTALL_PREFIX}/lib -lbsponmpi")
@@ -136,7 +153,6 @@ add_mpi_test( paper_example_all_gather_sparse_vec 1 ok 10 )
 
 # Documentation
 if (DOXYGEN_FOUND)
-    message( STATUS "Doxygen was not found - Documentation will not be generated")
     set(DOXYGEN_BRIEF_MEMBER_DESC YES)
     set(DOXYGEN_JAVADOC_AUTOBRIEF YES)
     set(DOXYGEN_MACRO_EXPANSION YES)
@@ -148,14 +164,14 @@ if (DOXYGEN_FOUND)
     doxygen_add_docs( manual include/bsp.h )
     add_custom_target(docs ALL DEPENDS manual)
 
-    install(FILES include/bsp.h 
-            DESTINATION include )
     install(DIRECTORY ${CMAKE_BINARY_DIR}/man
             DESTINATION share)
     install(DIRECTORY ${CMAKE_BINARY_DIR}/html 
             DESTINATION share/doc/bsponmpi)
     install(FILES LICENSE README
             DESTINATION share/doc/bsponmpi)
+else()
+    message( STATUS "Doxygen was not found - Documentation will not be generated")
     
 endif()
 

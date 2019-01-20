@@ -1,6 +1,9 @@
 #include "a2a.h"
 
 #include <mpi.h>
+#include <cstdio>
+#include <cstring>
+#include <cstdlib>
 
 using namespace bsplib;
 
@@ -24,9 +27,9 @@ void test_1( MPI_Comm comm, int pid, int nprocs )
 
     size_t rs[] = { sizeof(msg1), sizeof(msg2), sizeof(msg3) };
     char *recv[] = { &recv1[0], &recv2[0], &recv3[0] };
-    memcpy( recv[0], msg1, sizeof(msg1) );
-    memcpy( recv[1], msg2, sizeof(msg2) );
-    memcpy( recv[2], msg3, sizeof(msg3) );
+    std::memcpy( recv[0], msg1, sizeof(msg1) );
+    std::memcpy( recv[1], msg2, sizeof(msg2) );
+    std::memcpy( recv[2], msg3, sizeof(msg3) );
 
     if ( pid <= 2 ) {
         for (int p = 0; p < nprocs; ++p ) {
@@ -34,10 +37,10 @@ void test_1( MPI_Comm comm, int pid, int nprocs )
             const void * data = NULL;
             int m = 0;
             while ( data = a2a.recv_top(p), a2a.recv_pop( p, rs[i] ) ) {
-                if (memcmp( data, recv[i], rs[i] ) != 0 ) {
-                    printf("[%d] wrong data from process %d\n", pid, p );
-                    printf("[%d] Expected '%s' from %d\n", pid, recv[i], p );
-                    printf("[%d] Got: '%*s'\n", pid, (int) rs[i], (const char *) data );
+                if (std::memcmp( data, recv[i], rs[i] ) != 0 ) {
+                    std::printf("[%d] wrong data from process %d\n", pid, p );
+                    std::printf("[%d] Expected '%s' from %d\n", pid, recv[i], p );
+                    std::printf("[%d] Got: '%*s'\n", pid, (int) rs[i], (const char *) data );
                     std::abort();
                 }
 
@@ -51,7 +54,7 @@ void test_1( MPI_Comm comm, int pid, int nprocs )
         for (int p = 0; p < nprocs; ++p ) {
             data = a2a.recv_top(p);
             if ( a2a.recv_pop(p, 1) ) {
-                printf("[%d] Unexpected message from %d\n", pid, p );
+                std::printf("[%d] Unexpected message from %d\n", pid, p );
                 std::abort();
             }
         }

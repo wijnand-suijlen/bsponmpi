@@ -37,16 +37,16 @@ extern "C" {
  * \section Example Hello World
  * This example is shamelessly copied from [1].
  * \code
- * #include <stdio.h>
- * #include <bsp.h>
- *
- * void main(void) { 
- *   bsp_begin( bsp_nprocs() );
- *     printf("Hello BSP Worldwide from process %d of %d\n",
- *          bsp_pid(), bsp_nprocs() );
- *   bsp_end();
- * }
- * \endcode
+   #include <stdio.h>
+   #include <bsp.h>
+  
+   void main(void) { 
+     bsp_begin( bsp_nprocs() );
+       printf("Hello BSP Worldwide from process %d of %d\n",
+            bsp_pid(), bsp_nprocs() );
+     bsp_end();
+   }
+   \endcode
  *
  * \section References References
  * \anchor BSPlib [1] "BSPlib: The BSP programming library," by J. M. D. Hill,
@@ -132,40 +132,40 @@ typedef int bsp_size_t;
  * statement with a reference to the SPMD function. 
  *
  * Example 1
- * \code
- * #include <stdio.h>
- * #include <bsp.h>
- *
- * void main(void) { 
- *   bsp_begin( bsp_nprocs() );
- *     printf("Hello BSP Worldwide from process %d of %d\n",
- *          bsp_pid(), bsp_nprocs() );
- *   bsp_end();
- * }
- * \endcode
- *
- *
- * Example 2
- * \code
- * #include <stdio.h>
- * #include <bsp.h>
- *
- * static int s_nprocs;
- * 
- * void spmd_part( void ) {
- *   bsp_begin( s_nprocs );
- *     printf("Hello BSP Worldwide from process %d of %d\n",
- *            bsp_pid(), bsp_nprocs() );
- *   bsp_end();
- * }
- *
- * void main(int argc, char *argv[]) {
- *    bsp_init( spmd_part, argc, argv);
- *    printf("Please enter number of processes: ");
- *    scanf("%d", &s_nprocs );
- *    spmd_part();
- * }
- * \endcode
+   \code
+   #include <stdio.h>
+   #include <bsp.h>
+  
+   void main(void) { 
+     bsp_begin( bsp_nprocs() );
+       printf("Hello BSP Worldwide from process %d of %d\n",
+            bsp_pid(), bsp_nprocs() );
+     bsp_end();
+   }
+   \endcode
+  
+  
+   Example 2
+   \code
+   #include <stdio.h>
+   #include <bsp.h>
+  
+   static int s_nprocs;
+   
+   void spmd_part( void ) {
+     bsp_begin( s_nprocs );
+       printf("Hello BSP Worldwide from process %d of %d\n",
+              bsp_pid(), bsp_nprocs() );
+     bsp_end();
+   }
+  
+   void main(int argc, char *argv[]) {
+      bsp_init( spmd_part, argc, argv);
+      printf("Please enter number of processes: ");
+      scanf("%d", &s_nprocs );
+      spmd_part();
+   }
+   \endcode
  *
  *  @{
  */
@@ -321,35 +321,35 @@ DLL_PUBLIC void bsp_sync(void);
  * Example (from section 3.2.2 in \ref BSPlib "[1]" )
  *
  * \code
- * #include <stdio.h>
- * #include <bsp.h>
- *
- * int reverse( int x )
- * {
- *     bsp_push_reg( &x, sizeof(x) );
- *     bsp_sync();
- *
- *     bsp_put( bsp_nprocs() - bsp_pid() - 1, &x, &x, 0, sizeof(x) );
- *     bsp_pop_reg(&x);
- *     bsp_sync();
- *
- *     return x;
- * }
- *
- * int main( int argc, char ** argv )
- * {
- *     int x;
- *     (void) argc; (void) argv;
- *     bsp_begin( bsp_nprocs() );
- *     
- *     x = reverse( bsp_pid() );
- *     printf("Process %d/%d has %d after calling reverse\n",
- *          bsp_pid(), bsp_nprocs(), x );
- *     
- *     bsp_end();
- *     return 0;
- * }
- * \endcode
+   #include <stdio.h>
+   #include <bsp.h>
+  
+   int reverse( int x )
+   {
+       bsp_push_reg( &x, sizeof(x) );
+       bsp_sync();
+  
+       bsp_put( bsp_nprocs() - bsp_pid() - 1, &x, &x, 0, sizeof(x) );
+       bsp_pop_reg(&x);
+       bsp_sync();
+  
+       return x;
+   }
+  
+   int main( int argc, char ** argv )
+   {
+       int x;
+       (void) argc; (void) argv;
+       bsp_begin( bsp_nprocs() );
+       
+       x = reverse( bsp_pid() );
+       printf("Process %d/%d has %d after calling reverse\n",
+            bsp_pid(), bsp_nprocs(), x );
+       
+       bsp_end();
+       return 0;
+   }
+   \endcode
  *
  * @{
  *
@@ -562,47 +562,47 @@ DLL_PUBLIC void bsp_hpget( bsp_pid_t pid, const void * src, bsp_size_t offset,
   *
   * Example (from section 4.5.2 in \ref BSPlib "[1]")
   * \code
-  * int all_gather_sparse_vec( float * dense, int n_over_p,
-  *                            float ** sparse_out,
-  *                            int ** sparse_ivec_out) {
-  *   int global_idx, i, j, tag_size, p, 
-  *       nonzeros, nonzeros_size, status;
-  *   int *sparse_ivec = NULL;
-  *   float *sparse = NULL;
-  *
-  *   p = bsp_nprocs();
-  *   tag_size = sizeof(int);
-  *   bsp_set_tagsize(&tag_size);
-  *   bsp_sync();
-  *
-  *   for ( i = 0; i < n_over_p; ++i ) {
-  *     if ( dense[i] != 0.0 ) {
-  *       global_idx = n_over_p * bsp_pid() + i;
-  *       for (j = 0; j < p; ++j)
-  *         bsp_send(j, &global_idx, &dense[i], sizeof(float) );
-  *     }
-  *   }
-  *   bsp_sync();
-  *
-  *   bsp_qsize( &nonzeros, &nonzeros_size );
-  *   if (nonzeros > 0 ) {
-  *     sparse      = calloc( nonzeros, sizeof(float) );
-  *     sparse_ivec = calloc( nonzeros, sizeof(int) );
-  *     if (sparse == NULL || sparse_ivec == NULL)
-  *       bsp_abort("Unable to allocate memory\n");
-  * 
-  *     for ( i = 0 ; i < nonzeros; ++i) {
-  *       bsp_get_tag( &status, &sparse_ivec[i] );
-  *       assert(status == sizeof(float));
-  *       bsp_move( &sparse[i], sizeof(float) );
-  *     }
-  *   }
-  *   bsp_set_tagsize(&tag_size);
-  *   *sparse_out = sparse;
-  *   *sparse_ivec_out = sparse_ivec;
-  *   return nonzeros;
-  * }
-  * \endcode
+    int all_gather_sparse_vec( float * dense, int n_over_p,
+                               float ** sparse_out,
+                               int ** sparse_ivec_out) {
+      int global_idx, i, j, tag_size, p, 
+          nonzeros, nonzeros_size, status;
+      int *sparse_ivec = NULL;
+      float *sparse = NULL;
+   
+      p = bsp_nprocs();
+      tag_size = sizeof(int);
+      bsp_set_tagsize(&tag_size);
+      bsp_sync();
+   
+      for ( i = 0; i < n_over_p; ++i ) {
+        if ( dense[i] != 0.0 ) {
+          global_idx = n_over_p * bsp_pid() + i;
+          for (j = 0; j < p; ++j)
+            bsp_send(j, &global_idx, &dense[i], sizeof(float) );
+        }
+      }
+      bsp_sync();
+   
+      bsp_qsize( &nonzeros, &nonzeros_size );
+      if (nonzeros > 0 ) {
+        sparse      = calloc( nonzeros, sizeof(float) );
+        sparse_ivec = calloc( nonzeros, sizeof(int) );
+        if (sparse == NULL || sparse_ivec == NULL)
+          bsp_abort("Unable to allocate memory\n");
+    
+        for ( i = 0 ; i < nonzeros; ++i) {
+          bsp_get_tag( &status, &sparse_ivec[i] );
+          assert(status == sizeof(float));
+          bsp_move( &sparse[i], sizeof(float) );
+        }
+      }
+      bsp_set_tagsize(&tag_size);
+      *sparse_out = sparse;
+      *sparse_ivec_out = sparse_ivec;
+      return nonzeros;
+    }
+    \endcode
   *
   * @{
   */
