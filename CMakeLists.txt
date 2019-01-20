@@ -47,6 +47,7 @@ target_link_libraries( bsponmpi ${MPI_C_LIBRARIES})
 
 # Unit tests
 add_mpi_unit_test( a2a 3 src/a2a.cc )
+add_mpi_unit_test( unbuf 4 src/unbuf.cc )
 add_unit_test( uintserialize )
 
 # API tests
@@ -61,6 +62,7 @@ add_mpi_test( init 1 ok 2 )
 add_mpi_test( init 2 ok 8 )
 add_mpi_test( paper_example_reverse 1 ok 5 ) 
 add_mpi_test( paper_example_put_array 1 ok 7 ) 
+add_mpi_test( paper_example_bsp_sum 1 ok 3 )
 
 # Documentation
 set(DOXYGEN_BRIEF_MEMBER_DESC YES)

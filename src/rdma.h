@@ -86,7 +86,7 @@ private:
 
     struct Action { 
         enum Kind { GET, HPPUT, HPGET } kind; 
-        int target_pid, src_pid, dst_pid;
+        int target_pid, src_pid, dst_pid, tag;
         size_t src_addr, dst_addr;
         size_t size;
     };

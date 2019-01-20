@@ -36,11 +36,12 @@ void Rdma::hpput( const void * src,
 
     size_t src_addr = static_cast<const char *>(src) - null;
 
-    Action action = { Action::HPPUT, dst_pid, m_pid,
-                      dst_pid, src_addr, dst_addr, size };
+    int tag = m_unbuf.send( dst_pid, src, size );
+
+    Action action = { Action::HPPUT, dst_pid, m_pid, dst_pid,
+                      tag, src_addr, dst_addr, size };
     m_send_actions.push_back( action );
    
-    m_unbuf.send( dst_pid, src, size );
 }
 
 void Rdma::get( int src_pid, MemslotID src_slot, size_t src_offset,
@@ -53,7 +54,7 @@ void Rdma::get( int src_pid, MemslotID src_slot, size_t src_offset,
     size_t src_addr = addr - null + src_offset;
 
     Action action = { Action::GET, src_pid, src_pid, m_pid, 
-                      src_addr, dst_addr, size  };
+                      -1, src_addr, dst_addr, size  };
     m_send_actions.push_back( action );
 }
 
@@ -66,11 +67,11 @@ void Rdma::hpget( int src_pid, MemslotID src_slot, size_t src_offset,
     char * addr = static_cast<char *>( slot( src_pid, src_slot ).addr );
     size_t src_addr = addr - null + src_offset;
 
+    int tag = m_unbuf.recv( src_pid, dst, size );
     Action action = { Action::HPGET, src_pid, src_pid, m_pid, 
-                      src_addr, dst_addr, size  };
+                      tag, src_addr, dst_addr, size  };
     m_send_actions.push_back( action );
 
-    m_unbuf.recv( src_pid, dst, size );
 }
 
 void Rdma::write_gets()
@@ -160,6 +161,7 @@ void Rdma::ActionBuf::serialize( A2A & a2a )
         serial( a2a, a.target_pid, unsigned(a.kind) );
         serial( a2a, a.target_pid, a.src_pid );
         serial( a2a, a.target_pid, a.dst_pid );
+        serial( a2a, a.target_pid, a.tag );
         serial( a2a, a.target_pid, a.src_addr );
         serial( a2a, a.target_pid, a.dst_addr );
         serial( a2a, a.target_pid, a.size );
@@ -188,6 +190,7 @@ void Rdma::ActionBuf::deserialize( A2A & a2a )
             a.kind = Action::Kind(kind);
             deserial( a2a, p, a.src_pid );
             deserial( a2a, p, a.dst_pid );
+            deserial( a2a, p, a.tag );
             deserial( a2a, p, a.src_addr );
             deserial( a2a, p, a.dst_addr );
             deserial( a2a, p, a.size );
@@ -213,13 +216,13 @@ void Rdma::ActionBuf::execute( Rdma & rdma )
 
             case Action::HPPUT : {
                 char * null = NULL;
-                rdma.m_unbuf.recv( a.src_pid, null+a.dst_addr, a.size );
+                rdma.m_unbuf.recv( a.tag, a.src_pid, null+a.dst_addr, a.size );
                 break;
             }
 
             case Action::HPGET : {
                 char * null = NULL;
-                rdma.m_unbuf.send( a.dst_pid, null + a.src_addr, a.size );
+                rdma.m_unbuf.send( a.tag, a.dst_pid, null + a.src_addr, a.size );
                 break;
             }
         }
