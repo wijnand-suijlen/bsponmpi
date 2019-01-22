@@ -1,0 +1,53 @@
+
+set(SRCDIR "@PROJECT_SOURCE_DIR@" )
+set(BINDIR "@PROJECT_BINARY_DIR@")
+set(TESTDIR "${BINDIR}/post-install-check")
+set(INSTALLDIR "@CMAKE_INSTALL_PREFIX@")
+
+if (DEFINED ENV{DESTDIR})
+    message(STATUS "Skipping post-install checks, because DESTDIR is set")
+    return()
+endif()
+
+message(STATUS "Executing Post-installation checks")
+message(STATUS "1) Testing use in other CMake projects")
+# Create the post-install test directory
+execute_process( COMMAND @CMAKE_COMMAND@ -E remove_directory ${TESTDIR})
+execute_process( COMMAND @CMAKE_COMMAND@ -E make_directory ${TESTDIR})
+
+# Run A CMake configuration
+execute_process( COMMAND @CMAKE_COMMAND@ -DBSPRUN=${INSTALLDIR}/bin/bsprun
+                                   -DCMAKE_C_COMPILER=${INSTALLDIR}/bin/bspcc
+                                   ${SRCDIR}/cmake/test-cmake-project
+                        WORKING_DIRECTORY ${TESTDIR}
+                        TIMEOUT 60
+                        RESULT_VARIABLE TEST_SUCCESS
+                        OUTPUT_FILE ${BINDIR}/post-install-cmake-configure.log
+                        ERROR_FILE  ${BINDIR}/post-install-cmake-configure.log
+                )  
+if (NOT TEST_SUCCESS EQUAL 0)
+    message(SEND_ERROR "Could not configure CMake project: see ${BINDIR}/post-install-cmake-configure.log")
+endif()
+
+execute_process( COMMAND @CMAKE_MAKE_PROGRAM@ 
+                        WORKING_DIRECTORY ${TESTDIR}
+                        TIMEOUT 60
+                        RESULT_VARIABLE TEST_SUCCESS
+                        OUTPUT_FILE ${BINDIR}/post-install-cmake-make.log
+                        ERROR_FILE  ${BINDIR}/post-install-cmake-make.log
+                )  
+if (NOT TEST_SUCCESS EQUAL 0)
+    message(SEND_ERROR "Test CMake project could not be built: see ${BINDIR}/post-install-cmake-make.log")
+endif()
+
+execute_process( COMMAND @CMAKE_CTEST_COMMAND@ -V
+                        WORKING_DIRECTORY ${TESTDIR}
+                        TIMEOUT 60
+                        RESULT_VARIABLE TEST_SUCCESS
+                        OUTPUT_FILE ${BINDIR}/post-install-cmake-ctest.log
+                        ERROR_FILE  ${BINDIR}/post-install-cmake-ctest.log
+                )  
+if (NOT TEST_SUCCESS EQUAL 0)
+    message(SEND_ERROR "Tests in test CMake project were unsuccessful: ${BINDIR}/post-install-cmake-ctest.log")
+endif()
+

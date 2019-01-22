@@ -17,6 +17,7 @@ show=
 
 objdir=
 sources=()
+tmp_objects=()
 objects=()
 compile_flags=()
 link_flags=()
@@ -24,21 +25,27 @@ output_flag=()
 
 function onexit_clean()
 {
-    rm -f "${objects[@]}"
-    rmdir "$objdir"
+    if [ "x${objdir}" != x ]; then
+      rm -r "$objdir"
+    fi
 }
 
 trap onexit_clean EXIT
 
 
-function add_source()
+function add_source_or_object()
 {
-    sources=( "${sources[@]}" "$1" )
+    case $1 in
+        *.o ) objects=( "${objects[@]}" "$1" )
+              ;;
+        *) sources=( "${sources[@]}" "$1" )
+            ;;
+    esac
 } 
 
 function add_compile_flag()
 {
-    compile_flagss=( "${compile_flagss[@]}" "$1" )
+    compile_flags=( "${compile_flags[@]}" "$1" )
 }
 
 function add_link_flag()
@@ -83,7 +90,7 @@ do
           output_flag=("-o" "$arg" )
           read_output=no
         elif [ x$read_sources = xyes ]; then
-          add_source "$arg"
+          add_source_or_object "$arg"
         else
           add_compile_flag "$arg"
         fi
@@ -96,7 +103,7 @@ do
           output_flag=("-o" "$arg" )
           read_output=no
         else
-          add_source "$arg"
+          add_source_or_object "$arg"
         fi
         ;;
   esac
@@ -104,23 +111,26 @@ done
 
 
 if [ x$linking = xno ]; then
-  $show $cc $cflags "${sources[@]}" "${compile_flags[@]}" "${link_flags[@]}" \
-      "${output_flag[@]}"
+  $show $cc $cflags  "${compile_flags[@]}" \
+         "${sources[@]}" "${objects[@]}" \
+         "${link_flags[@]}" "${output_flag[@]}"
   exit_status=$?
 else
 
   objdir=`mktemp -d`
+  objnum=1
   for s in "${sources[@]}"
   do
-    obj="${objdir}/${s%.c}.o"
-    objects=( "${objects[@]}" "$obj" )
-    $show $cc $cflags "$s" -c -o "$obj" "${compile_flags[@]}" || { exit $?; }
+    obj="${objdir}/${objnum}.o"
+    objnum=$(( objnum + 1 ))
+    tmp_objects=( "${tmp_objects[@]}" "$obj" )
+    $show $cc $cflags "${compile_flags[@]}" "$s" -c -o "$obj" || { exit $?; }
   done
 
-  $show $cxx $cflags "${objects[@]}" "${output_flag[@]}" "${compile_flags[@]}" \
-      "${link_flags[@]}" $bsponmpi
+  $show $cxx $cflags "${compile_flags[@]}" \
+           "${tmp_objects[@]}" "${objects[@]}" \
+           "${link_flags[@]}" $bsponmpi "${output_flag[@]}"
   exit_status=$?
 fi
-
 
 exit $exit_status

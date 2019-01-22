@@ -175,4 +175,6 @@ else()
     
 endif()
 
-
+### post install check
+configure_file( cmake/post-install-check.cmake.in post-install-check.cmake @ONLY)
+install(SCRIPT ${PROJECT_BINARY_DIR}/post-install-check.cmake)
