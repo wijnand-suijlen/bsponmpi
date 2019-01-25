@@ -17,7 +17,8 @@ class DLL_LOCAL A2A
 {
 public:
     A2A( MPI_Comm comm,
-            size_t max_msg_size = std::numeric_limits<int>::max() );
+            size_t max_msg_size = std::numeric_limits<int>::max(),
+            size_t small_a2a_size_per_proc = 1024 );
     ~A2A();
 
     int pid() const { return m_pid; }
@@ -59,6 +60,7 @@ private:
     int m_pid;
     int m_nprocs;
     const size_t m_max_msg_size;
+    const size_t m_small_a2a_size_per_proc;
 
     std::vector< size_t > m_send_sizes, m_send_offsets;
     std::vector< std::vector< char > > m_send_bufs;
@@ -66,6 +68,7 @@ private:
     std::vector< std::vector< char > > m_recv_bufs;
     std::vector< MPI_Request > m_reqs;
     std::vector< int > m_ready;
+    std::vector< char > m_small_send_buf, m_small_recv_buf;
     MPI_Comm m_comm;
 };
 
