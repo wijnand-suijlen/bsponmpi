@@ -172,12 +172,12 @@ typedef int bsp_size_t;
 
 
 /** Starts an SPMD section with at most \a maxprocs parallel processes. This
- * must be called as the first statement of a function, which may be main().
- * In that same function there must also be call to bsp_end() as the last
- * statement.  There may be only one instance of a bsp_begin()/bsp_end() pair
- * within a program.  If the enclosing function is not  main(), then its
- * reference must be passed as parameter to a call to bsp_init(), which in its
- * turn must be the first statement in main().
+ * must be called as the first statement (except for a call to bsp_nprocs()) of
+ * a function, which may be main(). In that same function there must also be
+ * call to bsp_end() as the last statement. There may be only one instance of a
+ * bsp_begin()/bsp_end() pair within a program. If the enclosing function is
+ * not main(), then its reference must be passed as parameter to a call to
+ * bsp_init(), which in its turn must be the first statement in main().
  *
  * In the SPMD section normal I/O operations are only guaranteed to work on the
  * process with ID 0. Only output to standard output and standard error are
@@ -365,7 +365,7 @@ DLL_PUBLIC void bsp_sync(void);
  * base address and size of the locally held part. The registration takes
  * effect after the next call to bsp_sync().
  * 
- * If this process does not have part in this associaten , i.e it does not have
+ * If this process does not have part in this association, i.e it does not have
  * data to share nor does not need data to read, it may register \c NULL as a
  * zero size memory block. If, on the contrary, this process does require to
  * access remote pieces of this array, it must offer at least a unique address
