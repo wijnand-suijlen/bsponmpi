@@ -50,9 +50,7 @@ void test_1( MPI_Comm comm, int pid, int nprocs, int small_buf_size )
         }
     }
     else {
-        const void * data = NULL;
         for (int p = 0; p < nprocs; ++p ) {
-            data = a2a.recv_top(p);
             if ( a2a.recv_pop(p, 1) ) {
                 std::printf("[%d] Unexpected message from %d\n", pid, p );
                 std::abort();

@@ -2,8 +2,8 @@
 #include <stdlib.h>
 #include "test.h"
 
-TEST( pop_reg_4, abort("bsp_sync/bsp_pop_reg: Tried to deregister NULL on all processes, but could not find a matching regisration") ) {
-    int x, y;
+TEST( pop_reg_7, abort("bsp_sync/bsp_pop_reg: Tried to deregister NULL on all processes, but could not find a matching regisration") ) {
+    int x;
     bsp_begin( bsp_nprocs() );
 
     bsp_push_reg( bsp_pid()?NULL:&x, 0);

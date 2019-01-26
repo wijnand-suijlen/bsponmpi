@@ -506,7 +506,7 @@ void bsp_move( void * payload, bsp_size_t reception_nbytes )
         bsp_abort("bsp_move: payload may not be NULL if reception_nbytes is non-zero\n");
 
      if ( s_bsmp->empty() )
-         bsp_abort("bsp_move: Mesaage queue was empty\n");
+         bsp_abort("bsp_move: Message queue was empty\n");
 
      size_t size = std::min< size_t >( reception_nbytes, s_bsmp->payload_size() );
      std::memcpy( payload, s_bsmp->payload(), size );
@@ -531,4 +531,236 @@ bsp_size_t bsp_hpmove( void ** tag_ptr, void ** payload_ptr )
      return size;
 }
 
+//// MulticoreBSP for C compatibility layer follows here
 
+void mcbsp_begin( mcbsp_pid_t P )
+{
+   mcbsp_pid_t uint_max = std::numeric_limits<bsp_pid_t>::max();
+   bsp_begin( std::min( uint_max, P ) );
+}
+
+
+void mcbsp_push_reg( void * address, mcbsp_size_t size )
+{
+    if (!s_spmd && !s_spmd->ended())
+        bsp_abort("bsp_push_reg: can only be called within SPMD section\n");
+
+    s_rdma->push_reg( address, size );
+}
+
+void mcbsp_pop_reg( void * address )
+{
+    bsp_pop_reg( address );
+}
+
+void mcbsp_put( mcbsp_pid_t pid, const void * src,
+             const void * dst, mcbsp_size_t offset, mcbsp_size_t size )
+{
+    if (size == 0) // ignore any empty writes
+        return;
+
+    if (!s_spmd && !s_spmd->ended())
+        bsp_abort("bsp_put: can only be called within SPMD section\n");
+
+    if (pid > mcbsp_pid_t(s_spmd->nprocs()))
+        bsp_abort("bsp_put: The destination process ID does not exist\n");
+
+    if ( dst == NULL )
+        bsp_abort("bsp_put: Destination address cannot be identified by NULL\n");
+
+    bsplib::Rdma::Memslot dst_slot_id = lookup_usable_reg( dst, "bsp_put"); 
+
+    bsplib::Rdma::Memblock dst_slot = s_rdma->slot( pid, dst_slot_id );
+
+    if ( size_t(offset + size) > dst_slot.size )
+        bsp_abort("bsp_put: Writes %zu bytes beyond registered "
+                  "range [%p,%p+%zu) at process %d\n",
+                  offset + size - dst_slot.size,
+                  dst_slot.addr, dst_slot.addr, dst_slot.size, pid );
+
+    s_rdma->put( src, pid, dst_slot_id, offset, size );
+
+}
+void mcbsp_hpput( mcbsp_pid_t pid, const void * src,
+             const void * dst, mcbsp_size_t offset, mcbsp_size_t size )
+{
+    if (size == 0) // ignore any empty writes
+        return;
+
+    if (!s_spmd && !s_spmd->ended())
+        bsp_abort("bsp_put: can only be called within SPMD section\n");
+
+    if (pid > mcbsp_pid_t(s_spmd->nprocs()))
+        bsp_abort("bsp_hpput: The destination process ID does not exist\n");
+    if ( dst == NULL )
+        bsp_abort("bsp_hpput: Destination address cannot be identified by NULL\n");
+
+    bsplib::Rdma::Memslot dst_slot_id = lookup_usable_reg( dst, "bsp_hpput" );
+    bsplib::Rdma::Memblock dst_slot = s_rdma->slot( pid, dst_slot_id );
+
+    if ( size_t(offset + size ) > dst_slot.size )
+        bsp_abort("bsp_hpput: Writes %zu bytes beyond registered "
+                  "range [%p,%p+%zu) at process %d\n",
+                  offset + size - dst_slot.size,
+                  dst_slot.addr, dst_slot.addr, dst_slot.size, pid );
+
+    if (pid == mcbsp_pid_t(s_spmd->pid()) )
+        memcpy( const_cast<void *>(dst), src, size );
+    else
+        s_rdma->hpput( src, pid, dst_slot_id, offset, size );
+
+}
+
+void mcbsp_get( mcbsp_pid_t pid, const void * src,
+    mcbsp_size_t offset, const void * dst, mcbsp_size_t size )
+{
+    if (size == 0) // ignore any empty reads
+        return;
+
+    if (!s_spmd && !s_spmd->ended())
+        bsp_abort("bsp_get: can only be called within SPMD section\n");
+
+    if (pid > mcbsp_pid_t(s_spmd->nprocs()))
+        bsp_abort("bsp_get: The source process ID does not exist\n");
+
+    if ( src == NULL )
+        bsp_abort("bsp_get: Source address cannot be identified by NULL\n");
+
+    bsplib::Rdma::Memslot src_slot_id = lookup_usable_reg( src, "bsp_get" );
+    bsplib::Rdma::Memblock src_slot = s_rdma->slot( pid, src_slot_id );
+
+    if ( size_t(offset + size ) > src_slot.size )
+        bsp_abort("bsp_get: Reads %zu bytes beyond registered "
+                  "range [%p,%p+%zu) at process %d\n",
+                  offset + size - src_slot.size,
+                  src_slot.addr, src_slot.addr, src_slot.size, pid );
+
+    s_rdma->get( pid, src_slot_id , offset, const_cast<void*>(dst), size );
+}
+
+void mcbsp_hpget( mcbsp_pid_t pid, const void * src, 
+    mcbsp_size_t offset, const void * dst, mcbsp_size_t size )
+{
+    if (size == 0) // ignore any empty reads
+        return;
+
+    if (!s_spmd && !s_spmd->ended())
+        bsp_abort("bsp_hpget: can only be called within SPMD section\n");
+
+    if (pid > mcbsp_pid_t(s_spmd->nprocs()))
+        bsp_abort("bsp_hpget: The source process ID does not exist\n");
+
+    if ( src == NULL )
+        bsp_abort("bsp_hpget: Source address cannot be identified by NULL\n");
+
+    bsplib::Rdma::Memslot src_slot_id = lookup_usable_reg( src, "bsp_hpget" );
+    bsplib::Rdma::Memblock src_slot = s_rdma->slot( pid, src_slot_id );
+
+    if ( size_t(offset + size ) > src_slot.size )
+        bsp_abort("bsp_get: Reads %zu bytes beyond registered "
+                  "range [%p,%p+%zu) at process %d\n",
+                  offset + size - src_slot.size,
+                  src_slot.addr, src_slot.addr, src_slot.size, pid );
+
+    if (pid == mcbsp_pid_t(s_spmd->pid()) )
+        memcpy( const_cast<void *>(dst), src, size );
+    else
+        s_rdma->hpget( pid, src_slot_id , offset, const_cast<void*>(dst), size );
+
+}
+
+void mcbsp_set_tagsize( mcbsp_size_t * size )
+{
+    if (!s_spmd && !s_spmd->ended())
+        bsp_abort("bsp_set_tagsize: can only be called within SPMD section\n");
+
+    if (size == NULL)
+        bsp_abort("bsp_set_tagsize: NULL ptr as argument is now allowed\n");
+
+    *size = s_bsmp->set_tag_size( *size );
+}
+
+void mcbsp_send( mcbsp_pid_t pid, const void * tag, 
+             const void * payload, mcbsp_size_t size )
+{
+    if (!s_spmd && !s_spmd->ended())
+        bsp_abort("bsp_send: can only be called within SPMD section\n");
+
+    if (pid > mcbsp_pid_t(s_spmd->nprocs()))
+        bsp_abort("bsp_send: The source process ID does not exist\n");
+
+    if (size == mcbsp_size_t(-1))
+        bsp_abort("bsp_send: Invalid payload size, becaues it is also "
+                 "used as end marker\n");
+
+    s_bsmp->send( pid, tag, payload, size );
+}
+
+void mcbsp_qsize( mcbsp_nprocs_t * packets, 
+                             mcbsp_size_t * total_size )
+{
+    if (!s_spmd && !s_spmd->ended())
+        bsp_abort("bsp_qsize: can only be called within SPMD section\n");
+
+    if ( packets == NULL || total_size == NULL )
+        bsp_abort("bsp_qsize: both arguments may not be NULL\n");
+
+    size_t mcbsp_p_max = std::numeric_limits<mcbsp_nprocs_t>::max();
+    size_t mcbsp_size_max = std::numeric_limits<mcbsp_size_t>::max();
+    if ( s_bsmp->n_total_messages() > mcbsp_p_max )
+        bsp_abort("bsp_qsize: Integer overflow while querying number of "
+                "messages in queue. There are %zu messages while the data"
+                " type allows only %zu\n", s_bsmp->n_total_messages(),
+                mcbsp_p_max );
+
+   if ( s_bsmp->total_payload() > mcbsp_size_max )
+        bsp_abort("bsp_qsize: Integer overflow while querying total amount of "
+                "payload in queue. The total payload size is %zu  while the data"
+                " type allows only %zu\n", s_bsmp->total_payload(),
+                mcbsp_size_max );
+
+   * packets = s_bsmp->n_total_messages();
+   * total_size = s_bsmp->total_payload();
+}
+
+
+void mcbsp_get_tag( mcbsp_size_t * status, void * tag )
+{
+    if (!s_spmd && !s_spmd->ended())
+        bsp_abort("bsp_get_tag: can only be called within SPMD section\n");
+
+    if ( status == NULL )
+        bsp_abort("bsp_get_tag: first arguments may not be NULL\n");
+
+    size_t tag_size = s_bsmp->recv_tag_size();
+    if ( tag == NULL && tag_size  > 0 )
+        bsp_abort("bsp_get_tag: tag must point to a block of available "
+                "memory of at least %zu bytes long\n", tag_size );
+
+    if ( s_bsmp->empty() ) {
+        *status = mcbsp_size_t(-1);
+    }
+    else {
+        *status = s_bsmp->payload_size();
+        std::memcpy( tag, s_bsmp->tag(), tag_size );
+    }
+}
+
+
+void mcbsp_move( void * payload, mcbsp_size_t reception_bytes )
+{
+     if (!s_spmd && !s_spmd->ended())
+        bsp_abort("bsp_move: can only be called within SPMD section\n");
+
+      if ( payload == NULL && reception_bytes > 0 )
+        bsp_abort("bsp_move: payload may not be NULL if size parameter is non-zero\n");
+
+     if ( s_bsmp->empty() )
+         bsp_abort("bsp_move: Message queue was empty\n");
+
+     size_t size =
+         std::min< size_t >( reception_bytes, s_bsmp->payload_size() );
+     std::memcpy( payload, s_bsmp->payload(), size );
+     s_bsmp->pop();
+}
+ 

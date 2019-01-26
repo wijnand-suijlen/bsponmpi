@@ -3,11 +3,10 @@
 #include "test.h"
 
 TEST( push_reg_3, success() ) {
-    int * x;
+    int * x, len, empty;
     bsp_begin( bsp_nprocs() );
-    int empty;
 
-    int len = bsp_nprocs() - bsp_pid() - 1;
+    len = bsp_nprocs() - bsp_pid() - 1;
     x = len == 0 ? &empty : calloc( len, sizeof(int) );
 
     bsp_push_reg( x, len*sizeof(int) );

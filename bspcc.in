@@ -53,13 +53,58 @@ function add_link_flag()
     link_flags=( "${link_flags[@]}" "$1" )
 } 
 
+function show_version()
+{
+   echo "BSPonMPI version @VERSIONID@ "
+}
+
+function show_help()
+{
+   echo "The BSPonMPI compiler frontend - @VERSIONID@"
+   echo
+   echo "SYNOPSIS"
+   echo "    $0 [-help] [-version] [-show] [-mcbsp] ..."
+   echo
+   echo "    Only $0 specific options are listed here. See the manual"
+   echo "    of $cc for more specific options"
+   echo 
+   echo "OPTIONS"
+   echo "    -help     Shows this description"
+   echo 
+   echo "    -version  Shows version information"
+   echo 
+   echo "    -show     Instead of performing the compilation it shows"
+   echo "              what command will be executed"
+   echo
+   echo "    -mcbsp    Use the MulticoreBSP for C compatible headers."
+   echo "              By default the header compatible with the"
+   echo "              publication of Hill et al. 1998 is loaded."
+}
+
 
 for arg
 do
 
   case $arg in
+     -help|--help) 
+        $cc --help
+        echo 
+        echo "------------------------------------------------------"
+        echo
+        show_help
+        exit 0
+        ;;
 
-    -show) show=echo
+    -version|--version) 
+        show_version
+        exit 0
+        ;;
+
+    -show|--show) show=echo
+        ;;
+
+    -mcbsp|--mcbsp)
+        add_compile_flag "-DBSPONMPI_MCBSP_COMPAT=1"
         ;;
 
     -c) linking=no

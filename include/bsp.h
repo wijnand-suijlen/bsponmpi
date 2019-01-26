@@ -2,6 +2,7 @@
 #define BSPONMPI_BSP_H
 
 #include <stdarg.h>
+#include <stddef.h>
 
 #ifdef __cplusplus 
 extern "C" {
@@ -34,6 +35,10 @@ extern "C" {
  *
  * In each of these sections, examples are provided how they can be used.
  *
+ * Additionally a \ref MCBSP "MulticoreBSP for C compatibility" layer is
+ * provided. Use the --mcbsp parameter using the \c bspcc frontend or
+ * define the macro \c BSPONMPI_MCBSP_COMPAT to enable this.
+ *
  * \section Example Hello World
  * This example is shamelessly copied from [1].
  * \code
@@ -57,8 +62,12 @@ extern "C" {
 
 /** \defgroup BSP_TYPES BSPlib convenience typedefs
  *
- * These are used as convenience to switch between compatibility modes.
+ * These are used as convenience for the programmer to maker her/his
+ * program BSPlib dialect oblivious.
+ *
  * By default this implementation is compatible with \ref BSPlib 1998.
+ * See the section about the \ref MCBSP "MulticoreBSP for C compatibilty"  
+ * layer how to switch modes. 
  *
  * @{ 
  */
@@ -731,6 +740,107 @@ DLL_PUBLIC bsp_size_t bsp_hpmove( void ** tag_ptr, void ** payload_ptr );
  * @}
  */
 
+
+/** \defgroup MCBSP MulticoreBSP for C compatibility
+ * This module defines symbols for MulticoreBSP for C compatibility.
+ * Use the --mcbsp argument to the bspcc frontend to use these
+ * signatures instead or define BSPONMPI_MCBSP_COMPAT at compile time.
+ * This enables macros to change the bsp_* into mcbsp_* calls. 
+ *
+ * \note Only the functions with different signatures are listed here.
+ * 
+ * @{
+ */
+
+/** Type to store a process ID in MulticoreBSP for C.
+ *  @see bsp_pid_t
+ */
+typedef unsigned int mcbsp_pid_t;
+
+/** Type to store the number of processes in MulticoreBSP for C.
+ *  @see bsp_pid_t
+ */
+typedef unsigned int mcbsp_nprocs_t;
+
+
+/** Type to store the communication volume in MulticoreBSP for C.
+ *  @see bsp_size_t
+ */
+typedef size_t       mcbsp_size_t;
+
+/** @see bsp_begin */
+DLL_PUBLIC void mcbsp_begin( mcbsp_pid_t P );
+
+/** @see bsp_push_reg */
+DLL_PUBLIC void mcbsp_push_reg( void * address, mcbsp_size_t size );
+
+/** @see bsp_pop_reg */
+DLL_PUBLIC void mcbsp_pop_reg( void * address );
+
+/** @see bsp_put */
+DLL_PUBLIC void mcbsp_put( mcbsp_pid_t pid, const void * src,
+             const void * dst, mcbsp_size_t offset, mcbsp_size_t size );
+
+/** @see bsp_get */
+DLL_PUBLIC void mcbsp_get( mcbsp_pid_t pid, const void * src,
+    mcbsp_size_t offset, const void * dst, mcbsp_size_t size );
+
+/** @see bsp_hpput */
+DLL_PUBLIC void mcbsp_hpput( mcbsp_pid_t pid, const void * src,
+             const void * dst, mcbsp_size_t offset, mcbsp_size_t size );
+
+/** @see bsp_hpget */
+DLL_PUBLIC void mcbsp_hpget( mcbsp_pid_t pid, const void * src, 
+    mcbsp_size_t offset, const void * dst, mcbsp_size_t size );
+
+/** @see bsp_set_tagsize */
+DLL_PUBLIC void mcbsp_set_tagsize( mcbsp_size_t * size );
+
+/** @see bsp_send */
+DLL_PUBLIC void mcbsp_send( mcbsp_pid_t pid, const void * tag, 
+             const void * payload, mcbsp_size_t size );
+
+/** @see bsp_qsize */
+DLL_PUBLIC void mcbsp_qsize( mcbsp_nprocs_t * packets, 
+                             mcbsp_size_t * total_size );
+
+/** @see bsp_get_tag */
+DLL_PUBLIC void mcbsp_get_tag( mcbsp_size_t * status, void * tag );
+
+/** @see bsp_move */
+DLL_PUBLIC void mcbsp_move( void * payload, mcbsp_size_t size );
+ 
+
+/**
+ *  @}
+ *  */
+
+#ifdef BSPONMPI_MCBSP_COMPAT
+
+#define bsp_pid_t    mcbsp_pid_t
+#define bsp_nprocs_t mcbsp_nprocs_t
+#define bsp_size_t   mcbsp_size_t
+
+#define bsp_direct_get  \
+   #error "MulticoreBSP for C function bsp_direct_get is not supported"
+
+#define bsp_begin         mcbsp_begin
+#define bsp_push_reg      mcbsp_push_reg
+#define bsp_pop_reg       mcbsp_pop_reg
+#define bsp_put           mcbsp_put
+#define bsp_get           mcbsp_get
+#define bsp_hpput         mcbsp_hpput
+#define bsp_hpget         mcbsp_hpget
+#define bsp_set_tagsize   mcbsp_set_tagsize
+#define bsp_send          mcbsp_send
+#define bsp_hpsend        mcbsp_send
+#define bsp_qsize         mcbsp_qsize
+#define bsp_get_tag       mcbsp_get_tag
+#define bsp_move          mcbsp_move
+
+#endif
+
+ 
 #ifdef __cplusplus
 }
 #endif
