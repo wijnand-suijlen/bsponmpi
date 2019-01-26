@@ -176,6 +176,10 @@ add_mpi_test( pop_reg_5 3 )
 add_mpi_test( pop_reg_6 4 )
 add_mpi_test( pop_reg_7 3 )    
 
+add_mpi_test( put_1 3 )
+add_mpi_test( put_2 4 )
+add_mpi_test( put_3 4 )
+
 # Documentation
 if (DOXYGEN_FOUND)
     set(DOXYGEN_BRIEF_MEMBER_DESC YES)

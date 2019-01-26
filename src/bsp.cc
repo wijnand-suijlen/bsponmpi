@@ -242,13 +242,13 @@ static bsplib::Rdma::Memslot lookup_usable_reg( const void * addr, const char * 
     bsplib::Rdma::Memslot id = 
         s_rdma->lookup_reg( const_cast<void*>(addr), false, true);
     if ( id == s_rdma->no_slot() ) {
-        id = s_rdma->lookup_reg( addr, true, true );
+        id = s_rdma->lookup_reg( addr, true, false );
         if ( s_rdma->slot(s_spmd->pid(), id).status & bsplib::Rdma::Memblock::PUSHED )
-          bsp_abort("%s: Remote address %p was just registered "
-                 " with a bsp_push_reg(), but it hasn't become effective yet, "
+          bsp_abort("%s: Remote address was just registered "
+                 " with a bsp_push_reg(%p), but it hasn't become effective yet, "
                 " because bsp_sync() hasn't been performed yet\n", func, addr);
         else
-          bsp_abort("%s: Remote address %p was not registered\n", func, addr );
+          bsp_abort("%s: Remote address was not registered\n", func );
     }
 
     if ( id == s_rdma->null_slot() )
