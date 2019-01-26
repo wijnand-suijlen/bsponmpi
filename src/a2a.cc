@@ -83,7 +83,7 @@ void A2A::exchange( )
         m_send_sizes[p] = m_send_sizes[2*p];
     }
 
-    // Ensure correct size memory buffers
+    // Ensure correct size memory of recv buffers
     for (int p = 0; p < m_nprocs; ++p ) {
         if ( m_recv_sizes[p] > m_recv_bufs[p].capacity() ) {
             m_recv_bufs[p].reserve(
@@ -100,18 +100,18 @@ void A2A::exchange( )
 
     if ( max_recv <= m_small_a2a_size_per_proc ) {
         for (int p = 0; p < m_nprocs; ++p ) {
-            memcpy( m_small_send_buf.data() + p * m_small_a2a_size_per_proc,
+            memcpy( m_small_send_buf.data() + p * max_recv,
                     m_send_bufs[p].data(),
                     m_send_sizes[p] );
         }
         // In small exchanges, Bruck's algorithm will be used again
-        MPI_Alltoall( m_small_send_buf.data(), m_small_a2a_size_per_proc, MPI_BYTE,
-                m_small_recv_buf.data(), m_small_a2a_size_per_proc, MPI_BYTE,
+        MPI_Alltoall( m_small_send_buf.data(), max_recv, MPI_BYTE,
+                m_small_recv_buf.data(), max_recv, MPI_BYTE,
                 m_comm );
 
         for (int p = 0; p < m_nprocs; ++p ) {
             memcpy( m_recv_bufs[p].data(),
-                    m_small_recv_buf.data() + p * m_small_a2a_size_per_proc,
+                    m_small_recv_buf.data() + p * max_recv,
                     m_recv_sizes[p] );
         }
     
