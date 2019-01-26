@@ -18,11 +18,13 @@ namespace bsplib {
 
 class DLL_LOCAL Rdma { 
 public:
-        struct Memslot {
+    struct Memblock {
         void * addr;
         size_t size;
+        enum Status { NORMAL=0x0, PUSHED=0x1, POPPED=0x2 };
+        unsigned status;
     };
-    typedef size_t MemslotID;
+    typedef size_t Memslot;
 
     Rdma( MPI_Comm comm , size_t max_msg_size  )
         : m_first_exchange( comm, max_msg_size )
@@ -32,6 +34,7 @@ public:
         , m_register()
         , m_used_slots()
         , m_free_slots()
+        , m_cached_slot( no_slot() )
         , m_send_actions( m_nprocs )
         , m_recv_actions( m_nprocs )
         , m_unbuf( max_msg_size, comm )
@@ -40,53 +43,75 @@ public:
     {}
 
     void push_reg( void * addr, size_t size );
-    void pop_reg( MemslotID slot );
+    void pop_reg( Memslot slot );
 
-    static MemslotID no_slot() { return MemslotID(-1); }
-    static MemslotID null_slot() { return MemslotID(-2); }
+    static Memslot no_slot() { return Memslot(-1); }
+    static Memslot null_slot() { return Memslot(-2); }
 
-    MemslotID lookup_reg( const void * addr ) const
+    Memslot lookup_reg( const void * addr, bool pushed, bool popped ) const
     {   
         if (addr == NULL ) return null_slot();
+        
+        if ( m_cached_slot != no_slot() 
+                && slot( m_pid, m_cached_slot).addr == addr
+                && slot( m_pid, m_cached_slot).status == Memblock::NORMAL )
+            return m_cached_slot;
 
         Reg::const_iterator i = m_register.find( const_cast<void*>(addr) );
-        if (i != m_register.end())
-            return i->second.back();
+        if (i != m_register.end()) {
+            for (RRSIt j = i->second.rbegin(); j != i->second.rend(); ++j) {
+                unsigned status  = slot( m_pid, *j ).status ;
+                if ( status == unsigned(Memblock::NORMAL))  {
+                    m_cached_slot = *j;
+                    return m_cached_slot;
+                }
+                if ( pushed == bool (status & Memblock::PUSHED)
+                  &&  popped == bool (status & Memblock::POPPED)) {
+                    return *j;
+                }
+                             
+            }
+        }
         return no_slot(); 
     }
 
-    bool was_just_pushed( const void * addr ) const 
-    { return m_send_push_pop_comm_buf.was_pushed( const_cast<void*>(addr) ); }
-
-    const Memslot & slot( int pid, MemslotID slot ) const
+    const Memblock & slot( int pid, Memslot slot ) const
     { return m_used_slots[ slot * m_nprocs + pid ]; }
 
-    void put( const void * src, int dst_pid, MemslotID dst_slot, size_t dst_offset,
+    Memblock & slot( int pid, Memslot slot )
+    { return m_used_slots[ slot * m_nprocs + pid ]; }
+
+    void put( const void * src, int dst_pid, Memslot dst_slot, size_t dst_offset,
             size_t size );
 
-    void hpput( const void * src, int dst_pid, MemslotID dst_slot, size_t dst_offset,
+    void hpput( const void * src, int dst_pid, Memslot dst_slot, size_t dst_offset,
             size_t size );
 
-    void get( int src_pid, MemslotID src_slot, size_t src_offset, void * dst,
+    void get( int src_pid, Memslot src_slot, size_t src_offset, void * dst,
             size_t size );
 
-    void hpget( int src_pid, MemslotID src_slot, size_t src_offset, void * dst,
+    void hpget( int src_pid, Memslot src_slot, size_t src_offset, void * dst,
             size_t size );
 
     void sync( );
 
 private:
+    typedef std::list< Memslot > RegStack;
+    typedef RegStack :: const_iterator RSIt;
+    typedef RegStack :: const_reverse_iterator RRSIt;
+
 #ifdef HAS_CXX11_UNORDERED_MAP
-    typedef std::unordered_map< void * , std::list< MemslotID > > Reg;
+    typedef std::unordered_map< void * , RegStack > Reg;
 #else
-    typedef std::tr1::unordered_map< void *, std::list< MemslotID > > Reg;
+    typedef std::tr1::unordered_map< void *, RegStack > Reg;
 #endif
     A2A m_first_exchange;
     A2A m_second_exchange;
     int m_pid, m_nprocs;
     Reg m_register;
-    std::vector< Memslot > m_used_slots;
-    std::vector< MemslotID > m_free_slots;
+    std::vector< Memblock > m_used_slots;
+    std::vector< Memslot > m_free_slots;
+    mutable Memslot m_cached_slot;
 
     struct Action { 
         enum Kind { GET, HPPUT, HPGET } kind; 
@@ -139,8 +164,9 @@ private:
     
     // Comm structure to exchange push & pop of registers 
     struct PushPopCommBuf {
-        std::vector< Memslot >   m_pushed_slots;
-        std::vector< MemslotID > m_popped_slots;
+        struct PushEntry { Memblock block; Memslot slot; };
+        std::vector< PushEntry > m_pushed_slots;
+        std::vector< Memslot >   m_popped_slots;
         
         void clear()
         { m_pushed_slots.clear(); m_popped_slots.clear(); }
@@ -148,8 +174,6 @@ private:
         void serialize( A2A & a2a );
         void deserialize( A2A & a2a );
         void execute( Rdma & rdma );
-
-        bool was_pushed( void * ptr ) const; // for error messages
     };
     PushPopCommBuf m_send_push_pop_comm_buf;
     PushPopCommBuf m_recv_push_pop_comm_buf;

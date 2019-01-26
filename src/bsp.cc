@@ -18,14 +18,16 @@ static bsplib::Bsmp * s_bsmp = NULL;
 
 static const char * s_expect_abort_msg = NULL;
 
-DLL_PUBLIC extern "C" void bsp_intern_expect_success(void)
+extern "C" {
+DLL_PUBLIC void bsp_intern_expect_success(void)
 {
     /* empty */
 }
 
-DLL_PUBLIC extern "C" void bsp_intern_expect_abort( const char * message )
+DLL_PUBLIC void bsp_intern_expect_abort( const char * message )
 {
     s_expect_abort_msg = message;
+}
 }
 
 
@@ -200,14 +202,14 @@ void bsp_sync()
         s_rdma->sync( );
     }
     catch( bsplib :: exception & e ) {
-        bsp_abort("bsp_sync - RDMA error by %s\n", e.str().c_str() );
+        bsp_abort("bsp_sync/%s\n", e.str().c_str() );
     }
 
     try {
         s_bsmp->sync( );
     }
     catch( bsplib  :: exception & e ) {
-        bsp_abort("bsp_sync - BSMP error by %s\n", e.str().c_str() );
+        bsp_abort("bsp_sync/%s\n", e.str().c_str() );
     }
 }
 
@@ -227,13 +229,35 @@ void bsp_pop_reg( const void * addr )
     if (!s_spmd && !s_spmd->ended())
         bsp_abort("bsp_pop_reg: can only be called within SPMD section\n");
 
-    bsplib::Rdma::MemslotID slot = s_rdma->lookup_reg( addr );
+    bsplib::Rdma::Memslot slot = s_rdma->lookup_reg( addr, true, false );
     if ( s_rdma->no_slot() == slot )
         bsp_abort("bsp_pop_reg: memory at address %p was not registered\n",
                 addr );
 
     s_rdma->pop_reg( slot );
 }
+
+static bsplib::Rdma::Memslot lookup_usable_reg( const void * addr, const char * func )
+{
+    bsplib::Rdma::Memslot id = 
+        s_rdma->lookup_reg( const_cast<void*>(addr), false, true);
+    if ( id == s_rdma->no_slot() ) {
+        id = s_rdma->lookup_reg( addr, true, true );
+        if ( s_rdma->slot(s_spmd->pid(), id).status & bsplib::Rdma::Memblock::PUSHED )
+          bsp_abort("%s: Remote address %p was just registered "
+                 " with a bsp_push_reg(), but it hasn't become effective yet, "
+                " because bsp_sync() hasn't been performed yet\n", func, addr);
+        else
+          bsp_abort("%s: Remote address %p was not registered\n", func, addr );
+    }
+
+    if ( id == s_rdma->null_slot() )
+        bsp_abort("%s: Remote address may not be used because it was registered with NULL\n",
+                func);
+
+    return id;
+}
+
 
 void bsp_put( bsp_pid_t pid, const void * src, void * dst,
         bsp_size_t offset, bsp_size_t nbytes )
@@ -256,17 +280,9 @@ void bsp_put( bsp_pid_t pid, const void * src, void * dst,
     if ( dst == NULL )
         bsp_abort("bsp_put: Destination address cannot be identified by NULL\n");
 
-    using bsplib :: Rdma;
-    Rdma::MemslotID dst_slot_id = s_rdma->lookup_reg( dst );
-    if ( dst_slot_id == s_rdma->no_slot() )
-        bsp_abort("bsp_put: Destination address %p was not registered\n",
-                dst );
+    bsplib::Rdma::Memslot dst_slot_id = lookup_usable_reg( dst, "bsp_put"); 
 
-    if ( dst_slot_id == s_rdma->null_slot() )
-        bsp_abort("bsp_put: Destination may not be used because it was registered with NULL\n");
-
-
-    Rdma::Memslot dst_slot = s_rdma->slot( pid, dst_slot_id );
+    bsplib::Rdma::Memblock dst_slot = s_rdma->slot( pid, dst_slot_id );
 
     if ( size_t(offset + nbytes) > dst_slot.size )
         bsp_abort("bsp_put: Writes %zu bytes beyond registered "
@@ -298,16 +314,8 @@ void bsp_hpput( bsp_pid_t pid, const void * src, void * dst,
     if ( dst == NULL )
         bsp_abort("bsp_hpput: Destination address cannot be identified by NULL\n");
 
-    using bsplib :: Rdma;
-    Rdma::MemslotID dst_slot_id = s_rdma->lookup_reg( dst );
-    if ( dst_slot_id == s_rdma->no_slot() )
-        bsp_abort("bsp_hpput: Destination address %p was not registered\n",
-                dst );
-
-    if ( dst_slot_id == s_rdma->null_slot() )
-        bsp_abort("bsp_hpput: Destination may not be used as it was registered with NULL\n");
-
-    Rdma::Memslot dst_slot = s_rdma->slot( pid, dst_slot_id );
+    bsplib::Rdma::Memslot dst_slot_id = lookup_usable_reg( dst, "bsp_hpput" );
+    bsplib::Rdma::Memblock dst_slot = s_rdma->slot( pid, dst_slot_id );
 
     if ( size_t(offset + nbytes) > dst_slot.size )
         bsp_abort("bsp_hpput: Writes %zu bytes beyond registered "
@@ -343,22 +351,8 @@ void bsp_get( bsp_pid_t pid, const void * src, bsp_size_t offset,
     if ( src == NULL )
         bsp_abort("bsp_get: Source address cannot be identified by NULL\n");
 
-    using bsplib :: Rdma;
-    Rdma::MemslotID src_slot_id = s_rdma->lookup_reg( src );
-    if ( src_slot_id == s_rdma->no_slot() ) {
-        if ( s_rdma->was_just_pushed( src ) )
-          bsp_abort("bsp_get: Destination address %p was just registered "
-                 " with a bsp_push_reg(), but it hasn't become effective yet, "
-                " because bsp_sync() hasn't been performed yet\n", src );
-        else
-          bsp_abort("bsp_get: Destination address %p was not registered\n", src );
-    }
-
-    if ( src_slot_id == s_rdma->null_slot() )
-        bsp_abort("bsp_get: Source may not be used as it was registered with NULL\n");
-
-    Rdma::Memslot src_slot = s_rdma->slot( pid, src_slot_id );
-
+    bsplib::Rdma::Memslot src_slot_id = lookup_usable_reg( src, "bsp_get" );
+    bsplib::Rdma::Memblock src_slot = s_rdma->slot( pid, src_slot_id );
 
     if ( size_t(offset + nbytes) > src_slot.size )
         bsp_abort("bsp_get: Reads %zu bytes beyond registered "
@@ -390,17 +384,8 @@ void bsp_hpget( bsp_pid_t pid, const void * src, bsp_size_t offset,
     if ( src == NULL )
         bsp_abort("bsp_hpget: Source address cannot be identified by NULL\n");
 
-    using bsplib :: Rdma;
-    Rdma::MemslotID src_slot_id = s_rdma->lookup_reg( src );
-    if ( src_slot_id == s_rdma->no_slot() )
-        bsp_abort("bsp_get: Destination address %p was not registered\n",
-                src );
-
-    if ( src_slot_id == s_rdma->null_slot() )
-        bsp_abort("bsp_hpget: Source may not be used as it was registered with NULL\n");
-
-    Rdma::Memslot src_slot = s_rdma->slot( pid, src_slot_id );
-
+    bsplib::Rdma::Memslot src_slot_id = lookup_usable_reg( src, "bsp_hpget" );
+    bsplib::Rdma::Memblock src_slot = s_rdma->slot( pid, src_slot_id );
 
     if ( size_t(offset + nbytes) > src_slot.size )
         bsp_abort("bsp_get: Reads %zu bytes beyond registered "

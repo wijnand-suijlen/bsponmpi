@@ -14,7 +14,7 @@ public:
     explicit exception(const char * name) 
       : m_stream()
       , m_buf()
-    { m_stream << name ; }
+    { m_stream << name << ": " ; }
 
     ~exception() throw() 
     {}

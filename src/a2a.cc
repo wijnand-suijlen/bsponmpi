@@ -1,5 +1,6 @@
 #include "a2a.h"
 
+#include <algorithm>
 #include <cstring>
 #include <mpi.h>
 
@@ -66,7 +67,7 @@ void * A2A::send( int dst_pid, const void * data, size_t size )
 void A2A::exchange( )
 {
     // exchange data sizes. 
-    size_t max_send = *max_element( m_send_sizes.begin(), m_send_sizes.begin() + m_nprocs );
+    size_t max_send = *std::max_element( m_send_sizes.begin(), m_send_sizes.begin() + m_nprocs );
     for (int p = m_nprocs; p > 0; --p ) {
         m_send_sizes[2*p-1] = max_send;
         m_send_sizes[2*p-2] = m_send_sizes[p-1];
@@ -77,7 +78,7 @@ void A2A::exchange( )
             m_recv_sizes.data(), 2*sizeof(size_t), MPI_BYTE,
             m_comm );
 
-    size_t max_recv = *max_element( m_recv_sizes.begin(), m_recv_sizes.end() );
+    size_t max_recv = *std::max_element( m_recv_sizes.begin(), m_recv_sizes.end() );
     for (int p = 0; p < m_nprocs; ++p) {
         m_recv_sizes[p] = m_recv_sizes[2*p];
         m_send_sizes[p] = m_send_sizes[2*p];
