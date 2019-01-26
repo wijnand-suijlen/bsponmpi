@@ -1,6 +1,6 @@
 #include <bsp.h>
 #include <stdlib.h>
-#include <assert.h>
+#include "test.h"
 #include <stdio.h>
 
 int all_gather_sparse_vec( float * dense, int n_over_p,
@@ -34,7 +34,7 @@ int all_gather_sparse_vec( float * dense, int n_over_p,
  
      for ( i = 0 ; i < nonzeros; ++i) {
        bsp_get_tag( &status, &sparse_ivec[i] );
-       assert(status == sizeof(float));
+       EXPECT_EQ( "%d", status, (int) sizeof(float));
        bsp_move( &sparse[i], sizeof(float) );
      }
    }
@@ -44,15 +44,13 @@ int all_gather_sparse_vec( float * dense, int n_over_p,
    return nonzeros;
 }
 
-int main( int argc, char ** argv)
+TEST( paper_all_gather_sparce_vec, success() )
 {
     int p, s, N, i, j, k, nz;
     float x;
     float * dense, *dense_all;
     float * sparse = NULL;
     int * sparse_ivec = NULL;
-    (void) argc; (void) argv;
-
     bsp_begin(bsp_nprocs());
 
     p = bsp_nprocs();
@@ -64,8 +62,8 @@ int main( int argc, char ** argv)
     dense = calloc( N/p, sizeof(dense[0]) );
     dense_all = calloc( N, sizeof(dense_all[0])); 
 
-    assert( dense );
-    assert( dense_all );
+    EXPECT( dense );
+    EXPECT( dense_all );
     bsp_push_reg( dense, N/p*sizeof(dense[0]));
     bsp_sync();
     
@@ -78,8 +76,8 @@ int main( int argc, char ** argv)
 
         x = rand() / (1.0 + RAND_MAX);
 
-        assert( j >= 0);
-        assert( j < N/p );
+        EXPECT_OP( "%d", j, >=, 0);
+        EXPECT_OP( "%d", j, <, N/p );
         dense[j] = x;
 
         for ( k = 0; k < 2*p; ++k)
@@ -92,12 +90,11 @@ int main( int argc, char ** argv)
     nz = all_gather_sparse_vec( dense, N/p, &sparse, &sparse_ivec );
 
     for ( i = 0; i < nz; ++i) {
-        assert( sparse[i] == dense_all[ sparse_ivec[i] ] );
+        EXPECT_EQ("%g", sparse[i], dense_all[ sparse_ivec[i] ] );
     }
 
     bsp_pop_reg( dense );
 
     bsp_end();
-    return 0;
 }
 

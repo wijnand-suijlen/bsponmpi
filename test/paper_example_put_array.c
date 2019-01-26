@@ -1,5 +1,5 @@
 #include <bsp.h>
-#include <assert.h>
+#include "test.h"
 
 void put_array( int * xs, int n ) {
     int i, dst_pid, dst_idx;
@@ -20,11 +20,10 @@ void put_array( int * xs, int n ) {
     bsp_pop_reg(xs);
 }
 
-int main( int argc, char ** argv )
+TEST( paper_example_put_array, success() )
 {
     bsp_pid_t p, s;
     int xs[3];
-    (void) argc; (void) argv;
     bsp_begin( bsp_nprocs() );
 
     p = bsp_nprocs();
@@ -36,10 +35,9 @@ int main( int argc, char ** argv )
 
     put_array( xs, 3*p);
 
-    assert( xs[0] == s*3 );
-    assert( xs[1] == s*3 + 1);
-    assert( xs[2] == s*3 + 2);
+    EXPECT_EQ( "%d", xs[0], s*3 );
+    EXPECT_EQ( "%d", xs[1], s*3 + 1);
+    EXPECT_EQ( "%d", xs[2], s*3 + 2);
    
     bsp_end();
-    return 0;
 }

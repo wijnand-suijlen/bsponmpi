@@ -16,6 +16,19 @@ static bsplib::Spmd * s_spmd = NULL;
 static bsplib::Rdma * s_rdma = NULL;
 static bsplib::Bsmp * s_bsmp = NULL;
 
+static const char * s_expect_abort_msg = NULL;
+
+DLL_PUBLIC extern "C" void bsp_intern_expect_success(void)
+{
+    /* empty */
+}
+
+DLL_PUBLIC extern "C" void bsp_intern_expect_abort( const char * message )
+{
+    s_expect_abort_msg = message;
+}
+
+
 static void bsp_finalize(void)
 {
     int init = 0;
@@ -35,10 +48,27 @@ void bsp_abort( const char * format, ... )
 
 void bsp_abort_va( const char * format, va_list ap )
 {
-    std::vfprintf(stderr, format, ap );
-
     int mpi_init = 0;
     MPI_Initialized( & mpi_init );
+
+    if (s_expect_abort_msg) {
+        char buffer[200];
+        std::vsnprintf(buffer, sizeof(buffer), format, ap );
+        int len = strlen( s_expect_abort_msg );
+        if (len > sizeof(buffer)) len = sizeof(buffer);
+        // test equality of prefix
+        if ( strncmp( buffer, s_expect_abort_msg, len ) == 0 ) {
+            if (mpi_init)
+                MPI_Abort(MPI_COMM_WORLD, EXIT_SUCCESS );
+            else
+                std::exit(EXIT_SUCCESS);
+        }
+        std::fprintf( stderr, "Test did indeed abort, but produced wrong message.\n"
+                "  Expected: '%s...'\n"
+                "    Actual: '%s'\n", s_expect_abort_msg, buffer  );
+    }
+    std::vfprintf(stderr, format, ap );
+
     if (mpi_init)
         MPI_Abort(MPI_COMM_WORLD, 6 );
     else
@@ -98,7 +128,6 @@ void bsp_begin( bsp_pid_t maxprocs )
 
     s_spmd = new bsplib::Spmd( maxprocs );
     if ( ! s_spmd->active() ) {
-
         if (s_spmd->end_sync())
             bsp_abort( "bsp_end: Unexpected internal error\n");
         delete s_spmd;
@@ -118,7 +147,8 @@ void bsp_end()
         bsp_abort("bsp_end: may not be called multiple times\n");
 
     if (s_spmd->end_sync())
-        bsp_abort("bsp_end: Some other processes have called bsp_sync instead\n");
+        bsp_abort("bsp_sync/bsp_end: Some processes have called bsp_sync, "
+               "while others have called bsp_end instead\n");
 
     assert( s_spmd->ended() );
     
@@ -130,7 +160,7 @@ void bsp_end()
 
 bsp_pid_t bsp_nprocs()
 {
-    if (!s_spmd) {
+    if (!s_spmd || s_spmd->ended() ) {
         int mpi_init = 0;
         MPI_Initialized( & mpi_init );
         if (!mpi_init) {
@@ -162,7 +192,9 @@ void bsp_sync()
         bsp_abort("bsp_sync: can only be called within SPMD section\n");
 
     if (s_spmd->normal_sync())
-        bsp_abort("bsp_sync: some processes called bsp_end instead\n");
+        bsp_abort("bsp_sync/bsp_end: Some processes have called bsp_sync, "
+               "while others have called bsp_end instead\n");
+
 
     try {
         s_rdma->sync( );

@@ -1,13 +1,9 @@
 #include <bsp.h>
-#include <assert.h>
+#include "test.h"
 
-int main( int argc, char ** argv )
+TEST( abort_2, abort("Dit is een test abort. Twee punt vijfenveertig = 2.45"))
 {
-    (void) argc; (void) argv;
     bsp_begin( bsp_nprocs() );
-    
     bsp_abort("Dit is een test abort. Twee punt vijfenveertig = %g\n", 2.45);
-
     bsp_end();
-    return 0;
 }

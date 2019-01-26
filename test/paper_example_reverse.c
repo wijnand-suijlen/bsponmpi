@@ -1,5 +1,5 @@
 #include <bsp.h>
-#include <assert.h>
+#include "test.h"
 
 int reverse( int x )
 {
@@ -12,15 +12,13 @@ int reverse( int x )
     return x;
 }
 
-int main( int argc, char ** argv )
+TEST( paper_example_reverse, success() )
 {
     int x;
-    (void) argc; (void) argv;
     bsp_begin( bsp_nprocs() );
     
     x = reverse( bsp_pid() );
-    assert( bsp_nprocs() - bsp_pid() - 1 == x );
+    EXPECT_EQ( "%d", x,  bsp_nprocs() - bsp_pid() - 1 );
    
     bsp_end();
-    return 0;
 }

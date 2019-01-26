@@ -1,5 +1,5 @@
 #include <stdlib.h>
-#include <assert.h>
+#include "test.h"
 #include <stdio.h>
 #include <bsp.h>
 
@@ -21,10 +21,7 @@ int bsp_sum( int *xs, int nelem ) {
     for (i = 0 ; i < p; ++i) 
         bsp_hpget( i, &result, 0, &local_sums[i], sizeof(int));
     
-printf("[%d] e\n", bsp_pid() );
     bsp_sync();
-printf("[%d] f\n", bsp_pid() );
-
 
     result = 0;
     for (i = 0 ; i < p; ++i)
@@ -35,11 +32,10 @@ printf("[%d] f\n", bsp_pid() );
     return result;
 }
 
-int main( int argc, char * argv[]) 
+TEST( paper_example_bsp_sum, success() )
 {
     int p, s, y, i;
     int xs[6];
-    (void) argc; (void) argv;
     bsp_begin( bsp_nprocs() );
     p = bsp_nprocs();
     s = bsp_pid();
@@ -48,8 +44,7 @@ int main( int argc, char * argv[])
 
     y = bsp_sum( xs, 6 );
 
-    assert( (0 + 1 + 2 + 3 + 4+ 5)*p*(p-1)/2 == y );
+    EXPECT_EQ( "%d", y,  (0 + 1 + 2 + 3 + 4+ 5)*p*(p-1)/2 );
 
     bsp_end();
-    return 0;
 }
