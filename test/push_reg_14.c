@@ -3,7 +3,6 @@
 #include "test.h"
 
 TEST( push_reg_14 , success() ) {
-    int x, y;
     bsp_begin( bsp_nprocs() );
 
     bsp_push_reg(NULL, 0);

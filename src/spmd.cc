@@ -21,7 +21,11 @@ Spmd :: Spmd( int nprocs )
     MPI_Comm_size( m_comm, &m_nprocs );
     MPI_Comm_rank( m_comm, &m_pid );
 
+#ifdef HAS_CLOCK_GETTIME
+    clock_gettime( CLOCK_MONOTONIC, &m_time );
+#else
     m_time = MPI_Wtime();
+#endif
 }
 
 Spmd :: ~Spmd() {

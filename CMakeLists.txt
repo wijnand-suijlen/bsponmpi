@@ -27,6 +27,7 @@ endif()
 set(CPACK_GENERATOR "${generators}" )
 
 include(CPack)
+include(CheckSymbolExists)
 
 set(SOVERSION "${CPACK_PACKAGE_VERSION_MAJOR}.${CPACK_PACKAGE_VERSION_MINOR}.${CPACK_PACKAGE_VERSION_PATCH}")
 
@@ -63,6 +64,11 @@ endif()
 
 if (HAS_CXX11_UNORDERED_MAP)
     add_definitions(-DHAS_CXX11_UNORDERED_MAP)
+endif()
+
+check_symbol_exists( clock_gettime "time.h" HAS_CLOCK_GETTIME )
+if (HAS_CLOCK_GETTIME)
+    add_definitions(-DHAS_CLOCK_GETTIME)
 endif()
 
 if (CMAKE_COMPILER_IS_GNUCXX)

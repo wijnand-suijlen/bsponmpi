@@ -17,6 +17,7 @@ static bsplib::Rdma * s_rdma = NULL;
 static bsplib::Bsmp * s_bsmp = NULL;
 
 static const char * s_expect_abort_msg = NULL;
+static bool s_aborting = false ;
 
 extern "C" {
 DLL_PUBLIC void bsp_intern_expect_success(void)
@@ -33,11 +34,14 @@ DLL_PUBLIC void bsp_intern_expect_abort( const char * message )
 
 static void bsp_finalize(void)
 {
+    if ( s_aborting ) return;
+
     int init = 0;
     MPI_Initialized(&init);
     if (init)
         MPI_Finalize();
 }
+
 
 
 void bsp_abort( const char * format, ... )
@@ -53,11 +57,13 @@ void bsp_abort_va( const char * format, va_list ap )
     int mpi_init = 0;
     MPI_Initialized( & mpi_init );
 
+    s_aborting = true;
+
     if (s_expect_abort_msg) {
         char buffer[200];
         std::vsnprintf(buffer, sizeof(buffer), format, ap );
         int len = strlen( s_expect_abort_msg );
-        if (len > sizeof(buffer)) len = sizeof(buffer);
+        if (len > int(sizeof(buffer))) len = sizeof(buffer);
         // test equality of prefix
         if ( strncmp( buffer, s_expect_abort_msg, len ) == 0 ) {
             if (mpi_init)
@@ -188,6 +194,15 @@ bsp_pid_t bsp_pid()
     return s_spmd->pid();
 }
 
+double bsp_time()
+{
+    if (!s_spmd && !s_spmd->ended())
+        bsp_abort("bsp_time: can only be called within SPMD section\n");
+
+    return s_spmd->time();
+}
+
+  
 void bsp_sync()
 {
     if (!s_spmd && !s_spmd->ended())
@@ -239,6 +254,8 @@ void bsp_pop_reg( const void * addr )
 
 static bsplib::Rdma::Memslot lookup_usable_reg( const void * addr, const char * func )
 {
+    assert( addr != NULL );
+
     bsplib::Rdma::Memslot id = 
         s_rdma->lookup_reg( const_cast<void*>(addr), false, true);
     if ( id == s_rdma->no_slot() ) {
@@ -251,9 +268,7 @@ static bsplib::Rdma::Memslot lookup_usable_reg( const void * addr, const char * 
           bsp_abort("%s: Remote address was not registered\n", func );
     }
 
-    if ( id == s_rdma->null_slot() )
-        bsp_abort("%s: Remote address may not be used because it was registered with NULL\n",
-                func);
+    assert( id != s_rdma->null_slot() );
 
     return id;
 }

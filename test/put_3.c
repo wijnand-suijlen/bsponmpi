@@ -1,13 +1,13 @@
 #include <bsp.h>
 #include "test.h"
 
-TEST( put_1, abort("bsp_put: Remote address may not be used because it was registered with NULL")) {
+TEST( put_1, abort("bsp_put: Writes 4 bytes beyond registered range")) {
     int x;
     bsp_begin( bsp_nprocs() );
 
     x = bsp_pid();
 
-    bsp_push_reg( bsp_pid()?&x:NULL, sizeof(x) );
+    bsp_push_reg( bsp_pid()?&x:NULL, bsp_pid()?sizeof(x):0 );
 
     bsp_sync();
 
