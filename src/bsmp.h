@@ -5,6 +5,9 @@
 #include "a2a.h"
 #include "dllexport.h"
 
+#ifdef PROFILE
+#include "tictoc.h"
+#endif
 
 namespace bsplib {
 
@@ -23,11 +26,22 @@ public:
     size_t recv_tag_size() const 
     { return m_recv_tag_size; }
 
+    size_t send_tag_size() const 
+    { return m_send_tag_size; }
+
     void send( int pid, const void * tag, const void * payload, size_t nbytes )
     {
+#ifdef PROFILE
+        TicToc t(TicToc::BSMP);
+        size_t start = m_a2a.send_size(pid);
+#endif
         serial( m_a2a, pid, nbytes + 1 );
         m_a2a.send( pid, tag, m_send_tag_size );
         m_a2a.send( pid, payload, nbytes );
+#ifdef PROFILE
+        size_t end = m_a2a.send_size(pid);
+        t.addBytes(end-start);
+#endif
     }
 
     size_t n_total_messages() const 

@@ -1,5 +1,8 @@
 #include "rdma.h"
 #include "exception.h"
+#ifdef PROFILE
+#include "tictoc.h"
+#endif
 
 #include <cstring>
 
@@ -43,6 +46,11 @@ void Rdma::pop_reg( Memslot id )
 void Rdma::put( const void * src,
         int dst_pid, Memslot dst_slot, size_t dst_offset, size_t size )
 {
+#ifdef PROFILE
+    TicToc t( TicToc::PUT );
+    size_t t_a = m_second_exchange.send_size(dst_pid);
+#endif
+
     assert( ! (slot( m_pid, dst_slot ).status & Memblock::PUSHED) );
     char * addr = static_cast<char *>( slot(dst_pid, dst_slot).addr );
     char * null = NULL;
@@ -52,11 +60,18 @@ void Rdma::put( const void * src,
     serial( m_second_exchange, dst_pid, dst_addr );
 
     m_second_exchange.send( dst_pid, src, size );
+#ifdef PROFILE
+    size_t t_b = m_second_exchange.send_size(dst_pid);
+    t.addBytes(t_b-t_a);
+#endif
 }
 
 void Rdma::hpput( const void * src,
         int dst_pid, Memslot dst_slot, size_t dst_offset, size_t size )
 {
+#ifdef PROFILE
+    TicToc t( TicToc::HPPUT );
+#endif
     assert( ! (slot( m_pid, dst_slot ).status & Memblock::PUSHED) );
     char * addr = static_cast<char *>( slot(dst_pid, dst_slot).addr );
     char * null = NULL;
@@ -69,12 +84,14 @@ void Rdma::hpput( const void * src,
     Action action = { Action::HPPUT, dst_pid, m_pid, dst_pid,
                       tag, src_addr, dst_addr, size };
     m_send_actions.push_back( action );
-   
 }
 
 void Rdma::get( int src_pid, Memslot src_slot, size_t src_offset,
         void * dst, size_t size )
 {
+#ifdef PROFILE
+    TicToc t( TicToc::GET );
+#endif
     assert( !( slot( m_pid, src_slot ).status & Memblock::PUSHED) );
     char * null = NULL;
     size_t dst_addr = static_cast<char *>(dst) - null;
@@ -90,6 +107,9 @@ void Rdma::get( int src_pid, Memslot src_slot, size_t src_offset,
 void Rdma::hpget( int src_pid, Memslot src_slot, size_t src_offset,
         void * dst, size_t size )
 {
+#ifdef PROFILE
+    TicToc t( TicToc::HPGET );
+#endif
     assert( !( slot( m_pid, src_slot ).status & Memblock::PUSHED) );
     char * null = NULL;
     size_t dst_addr = static_cast<char *>(dst) - null;
@@ -106,6 +126,9 @@ void Rdma::hpget( int src_pid, Memslot src_slot, size_t src_offset,
 
 void Rdma::write_gets()
 {
+#ifdef PROFILE
+    TicToc t(TicToc::GET );
+#endif
     for (int p = 0; p < m_nprocs; ++p){
         size_t start = m_recv_actions.m_get_buffer_offset[p];
         m_second_exchange.recv_pop( p, start );
@@ -120,12 +143,19 @@ void Rdma::write_gets()
             std::memcpy( dst_addr, m_second_exchange.recv_top(p), size );
             m_second_exchange.recv_pop(p, size );
         }
+#ifdef PROFILE
+        size_t end = m_second_exchange.recv_pos(p);
+        t.addBytes( end - start );
+#endif
    }
 }
 
 
 void Rdma::write_puts()
 {
+#ifdef PROFILE
+    TicToc t(TicToc::PUT);
+#endif
     for (int p = 0; p < m_nprocs; ++p){
         size_t end = m_recv_actions.m_get_buffer_offset[p];
         m_second_exchange.recv_rewind( p );
@@ -140,6 +170,9 @@ void Rdma::write_puts()
             std::memcpy( dst_addr, m_second_exchange.recv_top(p), size );
             m_second_exchange.recv_pop(p, size );
         }
+#ifdef PROFILE
+        t.addBytes( end );
+#endif
    }
 }
 
@@ -190,6 +223,12 @@ void Rdma::ActionBuf::serialize( A2A & a2a )
     for (size_t i = 0; i < m_actions.size(); ++i ) 
     {
         Action a = m_actions[i];
+#ifdef PROFILE
+        TicToc t( a.kind==Action::GET? TicToc::GET:
+                  a.kind==Action::HPPUT? TicToc::HPPUT:
+                  TicToc::HPGET );
+        size_t start = a2a.send_size(a.target_pid);
+#endif
         serial( a2a, a.target_pid, unsigned(a.kind) );
         serial( a2a, a.target_pid, a.src_pid );
         serial( a2a, a.target_pid, a.dst_pid );
@@ -197,6 +236,10 @@ void Rdma::ActionBuf::serialize( A2A & a2a )
         serial( a2a, a.target_pid, a.src_addr );
         serial( a2a, a.target_pid, a.dst_addr );
         serial( a2a, a.target_pid, a.size );
+#ifdef PROFILE
+        size_t end = a2a.send_size(a.target_pid);
+        t.addBytes(end-start);
+#endif
     }
 }
 
@@ -220,6 +263,11 @@ void Rdma::ActionBuf::deserialize( A2A & a2a )
             unsigned kind;
             deserial( a2a, p, kind );
             a.kind = Action::Kind(kind);
+#ifdef PROFILE
+            TicToc t( a.kind==Action::GET? TicToc::GET:
+                  a.kind==Action::HPPUT? TicToc::HPPUT:
+                  TicToc::HPGET );
+#endif
             deserial( a2a, p, a.src_pid );
             deserial( a2a, p, a.dst_pid );
             deserial( a2a, p, a.tag );
@@ -236,25 +284,43 @@ void Rdma::ActionBuf::execute( Rdma & rdma )
     for (size_t i = 0; i < m_actions.size(); ++i ) 
     {
         Action a = m_actions[i];
+#ifdef PROFILE
+        TicToc t( a.kind==Action::GET? TicToc::GET:
+                  a.kind==Action::HPPUT? TicToc::HPPUT:
+                  TicToc::HPGET );
+#endif
         switch( a.kind ) {
             case Action::GET : {
+#ifdef PROFILE
+                size_t start=rdma.m_second_exchange.send_size(a.dst_pid);
+#endif
                 serial( rdma.m_second_exchange, a.dst_pid, a.size );
                 serial( rdma.m_second_exchange, a.dst_pid, a.dst_addr );
                 char * src = NULL;
                 src += a.src_addr;
                 rdma.m_second_exchange.send( a.dst_pid, src, a.size );
+#ifdef PROFILE
+                size_t end=rdma.m_second_exchange.send_size(a.dst_pid);
+                t.addBytes(end-start);
+#endif
                 break;
             }
 
             case Action::HPPUT : {
                 char * null = NULL;
                 rdma.m_unbuf.recv( a.tag, a.src_pid, null+a.dst_addr, a.size );
+#ifdef PROFILE
+                t.addBytes(a.size);
+#endif
                 break;
             }
 
             case Action::HPGET : {
                 char * null = NULL;
                 rdma.m_unbuf.send( a.tag, a.dst_pid, null + a.src_addr, a.size );
+#ifdef PROFILE
+                t.addBytes(a.size);
+#endif
                 break;
             }
         }

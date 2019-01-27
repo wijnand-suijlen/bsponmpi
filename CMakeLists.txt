@@ -88,6 +88,7 @@ endif()
 # we prefer static
 option(BUILD_SHARED_LIBS "Build BSPonMPI as a shared library; When you get strange linking problems, you might want to toggle this option" "${APPLE}" ) 
 
+option(BSPONMPI_PROFILE "Enable internal profiling" FALSE)
 # Testing
 
 enable_testing()
@@ -123,9 +124,13 @@ include_directories( ${MPI_INCLUDE_PATH} )
 include_directories( include )
 add_library( bsponmpi 
         src/bsp.cc src/spmd.cc src/a2a.cc src/unbuf.cc src/rdma.cc
-        src/bsmp.cc  
+        src/bsmp.cc src/tictoc.cc
         )
 target_link_libraries( bsponmpi ${MPI_C_LIBRARIES})
+if (BSPONMPI_PROFILE)
+    target_compile_definitions(bsponmpi PRIVATE PROFILE )
+endif()
+
 
 install( TARGETS bsponmpi
          RUNTIME DESTINATION bin

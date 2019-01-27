@@ -1,6 +1,10 @@
 #include "bsmp.h"
 #include "exception.h"
 
+#ifdef PROFILE
+#include "tictoc.h"
+#endif
+
 namespace bsplib {
 Bsmp::Bsmp(MPI_Comm comm, size_t max_msg_size)
     : m_set_tag_size_counter(0)
@@ -19,6 +23,10 @@ Bsmp::Bsmp(MPI_Comm comm, size_t max_msg_size)
 
 void Bsmp::sync() 
 {
+#ifdef PROFILE
+    TicToc t( TicToc::BSMP);
+#endif
+
     m_payloads.clear();
     m_tag_buffer.clear();
     m_payload_buffer.clear();
@@ -28,6 +36,10 @@ void Bsmp::sync()
         serial( m_a2a, p, marker );
         serial( m_a2a, p, m_set_tag_size_counter );
         serial( m_a2a, p, m_next_tag_size );
+    
+#ifdef PROFILE
+        t.addBytes( m_a2a.send_size(p) );
+#endif
     }
 
     m_a2a.exchange( );

@@ -1,5 +1,9 @@
 #include "a2a.h"
 
+#ifdef PROFILE
+#include "tictoc.h"
+#endif
+
 #include <algorithm>
 #include <cstring>
 #include <mpi.h>
@@ -66,22 +70,28 @@ void * A2A::send( int dst_pid, const void * data, size_t size )
 
 void A2A::exchange( )
 {
-    // exchange data sizes. 
-    size_t max_send = *std::max_element( m_send_sizes.begin(), m_send_sizes.begin() + m_nprocs );
-    for (int p = m_nprocs; p > 0; --p ) {
-        m_send_sizes[2*p-1] = max_send;
-        m_send_sizes[2*p-2] = m_send_sizes[p-1];
-    }
-    // In normal cases, Bruck's algorithm will be used, 
-    // so this will cost about O( log P )
-    MPI_Alltoall( m_send_sizes.data(), 2*sizeof(size_t), MPI_BYTE,
-            m_recv_sizes.data(), 2*sizeof(size_t), MPI_BYTE,
-            m_comm );
+    size_t max_recv = 0;
+    {   
+#ifdef PROFILE
+        TicToc t( TicToc::MPI_META_A2A, 2*sizeof(size_t)*m_nprocs );
+#endif
+        // exchange data sizes. 
+        size_t max_send = *std::max_element( m_send_sizes.begin(), m_send_sizes.begin() + m_nprocs );
+        for (int p = m_nprocs; p > 0; --p ) {
+            m_send_sizes[2*p-1] = max_send;
+            m_send_sizes[2*p-2] = m_send_sizes[p-1];
+        }
+        // In normal cases, Bruck's algorithm will be used, 
+        // so this will cost about O( log P )
+        MPI_Alltoall( m_send_sizes.data(), 2*sizeof(size_t), MPI_BYTE,
+                m_recv_sizes.data(), 2*sizeof(size_t), MPI_BYTE,
+                m_comm );
 
-    size_t max_recv = *std::max_element( m_recv_sizes.begin(), m_recv_sizes.end() );
-    for (int p = 0; p < m_nprocs; ++p) {
-        m_recv_sizes[p] = m_recv_sizes[2*p];
-        m_send_sizes[p] = m_send_sizes[2*p];
+        max_recv = *std::max_element( m_recv_sizes.begin(), m_recv_sizes.end() );
+        for (int p = 0; p < m_nprocs; ++p) {
+            m_recv_sizes[p] = m_recv_sizes[2*p];
+            m_send_sizes[p] = m_send_sizes[2*p];
+        }
     }
 
     // Ensure correct size memory of recv buffers
@@ -100,10 +110,16 @@ void A2A::exchange( )
     }
 
     if ( max_recv <= m_small_a2a_size_per_proc ) {
+#ifdef PROFILE
+        TicToc t( TicToc::MPI_SMALL_A2A );
+#endif
         for (int p = 0; p < m_nprocs; ++p ) {
             memcpy( m_small_send_buf.data() + p * max_recv,
                     m_send_bufs[p].data(),
                     m_send_sizes[p] );
+#ifdef PROFILE
+            t.addBytes( m_send_sizes[p] );
+#endif
         }
         // In small exchanges, Bruck's algorithm will be used again
         MPI_Alltoall( m_small_send_buf.data(), max_recv, MPI_BYTE,
@@ -122,9 +138,12 @@ void A2A::exchange( )
             m_recv_offsets[p] = 0;
             m_send_bufs[p].clear();
         }
-}
+    }
     else { // we have a large exchange
-
+#ifdef PROFILE
+        TicToc tr( TicToc::MPI_LARGE_RECV );
+        TicToc ts( TicToc::MPI_LARGE_SEND );
+#endif
 
         // Do a personalized exchange
         int outcount = MPI_UNDEFINED;
@@ -134,6 +153,9 @@ void A2A::exchange( )
                 if (m_reqs[p] != MPI_REQUEST_NULL) continue;
 
                 int recv_size = std::min( m_max_msg_size, m_recv_sizes[p] );
+#ifdef PROFILE
+                ts.addBytes( recv_size );
+#endif
 
                 int tag = 0;
                 if (recv_size > 0 )
@@ -153,7 +175,9 @@ void A2A::exchange( )
                 if (m_reqs[m_nprocs + p] != MPI_REQUEST_NULL) continue;
 
                 int send_size = std::min( m_max_msg_size, m_send_sizes[p] );
-
+#ifdef PROFILE
+                ts.addBytes( send_size );
+#endif
 
                 int tag = 0;
                 if (send_size > 0 ) {

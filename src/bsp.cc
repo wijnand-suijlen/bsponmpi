@@ -12,6 +12,11 @@
 
 #include <mpi.h>
 
+#ifdef PROFILE
+#include "tictoc.h"
+using bsplib::TicToc;
+#endif
+
 static bsplib::Spmd * s_spmd = NULL;
 static bsplib::Rdma * s_rdma = NULL;
 static bsplib::Bsmp * s_bsmp = NULL;
@@ -41,10 +46,33 @@ static void bsp_finalize(void)
     }
     if ( s_aborting ) return;
 
+#ifdef PROFILE
+    std::ostringstream out;
+    TicToc :: printStats( out );
+#endif
+
     int init = 0;
     MPI_Initialized(&init);
-    if (init)
+    if (init) {
+#ifdef PROFILE
+        int pid, nprocs, i;
+        MPI_Comm_rank( MPI_COMM_WORLD, &pid );
+        MPI_Comm_size( MPI_COMM_WORLD, &nprocs );
+        for ( i = 0 ; i < nprocs; ++i ) {
+            if ( i==pid)
+                std::printf("[%d] ---   PROFILE   ---\n%s\n\n", pid, out.str().c_str() );
+            MPI_Barrier(MPI_COMM_WORLD);
+        }
+#endif
         MPI_Finalize();
+    }
+#ifdef PROFILE
+    else
+    {
+        std::printf("--- PROFILE ---\n%s\n", out.str().c_str() );
+    }
+#endif
+
 }
 
 
@@ -211,6 +239,10 @@ double bsp_time()
   
 void bsp_sync()
 {
+#ifdef PROFILE
+    TicToc t( TicToc::SYNC );
+#endif
+
     if (!s_spmd && !s_spmd->ended())
         bsp_abort("bsp_sync: can only be called within SPMD section\n");
 
@@ -285,6 +317,10 @@ static bsplib::Rdma::Memslot lookup_usable_reg( const void * addr, const char * 
 void bsp_put( bsp_pid_t pid, const void * src, void * dst,
         bsp_size_t offset, bsp_size_t nbytes )
 {
+#ifdef PROFILE
+    TicToc t( TicToc::PUT, nbytes );
+#endif
+
     if (nbytes == 0) // ignore any empty writes
         return;
 
@@ -319,6 +355,10 @@ void bsp_put( bsp_pid_t pid, const void * src, void * dst,
 void bsp_hpput( bsp_pid_t pid, const void * src, void * dst,
         bsp_size_t offset, bsp_size_t nbytes )
 {
+#ifdef PROFILE
+    TicToc t( TicToc::HPPUT, nbytes );
+#endif
+
     if (nbytes == 0) // ignore any empty writes
         return;
 
@@ -356,6 +396,10 @@ void bsp_hpput( bsp_pid_t pid, const void * src, void * dst,
 void bsp_get( bsp_pid_t pid, const void * src, bsp_size_t offset,
         void * dst, bsp_size_t nbytes )
 {
+#ifdef PROFILE
+    TicToc t( TicToc::GET, nbytes );
+#endif
+
     if (nbytes == 0) // ignore any empty reads
         return;
 
@@ -389,6 +433,10 @@ void bsp_get( bsp_pid_t pid, const void * src, bsp_size_t offset,
 void bsp_hpget( bsp_pid_t pid, const void * src, bsp_size_t offset,
         void * dst, bsp_size_t nbytes )
 {
+#ifdef PROFILE
+    TicToc t( TicToc::HPGET, nbytes );
+#endif
+
     if (nbytes == 0) // ignore any empty reads
         return;
 
@@ -452,6 +500,10 @@ void bsp_send( bsp_pid_t pid, const void * tag, const void * payload,
         bsp_abort("bsp_send: Invalid payload size, becaues it is also "
                  "used as end marker\n");
 
+#ifdef PROFILE
+    TicToc t( TicToc::BSMP, s_bsmp->send_tag_size() + payload_nbytes );
+#endif
+
     s_bsmp->send( pid, tag, payload, payload_nbytes );
 }
 
@@ -484,6 +536,9 @@ void bsp_get_tag( bsp_size_t * status, void * tag )
 {
     if (!s_spmd && !s_spmd->ended())
         bsp_abort("bsp_get_tag: can only be called within SPMD section\n");
+#ifdef PROFILE
+    TicToc t( TicToc::BSMP, s_bsmp->recv_tag_size() );
+#endif
 
     if ( status == NULL )
         bsp_abort("bsp_get_tag: first arguments may not be NULL\n");
@@ -516,6 +571,10 @@ void bsp_move( void * payload, bsp_size_t reception_nbytes )
      if ( s_bsmp->empty() )
          bsp_abort("bsp_move: Message queue was empty\n");
 
+#ifdef PROFILE
+     TicToc t( TicToc::BSMP, s_bsmp->payload_size() );
+#endif
+
      size_t size = std::min< size_t >( reception_nbytes, s_bsmp->payload_size() );
      std::memcpy( payload, s_bsmp->payload(), size );
      s_bsmp->pop();
@@ -525,6 +584,10 @@ bsp_size_t bsp_hpmove( void ** tag_ptr, void ** payload_ptr )
 {
      if (!s_spmd && !s_spmd->ended())
         bsp_abort("bsp_hpmove: can only be called within SPMD section\n");
+
+#ifdef PROFILE
+     TicToc t( TicToc::BSMP, s_bsmp->payload_size() );
+#endif
 
      if ( tag_ptr == NULL || payload_ptr == NULL )
         bsp_abort("bsp_hpmove: pointer arugments may not be NULL\n");
@@ -564,6 +627,10 @@ void mcbsp_pop_reg( void * address )
 void mcbsp_put( mcbsp_pid_t pid, const void * src,
              const void * dst, mcbsp_size_t offset, mcbsp_size_t size )
 {
+#ifdef PROFILE
+    TicToc t( TicToc::PUT, size );
+#endif
+
     if (size == 0) // ignore any empty writes
         return;
 
@@ -592,6 +659,10 @@ void mcbsp_put( mcbsp_pid_t pid, const void * src,
 void mcbsp_hpput( mcbsp_pid_t pid, const void * src,
              const void * dst, mcbsp_size_t offset, mcbsp_size_t size )
 {
+#ifdef PROFILE
+    TicToc t( TicToc::HPPUT, size );
+#endif
+
     if (size == 0) // ignore any empty writes
         return;
 
@@ -622,6 +693,10 @@ void mcbsp_hpput( mcbsp_pid_t pid, const void * src,
 void mcbsp_get( mcbsp_pid_t pid, const void * src,
     mcbsp_size_t offset, const void * dst, mcbsp_size_t size )
 {
+#ifdef PROFILE
+    TicToc t( TicToc::GET, size );
+#endif
+
     if (size == 0) // ignore any empty reads
         return;
 
@@ -649,6 +724,10 @@ void mcbsp_get( mcbsp_pid_t pid, const void * src,
 void mcbsp_hpget( mcbsp_pid_t pid, const void * src, 
     mcbsp_size_t offset, const void * dst, mcbsp_size_t size )
 {
+#ifdef PROFILE
+    TicToc t( TicToc::HPGET, size );
+#endif
+
     if (size == 0) // ignore any empty reads
         return;
 
@@ -701,6 +780,10 @@ void mcbsp_send( mcbsp_pid_t pid, const void * tag,
         bsp_abort("bsp_send: Invalid payload size, becaues it is also "
                  "used as end marker\n");
 
+#ifdef PROFILE
+    TicToc t( TicToc::BSMP, s_bsmp->send_tag_size() + size );
+#endif
+
     s_bsmp->send( pid, tag, payload, size );
 }
 
@@ -737,6 +820,10 @@ void mcbsp_get_tag( mcbsp_size_t * status, void * tag )
     if (!s_spmd && !s_spmd->ended())
         bsp_abort("bsp_get_tag: can only be called within SPMD section\n");
 
+#ifdef PROFILE
+    TicToc t( TicToc::BSMP, s_bsmp->recv_tag_size() );
+#endif
+
     if ( status == NULL )
         bsp_abort("bsp_get_tag: first arguments may not be NULL\n");
 
@@ -760,11 +847,15 @@ void mcbsp_move( void * payload, mcbsp_size_t reception_bytes )
      if (!s_spmd && !s_spmd->ended())
         bsp_abort("bsp_move: can only be called within SPMD section\n");
 
-      if ( payload == NULL && reception_bytes > 0 )
+     if ( payload == NULL && reception_bytes > 0 )
         bsp_abort("bsp_move: payload may not be NULL if size parameter is non-zero\n");
 
      if ( s_bsmp->empty() )
          bsp_abort("bsp_move: Message queue was empty\n");
+
+#ifdef PROFILE
+     TicToc t( TicToc::BSMP, s_bsmp->payload_size() );
+#endif
 
      size_t size =
          std::min< size_t >( reception_bytes, s_bsmp->payload_size() );
