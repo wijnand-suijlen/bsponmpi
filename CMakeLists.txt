@@ -84,6 +84,10 @@ set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -Wall -Wextra -g -pedantic")
 set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -Wall -Wextra -pedantic")
 endif()
 
+# On Apple we want to build a shared lib by default. On other machinse
+# we prefer static
+option(BUILD_SHARED_LIBS "Build BSPonMPI as a shared library; When you get strange linking problems, you might want to toggle this option" "${APPLE}" ) 
+
 # Testing
 
 enable_testing()
@@ -114,10 +118,10 @@ function( add_mpi_test NAME P )
     add_test( NAME "${testname}" COMMAND ${MPIRUN_EXECUTABLE} -n ${P} ./${exe} )
 endfunction()
 
-# THe library itself
+# The library itself
 include_directories( ${MPI_INCLUDE_PATH} )
 include_directories( include )
-add_library( bsponmpi SHARED
+add_library( bsponmpi 
         src/bsp.cc src/spmd.cc src/a2a.cc src/unbuf.cc src/rdma.cc
         src/bsmp.cc  
         )
