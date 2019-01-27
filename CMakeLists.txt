@@ -1,10 +1,12 @@
-cmake_minimum_required(VERSION 3.10)
+cmake_minimum_required(VERSION 3.7)
 project(BSPonMPI) 
 
 set(CPACK_PACKAGE_NAME          "BSPonMPI")
-set(CPACK_PACKAGE_VERSION_MAJOR "1" )
-set(CPACK_PACKAGE_VERSION_MINOR "0" )
+set(CPACK_PACKAGE_VERSION_MAJOR "1")
+set(CPACK_PACKAGE_VERSION_MINOR "0")
 set(CPACK_PACKAGE_VERSION_PATCH "0")
+set(CPACK_PACKAGE_VERSION "${CPACK_PACKAGE_VERSION_MAJOR}.${CPACK_PACKAGE_VERSION_MINOR}.${CPACK_PACKAGE_VERSION_PATCH}" )
+set(CPACK_PACKAGE_FILE_NAME     "${CPACK_PACKAGE_NAME}-${CPACK_PACKAGE_VERSION}-${CMAKE_SYSTEM_NAME}-${CMAKE_SYSTEM_PROCESSOR}")
 set(CPACK_PACKAGE_DESCRIPTION_SUMMARY 
         "BSPonMPI implements the BSPlib parallel programming framework on MPI")
 set(CPACK_RESOURCE_FILE_LICENSE "${PROJECT_SOURCE_DIR}/LICENSE")
@@ -29,8 +31,8 @@ set(CPACK_GENERATOR "${generators}" )
 include(CPack)
 include(CheckSymbolExists)
 
-set(VERSIONID "${CPACK_PACKAGE_VERSION_MAJOR}.${CPACK_PACKAGE_VERSION_MINOR}.${CPACK_PACKAGE_VERSION_PATCH}")
-set(SOVERSION "${VERSIONID}")
+string(TIMESTAMP BUILD_DATE)
+set(SOVERSION "${CPACK_PACKAGE_VERSION}")
 
 find_package(Doxygen)
 find_package(MPI)
@@ -38,8 +40,13 @@ find_package(MPI)
 if (NOT MPI_FOUND)
     message(SEND_ERROR "MPI was not found. Without it, BSPonMPI can't be built nor function")
 endif()
+if (NOT MPIEXEC_EXECUTABLE) 
+    # In previous versions of CMake, this used to be MPIEXEC
+    set(MPIEXEC_EXECUTABLE "${MPIEXEC}")
+endif()
 string(REPLACE mpiexec mpirun MPIRUN_EXECUTABLE ${MPIEXEC_EXECUTABLE})
 
+# Disable C++ bindings in OpenMPI
 add_definitions(-DOMPI_SKIP_MPICXX)
 
 # do some compile dependent set-up
@@ -192,6 +199,7 @@ add_mpi_test( put_3 4 )
 add_mpi_test( put_4 3 )
 add_mpi_test( put_5 4 )
 add_mpi_test( put_6 4 )
+add_mpi_test( put_7 1 )
 
 add_mpi_test( get_1 3 )
 add_mpi_test( get_2 4 )

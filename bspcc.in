@@ -55,12 +55,16 @@ function add_link_flag()
 
 function show_version()
 {
-   echo "BSPonMPI version @VERSIONID@ "
+   echo "BSPonMPI version @CPACK_PACKAGE_VERSION@ "
+   echo "Built on @BUILD_DATE@ ; Configuration '@CMAKE_BUILD_TYPE@'"
+   echo "C compiler was: @CMAKE_C_COMPILER@  ; extra flags '@CMAKE_C_FLAGS@'"
+   echo "C++ compiler:   @CMAKE_CXX_COMPILER@ ; extra flags '@CMAKE_CXX_FLAGS@'"
+   echo "MPI compiler frontends: @MPI_C_COMPILER@ ; @MPI_CXX_COMPILER@"
 }
 
 function show_help()
 {
-   echo "The BSPonMPI compiler frontend - @VERSIONID@"
+   echo "The BSPonMPI compiler frontend - @CPACK_PACKAGE_VERSION@"
    echo
    echo "SYNOPSIS"
    echo "    $0 [-help] [-version] [-show] [-mcbsp] ..."

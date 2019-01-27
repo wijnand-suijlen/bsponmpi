@@ -34,6 +34,11 @@ DLL_PUBLIC void bsp_intern_expect_abort( const char * message )
 
 static void bsp_finalize(void)
 {
+    if ( s_expect_abort_msg ) {
+        std::fprintf(stderr, "An error should have been detected '%s'\n",
+                s_expect_abort_msg );
+        std::abort();
+    }
     if ( s_aborting ) return;
 
     int init = 0;
@@ -66,6 +71,7 @@ void bsp_abort_va( const char * format, va_list ap )
         if (len > int(sizeof(buffer))) len = sizeof(buffer);
         // test equality of prefix
         if ( strncmp( buffer, s_expect_abort_msg, len ) == 0 ) {
+            s_expect_abort_msg = NULL;
             if (mpi_init)
                 MPI_Abort(MPI_COMM_WORLD, EXIT_SUCCESS );
             else
@@ -260,7 +266,9 @@ static bsplib::Rdma::Memslot lookup_usable_reg( const void * addr, const char * 
         s_rdma->lookup_reg( const_cast<void*>(addr), false, true);
     if ( id == s_rdma->no_slot() ) {
         id = s_rdma->lookup_reg( addr, true, false );
-        if ( s_rdma->slot(s_spmd->pid(), id).status & bsplib::Rdma::Memblock::PUSHED )
+        unsigned PUSHED = bsplib::Rdma::Memblock::PUSHED;
+        if ( id != s_rdma->no_slot() && 
+             ( s_rdma->slot(s_spmd->pid(), id).status & PUSHED) )
           bsp_abort("%s: Remote address was just registered "
                  " with a bsp_push_reg(%p), but it hasn't become effective yet, "
                 " because bsp_sync() hasn't been performed yet\n", func, addr);
