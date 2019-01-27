@@ -107,7 +107,8 @@ void Rdma::hpget( int src_pid, Memslot src_slot, size_t src_offset,
 void Rdma::write_gets()
 {
     for (int p = 0; p < m_nprocs; ++p){
-        m_second_exchange.recv_pop( p, m_recv_actions.m_get_buffer_offset[p] );
+        size_t start = m_recv_actions.m_get_buffer_offset[p];
+        m_second_exchange.recv_pop( p, start );
         while ( m_second_exchange.recv_size( p ) > 0 ) {
             size_t size, addr;
             deserial( m_second_exchange, p, size );
@@ -126,8 +127,9 @@ void Rdma::write_gets()
 void Rdma::write_puts()
 {
     for (int p = 0; p < m_nprocs; ++p){
+        size_t end = m_recv_actions.m_get_buffer_offset[p];
         m_second_exchange.recv_rewind( p );
-        while ( m_second_exchange.recv_size( p ) > 0 ) {
+        while ( m_second_exchange.recv_pos( p ) < end ) {
             size_t size, addr;
             deserial( m_second_exchange, p, size );
             deserial( m_second_exchange, p, addr );
@@ -301,7 +303,7 @@ void Rdma::PushPopCommBuf::serialize( A2A & a2a )
 
 void Rdma::PushPopCommBuf::deserialize( A2A & a2a ) 
 {
-    size_t n_pushed_slots;
+    size_t n_pushed_slots = 0;
 
     // read pushed slots
     for (int p = 0; p < a2a.nprocs(); ++p) {

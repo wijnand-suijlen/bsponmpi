@@ -1,7 +1,7 @@
 #include <bsp.h>
 #include "test.h"
 
-TEST( put_3, abort("bsp_put: Writes 4 bytes beyond registered range")) {
+TEST( get_3, abort("bsp_get: Reads 4 bytes beyond registered range")) {
     int x;
     bsp_begin( bsp_nprocs() );
 
@@ -12,7 +12,7 @@ TEST( put_3, abort("bsp_put: Writes 4 bytes beyond registered range")) {
     bsp_sync();
 
     if (bsp_pid())
-      bsp_put( bsp_nprocs() - 1 - bsp_pid(), &x, &x, 0, sizeof(int) );
+      bsp_get( bsp_nprocs() - 1 - bsp_pid(), &x, 0, &x, sizeof(int) );
 
     bsp_sync();
 

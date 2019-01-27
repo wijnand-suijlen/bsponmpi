@@ -3,7 +3,8 @@
 
 namespace bsplib {
 Bsmp::Bsmp(MPI_Comm comm, size_t max_msg_size)
-    : m_recv_tag_size(0)
+    : m_set_tag_size_counter(0)
+    , m_recv_tag_size(0)
     , m_send_tag_size(0)
     , m_next_tag_size(0)
     , m_total_n_messages(0)
@@ -25,6 +26,7 @@ void Bsmp::sync()
     const unsigned marker = 0;
     for (int p = 0; p < m_a2a.nprocs(); ++p ) {
         serial( m_a2a, p, marker );
+        serial( m_a2a, p, m_set_tag_size_counter );
         serial( m_a2a, p, m_next_tag_size );
     }
 
@@ -53,11 +55,17 @@ void Bsmp::sync()
             m_total_payload += payload_size;
         }
 
+        size_t counter = size_t(-1);
+        deserial( m_a2a, p, counter );
+        if (counter != m_set_tag_size_counter )
+            throw exception("bsp_set_tagsize") 
+                << "Not all processes set the tag size same number of times\n";
+
         size_t tag_size = size_t(-1);
         deserial( m_a2a, p, tag_size );
         if (tag_size != m_next_tag_size)
             throw exception("bsp_set_tagsize") 
-                << ": Not all processes anncounced the same tag size\n"
+                << "Not all processes announced the same tag size\n"
                 << "  -> process " << m_a2a.pid() 
                                    << " got " << m_next_tag_size << '\n'
                 << "  -> process " << p << " got " << tag_size << '\n';
@@ -66,6 +74,7 @@ void Bsmp::sync()
     // update tag size
     m_recv_tag_size = m_send_tag_size;
     m_send_tag_size = m_next_tag_size;
+    m_set_tag_size_counter = 0;
 }
 
 

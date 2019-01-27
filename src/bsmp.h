@@ -14,6 +14,7 @@ public:
 
     size_t set_tag_size( size_t new_size ) 
     {
+        m_set_tag_size_counter += 1;
         size_t old_tag_size = m_next_tag_size;
         m_next_tag_size = new_size;
         return old_tag_size;
@@ -60,6 +61,7 @@ public:
     void sync() ;
 
 private:
+    size_t m_set_tag_size_counter;
     size_t m_recv_tag_size;
     size_t m_send_tag_size;
     size_t m_next_tag_size;

@@ -47,6 +47,9 @@ public:
     void recv_rewind( int src_pid ) {
         m_recv_offsets[src_pid] = 0;
     }
+
+    size_t recv_pos( int src_pid ) const 
+    { return m_recv_offsets[ src_pid ]; }
     
     size_t recv_size( int src_pid ) const
     { return m_recv_sizes[ src_pid ] - m_recv_offsets[ src_pid ]; }
