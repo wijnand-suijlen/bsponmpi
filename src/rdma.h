@@ -93,7 +93,7 @@ public:
     void hpget( int src_pid, Memslot src_slot, size_t src_offset, void * dst,
             size_t size );
 
-    void sync( );
+    bool sync( bool dummy_bsmp );
 
 private:
     typedef std::list< Memslot > RegStack;
@@ -130,6 +130,7 @@ private:
         std::vector< Action > m_actions;
         std::vector< size_t > m_counts;
         std::vector< size_t > m_get_buffer_offset;
+        unsigned m_dummy_bsmp;
 
         void push_back( const Action & action )
         {   
@@ -143,12 +144,19 @@ private:
                 m_get_buffer_offset[ p ] = buf.send_size( p );
         }
 
+        void set_dummy_bsmp( bool dummy )
+        { m_dummy_bsmp = dummy; }
+
+        bool get_dummy_bsmp()
+        { return m_dummy_bsmp; }
+
         void serialize( A2A & a2a );
         void deserialize( A2A & a2a );
         void execute( Rdma & rdma );
       
         void clear() 
         {
+            m_dummy_bsmp = false;
             m_actions.clear();
             std::fill( m_counts.begin(), m_counts.end(), 0);
             std::fill( m_get_buffer_offset.begin(), m_get_buffer_offset.end(), 0);

@@ -250,16 +250,17 @@ void bsp_sync()
         bsp_abort("bsp_sync/bsp_end: Some processes have called bsp_sync, "
                "while others have called bsp_end instead\n");
 
+    bool dummy_bsmp = s_bsmp->is_dummy();
 
     try {
-        s_rdma->sync( );
+        dummy_bsmp = s_rdma->sync( dummy_bsmp );
     }
     catch( bsplib :: exception & e ) {
         bsp_abort("bsp_sync/%s\n", e.str().c_str() );
     }
 
     try {
-        s_bsmp->sync( );
+        s_bsmp->sync( dummy_bsmp );
     }
     catch( bsplib  :: exception & e ) {
         bsp_abort("bsp_sync/%s\n", e.str().c_str() );

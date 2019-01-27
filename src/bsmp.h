@@ -17,6 +17,7 @@ public:
 
     size_t set_tag_size( size_t new_size ) 
     {
+        m_send_empty = false;
         m_set_tag_size_counter += 1;
         size_t old_tag_size = m_next_tag_size;
         m_next_tag_size = new_size;
@@ -35,6 +36,7 @@ public:
         TicToc t(TicToc::BSMP);
         size_t start = m_a2a.send_size(pid);
 #endif
+        m_send_empty = false;
         serial( m_a2a, pid, nbytes + 1 );
         m_a2a.send( pid, tag, m_send_tag_size );
         m_a2a.send( pid, payload, nbytes );
@@ -72,7 +74,10 @@ public:
     size_t payload_size() const
     {   return m_payloads.back().second; }
 
-    void sync() ;
+    bool is_dummy() const 
+    { return m_send_empty; }
+
+    void sync(bool dummy) ;
 
 private:
     size_t m_set_tag_size_counter;
@@ -81,6 +86,7 @@ private:
     size_t m_next_tag_size;
     size_t m_total_n_messages;
     size_t m_total_payload;
+    bool m_send_empty;
 
     A2A m_a2a;
     AlignedBuf m_tag_buffer;

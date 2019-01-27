@@ -56,6 +56,8 @@ public:
     
     void exchange();
 
+    void clear();
+
 private:
     A2A( const A2A & ); // copying prohibited
     A2A & operator=(const A2A & ); //assignment prohibited

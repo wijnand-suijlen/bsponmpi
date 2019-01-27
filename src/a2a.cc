@@ -216,6 +216,16 @@ void A2A::exchange( )
     } // end of MPI_Isend - Irecv - wait pattern 
 
 }
+void A2A :: clear()
+{
+    for (int p = 0 ; p < m_nprocs; ++p ) {
+        m_recv_sizes[p] = 0;
+        m_send_sizes[p] = 0;
+        m_recv_offsets[p] = 0;
+        m_send_offsets[p] = 0;
+        m_send_bufs[p].clear();
+    }
+}
 
 
 }

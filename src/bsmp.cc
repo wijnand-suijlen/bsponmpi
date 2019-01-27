@@ -13,6 +13,7 @@ Bsmp::Bsmp(MPI_Comm comm, size_t max_msg_size)
     , m_next_tag_size(0)
     , m_total_n_messages(0)
     , m_total_payload(0)
+    , m_send_empty(true)
     , m_a2a(comm, max_msg_size)
     , m_tag_buffer()
     , m_payloads()
@@ -21,8 +22,9 @@ Bsmp::Bsmp(MPI_Comm comm, size_t max_msg_size)
 
 }
 
-void Bsmp::sync() 
+void Bsmp::sync( bool dummy ) 
 {
+    if (!dummy) {
 #ifdef PROFILE
     TicToc t( TicToc::BSMP);
 #endif
@@ -81,8 +83,11 @@ void Bsmp::sync()
                 << "  -> process " << m_a2a.pid() 
                                    << " got " << m_next_tag_size << '\n'
                 << "  -> process " << p << " got " << tag_size << '\n';
-    }
+    } 
+    } // if (!dummy)
     
+    m_send_empty = true;
+
     // update tag size
     m_recv_tag_size = m_send_tag_size;
     m_send_tag_size = m_next_tag_size;

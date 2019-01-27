@@ -176,8 +176,9 @@ void Rdma::write_puts()
    }
 }
 
-void Rdma::sync()
+bool Rdma::sync(bool dummy_bsmp)
 {
+    m_send_actions.set_dummy_bsmp(dummy_bsmp);
     m_send_actions.set_get_buffer_offset( m_second_exchange );
 
     // first exchange: gets, unbuffered requests, push/pop registers
@@ -205,17 +206,20 @@ void Rdma::sync()
     // execute the push/pop registers
     m_recv_push_pop_comm_buf.execute(*this);
 
+    bool all_dummy_bsmp = m_recv_actions.get_dummy_bsmp();
     // reset to initial state
     m_send_push_pop_comm_buf.clear();
     m_recv_push_pop_comm_buf.clear();
     m_send_actions.clear();
     m_recv_actions.clear();
+    return all_dummy_bsmp;
 }
 
 
 void Rdma::ActionBuf::serialize( A2A & a2a ) 
 {
     for (int p = 0; p < a2a.nprocs(); ++p ) {
+        serial( a2a, p, m_dummy_bsmp );
         serial( a2a, p, m_get_buffer_offset[ p ] );
         serial( a2a, p, m_counts[ p ] );
     }
@@ -246,11 +250,15 @@ void Rdma::ActionBuf::serialize( A2A & a2a )
 void Rdma::ActionBuf::deserialize( A2A & a2a ) 
 {
     size_t n = 0;
+    m_dummy_bsmp = true;
     for (int p = 0; p < a2a.nprocs(); ++p )
     {
+        unsigned dummy;
+        deserial( a2a, p, dummy );
         deserial( a2a, p, m_get_buffer_offset[ p ] );
         deserial( a2a, p, m_counts[ p ] );
         n += m_counts[p];
+        m_dummy_bsmp = m_dummy_bsmp && dummy;
     }
     m_actions.resize( n );
 
