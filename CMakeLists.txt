@@ -230,6 +230,8 @@ add_mpi_test( set_tagsize_4 3 )
 
 add_mpi_test( send_various_tags_1 5 )
 
+add_mpi_test( move_1 2 )
+
 # Documentation
 if (DOXYGEN_FOUND)
     set(DOXYGEN_BRIEF_MEMBER_DESC YES)

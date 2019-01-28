@@ -24,14 +24,14 @@ Bsmp::Bsmp(MPI_Comm comm, size_t max_msg_size)
 
 void Bsmp::sync( bool dummy ) 
 {
+    m_payloads.clear();
+    m_tag_buffer.clear();
+    m_payload_buffer.clear();
+
     if (!dummy) {
 #ifdef PROFILE
     TicToc t( TicToc::BSMP);
 #endif
-
-    m_payloads.clear();
-    m_tag_buffer.clear();
-    m_payload_buffer.clear();
 
     const unsigned marker = 0;
     for (int p = 0; p < m_a2a.nprocs(); ++p ) {
