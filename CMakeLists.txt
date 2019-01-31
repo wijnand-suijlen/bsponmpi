@@ -227,6 +227,9 @@ add_mpi_test( set_tagsize_1 2 )
 add_mpi_test( set_tagsize_2 3 )
 add_mpi_test( set_tagsize_3 4 )
 add_mpi_test( set_tagsize_4 3 )
+add_mpi_test( set_tagsize_5 4 )
+
+add_mpi_test( default_tagsize_1 2 )
 
 add_mpi_test( send_various_tags_1 5 )
 
