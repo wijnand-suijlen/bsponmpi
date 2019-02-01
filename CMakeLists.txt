@@ -48,6 +48,8 @@ string(REPLACE mpiexec mpirun MPIRUN_EXECUTABLE ${MPIEXEC_EXECUTABLE})
 
 # Disable C++ bindings in OpenMPI
 add_definitions(-DOMPI_SKIP_MPICXX)
+# Disable C++ bindings in Platform MPI
+add_definitions(-D_MPICC_H)
 
 # do some compile dependent set-up
 if (CMAKE_COMPILER_IS_GNUCC)
@@ -88,8 +90,10 @@ endif()
 # we prefer static
 option(BUILD_SHARED_LIBS "Build BSPonMPI as a shared library; When you get strange linking problems, you might want to toggle this option" "${APPLE}" ) 
 
+# Option to whether or not compile in the internal profiling library
 option(BSPONMPI_PROFILE "Enable internal profiling" FALSE)
-# Testing
+
+# Macro's to facilitate Testing
 
 enable_testing()
 
@@ -109,30 +113,44 @@ function( add_mpi_unit_test NAME P )
 endfunction()
  
 function( add_mpi_test NAME P )
-    set( exe "test_${NAME}")
-    add_executable( ${exe} test/${NAME}.c )
-    set_target_properties( ${exe} PROPERTIES 
-            INCLUDE_DIRECTORIES 
-            "${PROJECT_SOURCE_DIR}/include;${PROJECT_SOURCE_DIR}/test;${PROJECT_SOURCE_DIR}/src;${MPI_INCLUDE_PATH}" )
-    target_link_libraries( ${exe} bsponmpi )
-    set( testname "${NAME}_p${P}" )
-    add_test( NAME "${testname}" COMMAND ${MPIRUN_EXECUTABLE} -n ${P} ./${exe} )
+    foreach ( flavour msg rma )
+        set( exe "test_${NAME}_${flavour}")
+        add_executable( ${exe} test/${NAME}.c )
+        set_target_properties( ${exe} PROPERTIES 
+                INCLUDE_DIRECTORIES 
+                "${PROJECT_SOURCE_DIR}/include;${PROJECT_SOURCE_DIR}/test;${PROJECT_SOURCE_DIR}/src;${MPI_INCLUDE_PATH}" )
+        target_link_libraries( ${exe} "bsponmpi_${flavour}" )
+        set( testname "${NAME}_${flavour}_p${P}" )
+        add_test( NAME "${testname}" COMMAND ${MPIRUN_EXECUTABLE} -n ${P} ./${exe} )
+    endforeach()
 endfunction()
 
 # The library itself
 include_directories( ${MPI_INCLUDE_PATH} )
 include_directories( include )
-add_library( bsponmpi 
+set(BSPONMPI_SOURCES
         src/bsp.cc src/spmd.cc src/a2a.cc src/unbuf.cc src/rdma.cc
         src/bsmp.cc src/tictoc.cc
-        )
-target_link_libraries( bsponmpi ${MPI_C_LIBRARIES})
+   )
+
+# library using message passing
+add_library( bsponmpi_msg ${BSPONMPI_SOURCES})
+target_link_libraries( bsponmpi_msg ${MPI_C_LIBRARIES})
 if (BSPONMPI_PROFILE)
-    target_compile_definitions(bsponmpi PRIVATE PROFILE )
+    target_compile_definitions(bsponmpi_msg PRIVATE PROFILE )
+endif()
+
+# library using ones-sided
+add_library( bsponmpi_rma ${BSPONMPI_SOURCES})
+target_link_libraries( bsponmpi_rma ${MPI_C_LIBRARIES})
+target_compile_definitions(bsponmpi_rma PRIVATE USE_ONESIDED )    
+if (BSPONMPI_PROFILE)
+    target_compile_definitions(bsponmpi_rma PRIVATE PROFILE )
 endif()
 
 
-install( TARGETS bsponmpi
+# Installation
+install( TARGETS bsponmpi_msg bsponmpi_rma
          RUNTIME DESTINATION bin
          LIBRARY DESTINATION lib
          ARCHIVE DESTINATION lib
@@ -141,7 +159,9 @@ install(FILES include/bsp.h
          DESTINATION include )
 
 # Compiler and bsprun frontends
-set(BSPONMPI_LIB "-L${CMAKE_INSTALL_PREFIX}/lib -lbsponmpi")
+set(BSPONMPI_LIB_DIR "-L${CMAKE_INSTALL_PREFIX}/lib")
+set(BSPONMPI_MSG_LIB "-lbsponmpi_msg")
+set(BSPONMPI_RMA_LIB "-lbsponmpi_rma")
 set(BSPONMPI_INCLUDE "${CMAKE_INSTALL_PREFIX}/include")
 
 configure_file( bspcc.in bspcc @ONLY )
@@ -156,6 +176,9 @@ install( PROGRAMS ${CMAKE_BINARY_DIR}/bspcc
 
 # Unit tests
 add_mpi_unit_test( a2a 3 src/a2a.cc )
+add_mpi_unit_test( a2a_rma 4 src/a2a.cc )
+target_compile_definitions( unit_test_a2a_rma PRIVATE USE_ONESIDED)
+
 add_mpi_unit_test( unbuf 4 src/unbuf.cc )
 add_unit_test( uintserialize )
 

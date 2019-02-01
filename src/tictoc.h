@@ -26,7 +26,7 @@ public:
 
     enum Category { DUMMY, SYNC, PUT, GET, HPPUT, HPGET, BSMP, 
         MPI_META_A2A, MPI_SMALL_A2A, MPI_LARGE_RECV,
-        MPI_LARGE_SEND, MPI_UNBUF,
+        MPI_LARGE_SEND, MPI_PUT, MPI_UNBUF,
         N_CATEGORIES };
 
     TicToc( Category c, size_t bytes = 0u)

@@ -6,7 +6,7 @@ else
   cc=@MPI_C_COMPILER@
 fi
 cxx=@MPI_CXX_COMPILER@
-bsponmpi="@BSPONMPI_LIB@"
+bsponmpi=( "@BSPONMPI_LIB_DIR@" "@BSPONMPI_RMA_LIB@" )
 cflags="-I@BSPONMPI_INCLUDE@"
 
 linking=yes
@@ -73,16 +73,29 @@ function show_help()
    echo "    of $cc for more specific options"
    echo 
    echo "OPTIONS"
-   echo "    -help     Shows this description"
+   echo "    -help    Shows this description"
    echo 
-   echo "    -version  Shows version information"
+   echo "    -version Shows version information"
    echo 
-   echo "    -show     Instead of performing the compilation it shows"
-   echo "              what command will be executed"
+   echo "    -show    Instead of performing the compilation it shows"
+   echo "             what command will be executed"
    echo
-   echo "    -mcbsp    Use the MulticoreBSP for C compatible headers."
-   echo "              By default the header compatible with the"
-   echo "              publication of Hill et al. 1998 is loaded."
+   echo "    -msg     Link with runtime based on MPI message passing:"
+   echo "             MPI_Irsend/MPI_Isend - MPI_Irecv - MPI_Waitsome"
+   echo "             Note: Not all MPI implementations are suitable"  
+   echo               to guarantee BSP cost semantics. If performance"
+   echo               is unsatisfactory, try the -rma option."
+   echo 
+   echo "    -rma     Link with runtime based on MPI remote memory access:"
+   echo "             MPI_Fence - MPI_Put"
+   echo "             Note: 1) Not all MPI implementations are stable, "
+   echo "             but when they are, it is usually faster. "
+   echo "             2) If performance is bad, try the -msg option."
+   echo "             3) By default this runtime is used"
+   echo
+   echo "    -mcbsp   Use the MulticoreBSP for C compatible headers."
+   echo "             By default the header compatible with the"
+   echo "             publication of Hill et al. 1998 is loaded."
 }
 
 
@@ -109,6 +122,14 @@ do
 
     -mcbsp|--mcbsp)
         add_compile_flag "-DBSPONMPI_MCBSP_COMPAT=1"
+        ;;
+
+    -rma|--rma)
+        bsponmpi=( "@BSPONMPI_LIB_DIR@" "@BSPONMPI_RMA_LIB@" )
+        ;;
+
+    -msg|--msg)
+        bsponmpi=( "@BSPONMPI_LIB_DIR@" "@BSPONMPI_MSG_LIB@" )
         ;;
 
     -c) linking=no
@@ -178,7 +199,7 @@ else
 
   $show $cxx $cflags "${compile_flags[@]}" \
            "${tmp_objects[@]}" "${objects[@]}" \
-           "${link_flags[@]}" $bsponmpi "${output_flag[@]}"
+           "${link_flags[@]}" "${bsponmpi[@]}" "${output_flag[@]}"
   exit_status=$?
 fi
 
