@@ -37,6 +37,9 @@ A2A::A2A( MPI_Comm comm, std::size_t max_msg_size, std::size_t small_a2a_size_pe
     MPI_Comm_rank(m_comm, &m_pid );
     MPI_Comm_size(m_comm, &m_nprocs );
 
+    m_small_a2a_size_per_proc = std::min<size_t>( m_small_a2a_size_per_proc,
+            std::numeric_limits<int>::max()/m_nprocs );
+
     m_send_sizes.resize( 3* m_nprocs );
     m_send_pos.resize( m_nprocs );
     m_recv_sizes.resize( 3*m_nprocs );
@@ -151,8 +154,31 @@ void A2A::exchange( )
         /* no need to do anything */
         clear();
     }
+    else if ( max_recv <= m_small_a2a_size_per_proc ) {
+#ifdef PROFILE
+        TicToc t( TicToc::MPI_SMALL_A2A );
+#endif
+        for (int p = 0; p < m_nprocs; ++p ) {
+            memcpy( m_small_send_buf.data() + p * max_recv,
+                    m_send_bufs.data() + p * m_send_cap,
+                    m_send_sizes[p] );
+#ifdef PROFILE
+            t.addBytes( m_send_sizes[p] );
+#endif
+        }
+        // In small exchanges, Bruck's algorithm will be used again
+        MPI_Alltoall( m_small_send_buf.data(), max_recv, MPI_BYTE,
+                m_small_recv_buf.data(), max_recv, MPI_BYTE,
+                m_comm );
+
+        for (int p = 0; p < m_nprocs; ++p ) {
+            memcpy( m_recv_bufs.data() + p * m_recv_cap,
+                    m_small_recv_buf.data() + p * max_recv,
+                    m_recv_sizes[p] );
+        }
+    }
 #ifdef USE_ONESIDED
-    else {
+    else { // we have a large exchange
 #ifdef PROFILE
         TicToc t( TicToc::MPI_PUT );
 #endif
@@ -182,29 +208,6 @@ void A2A::exchange( )
         MPI_Win_fence( 0, m_recv_win );
     }
 #else
-    else if ( max_recv <= m_small_a2a_size_per_proc ) {
-#ifdef PROFILE
-        TicToc t( TicToc::MPI_SMALL_A2A );
-#endif
-        for (int p = 0; p < m_nprocs; ++p ) {
-            memcpy( m_small_send_buf.data() + p * max_recv,
-                    m_send_bufs.data() + p * m_send_cap,
-                    m_send_sizes[p] );
-#ifdef PROFILE
-            t.addBytes( m_send_sizes[p] );
-#endif
-        }
-        // In small exchanges, Bruck's algorithm will be used again
-        MPI_Alltoall( m_small_send_buf.data(), max_recv, MPI_BYTE,
-                m_small_recv_buf.data(), max_recv, MPI_BYTE,
-                m_comm );
-
-        for (int p = 0; p < m_nprocs; ++p ) {
-            memcpy( m_recv_bufs.data() + p * m_recv_cap,
-                    m_small_recv_buf.data() + p * max_recv,
-                    m_recv_sizes[p] );
-        }
-    }
     else { // we have a large exchange
 #ifdef PROFILE
         TicToc tr( TicToc::MPI_LARGE_RECV );

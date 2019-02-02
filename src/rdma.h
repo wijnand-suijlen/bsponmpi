@@ -26,22 +26,8 @@ public:
     };
     typedef size_t Memslot;
 
-    Rdma( MPI_Comm comm , size_t max_msg_size  )
-        : m_first_exchange( comm, max_msg_size )
-        , m_second_exchange( comm, max_msg_size )
-        , m_pid(m_first_exchange.pid())
-        , m_nprocs(m_first_exchange.nprocs())
-        , m_register()
-        , m_used_slots()
-        , m_free_slots()
-        , m_cached_slot( no_slot() )
-        , m_send_actions( m_nprocs )
-        , m_recv_actions( m_nprocs )
-        , m_unbuf( max_msg_size, comm )
-        , m_send_push_pop_comm_buf()
-        , m_recv_push_pop_comm_buf()
-    {}
-
+    Rdma( MPI_Comm comm , size_t max_msg_size, size_t small_exch_size );
+    
     void push_reg( void * addr, size_t size );
     void pop_reg( Memslot slot );
 

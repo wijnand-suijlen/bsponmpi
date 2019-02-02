@@ -67,35 +67,36 @@ function show_help()
    echo "The BSPonMPI compiler frontend - @CPACK_PACKAGE_VERSION@"
    echo
    echo "SYNOPSIS"
-   echo "    $0 [-help] [-version] [-show] [-mcbsp] ..."
+   echo "    $0 [--help] [--version] [--show] [--mcbsp] "
+   echo "       [--msg|--rma] ..."
    echo
    echo "    Only $0 specific options are listed here. See the manual"
    echo "    of $cc for more specific options"
    echo 
    echo "OPTIONS"
-   echo "    -help    Shows this description"
+   echo "    --help    Shows this description"
    echo 
-   echo "    -version Shows version information"
+   echo "    --version Shows version information"
    echo 
-   echo "    -show    Instead of performing the compilation it shows"
-   echo "             what command will be executed"
+   echo "    --show    Instead of performing the compilation it shows"
+   echo "              what command will be executed"
    echo
-   echo "    -msg     Link with runtime based on MPI message passing:"
-   echo "             MPI_Irsend/MPI_Isend - MPI_Irecv - MPI_Waitsome"
-   echo "             Note: Not all MPI implementations are suitable"  
-   echo               to guarantee BSP cost semantics. If performance"
-   echo               is unsatisfactory, try the -rma option."
+   echo "    --msg     Link with runtime based on MPI message passing:"
+   echo "              MPI_Irsend/MPI_Isend - MPI_Irecv - MPI_Waitsome"
+   echo "              Note: Not all MPI implementations are suitable"  
+   echo                to guarantee BSP cost semantics. If performance"
+   echo                is unsatisfactory, try the -rma option."
    echo 
-   echo "    -rma     Link with runtime based on MPI remote memory access:"
-   echo "             MPI_Fence - MPI_Put"
-   echo "             Note: 1) Not all MPI implementations are stable, "
-   echo "             but when they are, it is usually faster. "
-   echo "             2) If performance is bad, try the -msg option."
-   echo "             3) By default this runtime is used"
+   echo "    --rma     Link with runtime based on MPI remote memory access:"
+   echo "              MPI_Fence - MPI_Put"
+   echo "              Note: 1) Not all MPI implementations are stable, "
+   echo "              but when they are, it is usually faster. "
+   echo "              2) If performance is bad, try the -msg option."
+   echo "              3) By default this runtime is used"
    echo
-   echo "    -mcbsp   Use the MulticoreBSP for C compatible headers."
-   echo "             By default the header compatible with the"
-   echo "             publication of Hill et al. 1998 is loaded."
+   echo "    --mcbsp   Use the MulticoreBSP for C compatible headers."
+   echo "              By default the header compatible with the"
+   echo "              publication of Hill et al. 1998 is loaded."
 }
 
 

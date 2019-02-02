@@ -3,12 +3,14 @@
 #include "rdma.h"
 #include "bsmp.h"
 #include "exception.h"
+#include "config.h"
 
 #include <cstdarg>
 #include <cstdio>
 #include <cstdlib>
 #include <cassert>
 #include <limits>
+#include <sstream>
 
 #include <mpi.h>
 
@@ -176,8 +178,28 @@ void bsp_begin( bsp_pid_t maxprocs )
         s_spmd = NULL;
         std::exit(0);
     }
-    s_rdma = new bsplib::Rdma( s_spmd->comm(), INT_MAX );
-    s_bsmp = new bsplib::Bsmp( s_spmd->comm(), INT_MAX );
+
+    size_t max_msg_size = INT_MAX; 
+    if ( bsplib::read_env( "BSPONMPI_MAX_MSG_SIZE", max_msg_size ) 
+        || max_msg_size == 0 ) {
+        fprintf(stderr, "bsp_begin: WARNING! BSPONMPI_MAX_MSG_SIZE "
+                "was not set to a positive, non-zero integer\n");
+    }
+
+    int max_small_exchange_size = 
+        std::numeric_limits<int>::max() / s_spmd->nprocs() ;
+    int small_exch_size = std::min( 1024, max_small_exchange_size ) ;
+    if (bsplib::read_env( "BSPONMPI_SMALL_EXCHANGE_SIZE", small_exch_size ) 
+        || small_exch_size == 0 
+        || small_exch_size > max_small_exchange_size ) {
+        fprintf(stderr, "bsp_begin: WARNING! BSPONMPI_SMALL_EXCHANGE_SIZE"
+                        " was not an integer between 1 and %d \n",
+                        max_small_exchange_size );
+    }
+    s_rdma = new bsplib::Rdma( s_spmd->comm(), max_msg_size, 
+                               small_exch_size);
+    s_bsmp = new bsplib::Bsmp( s_spmd->comm(), max_msg_size,
+                               small_exch_size);
 }
 
 void bsp_end() 

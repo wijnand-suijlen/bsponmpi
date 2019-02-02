@@ -13,7 +13,8 @@ namespace bsplib {
 
 class DLL_LOCAL Bsmp {
 public:
-    explicit Bsmp(MPI_Comm comm, size_t max_msg_size ) ;
+    explicit Bsmp(MPI_Comm comm, size_t max_msg_size,
+            size_t small_exch_size ) ;
 
     size_t set_tag_size( size_t new_size ) 
     {

@@ -42,7 +42,8 @@ if (NOT MPIEXEC_EXECUTABLE)
     # In previous versions of CMake, this used to be MPIEXEC
     set(MPIEXEC_EXECUTABLE "${MPIEXEC}")
 endif()
-string(REPLACE mpiexec mpirun MPIRUN_EXECUTABLE ${MPIEXEC_EXECUTABLE})
+string(REPLACE mpiexec mpirun mpirun_exec ${MPIEXEC_EXECUTABLE})
+set( MPIRUN_EXECUTABLE "${mpirun_exec}" CACHE FILEPATH "The path to the mpirun launcher (or equivalent)" )
 
 # Disable C++ bindings in OpenMPI
 add_definitions(-DOMPI_SKIP_MPICXX)

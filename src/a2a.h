@@ -66,7 +66,7 @@ private:
     int m_pid;
     int m_nprocs;
     const std::size_t m_max_msg_size;
-    const std::size_t m_small_a2a_size_per_proc;
+    std::size_t m_small_a2a_size_per_proc;
     std::size_t m_send_cap, m_recv_cap;
 
     std::vector< std::size_t > m_send_sizes, m_send_pos;

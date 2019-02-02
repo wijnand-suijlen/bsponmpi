@@ -1,6 +1,92 @@
 #!/bin/bash
 
-export DYLD_LIBRARY_PATH=@BSPONMPI_LIB_DIR@:$DYLD_LIBRARY_PATH
-export LD_LIBRARY_PATH=@BSPONMPI_LIB_DIR@:$LD_LIBRARY_PATH
+function show_version()
+{
+   echo "BSPonMPI version @CPACK_PACKAGE_VERSION@ "
+   echo "Built on @BUILD_DATE@ ; Configuration '@CMAKE_BUILD_TYPE@'"
+   echo "C compiler was: @CMAKE_C_COMPILER@  ; extra flags '@CMAKE_C_FLAGS@'"
+   echo "C++ compiler:   @CMAKE_CXX_COMPILER@ ; extra flags '@CMAKE_CXX_FLAGS@'"
+   echo "MPI compiler frontends: @MPI_C_COMPILER@ ; @MPI_CXX_COMPILER@"
+}
 
-exec @MPIRUN_EXECUTABLE@ "$@"
+function show_help()
+{
+   echo "The BSPonMPI program launcher - @CPACK_PACKAGE_VERSION@"
+   echo
+   echo "SYNOPSIS"
+   echo "    $0 [--help [--version] [--show] [--max-msg-size=<bytes>]"
+   echo "       [--small-exchange-size=<bytes>] <command>"
+   echo
+   echo "    Only $0 specific options are listed here. See the manual"
+   echo "    of @MPIRUN_EXECUTABLE@ for more specific options"
+   echo 
+   echo "OPTIONS"
+   echo "    --help    Shows this description"
+   echo 
+   echo "    --version Shows version information"
+   echo 
+   echo "    --show    Instead of launching the command it shows what"
+   echo "              command will be executed"
+   echo
+   echo "    --max-msg-size=<bytes>  [default: $((2**31-1))]"
+   echo "              Restricts the runtime to messages equal or less"
+   echo "              than the prescribed amount. It may be necessary"
+   echo "              to change this value to improve speed or work "
+   echo "              around MPI implementation specific stabilty issues"
+   echo
+   echo "    --small-exchange-size=<bytes>      [default: 1024]"
+   echo "              Specifies the maximum number of bytes per process"
+   echo "              that still is considered to be a small exchange."
+   echo "              For small exchanges a MPI_Alltoall is used, for"
+   echo "              which there is a L = O(log p) algorithm on high-"
+   echo "              bandwidth networks. For large exchanges throughput"
+   echo "              optimal methods (MPI_Put when linked with --rma,"
+   echo "              MPI_Irsend/MPI_Irecv when linked with --msg) are"
+   echo "              used, but that have also higher latency L = O(p)."
+}
+
+rest=()
+show=
+max_msg_size=$((2**31 - 1))
+small_exchange_size=1024
+for arg
+do
+
+  case $arg in
+     -help|--help) 
+        @MPIRUN_EXECUTABLE@ --help
+        echo 
+        echo "------------------------------------------------------"
+        echo
+        show_help
+        exit 0
+        ;;
+
+    -version|--version) 
+        show_version
+        exit 0
+        ;;
+
+    -show|--show) show=echo
+        ;;
+
+    --max-msg-size=*) 
+         max_msg_size=${arg#--max-msg-size=}
+         ;;
+
+    --small-exchange-size=*)
+         small_exchange_size=${arg#--small-exchange-size=}
+         ;;
+        
+    *)   rest=( "${rest[@]}" "$arg" )
+         ;;
+  esac
+done
+
+
+$show export DYLD_LIBRARY_PATH=@BSPONMPI_LIB_DIR@:$DYLD_LIBRARY_PATH
+$show export LD_LIBRARY_PATH=@BSPONMPI_LIB_DIR@:$LD_LIBRARY_PATH
+$show export BSPONMPI_MAX_MSG_SIZE=${max_msg_size}
+$show export BSPONMPI_SMALL_EXCHANGE_SIZE=${small_exchange_size}
+
+$show exec @MPIRUN_EXECUTABLE@ "${rest[@]}"
