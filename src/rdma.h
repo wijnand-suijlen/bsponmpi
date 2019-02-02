@@ -112,12 +112,13 @@ private:
     std::vector< Memblock > m_used_slots;
     std::vector< Memslot > m_free_slots;
     mutable Memslot m_cached_slot;
-
+    std::vector< void * > m_local_slots;
+ 
     struct Action { 
         enum Kind { GET, HPPUT, HPGET } kind; 
         int target_pid, src_pid, dst_pid, tag;
-        size_t src_addr, dst_addr;
-        size_t size;
+        Memslot src_slot, dst_slot;
+        size_t offset, size;
     };
 
     struct ActionBuf {
