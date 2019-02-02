@@ -159,7 +159,7 @@ install(FILES include/bsp.h
          DESTINATION include )
 
 # Compiler and bsprun frontends
-set(BSPONMPI_LIB_DIR "-L${CMAKE_INSTALL_PREFIX}/lib")
+set(BSPONMPI_LIB_DIR "${CMAKE_INSTALL_PREFIX}/lib")
 set(BSPONMPI_MSG_LIB "-lbsponmpi_msg")
 set(BSPONMPI_RMA_LIB "-lbsponmpi_rma")
 set(BSPONMPI_INCLUDE "${CMAKE_INSTALL_PREFIX}/include")

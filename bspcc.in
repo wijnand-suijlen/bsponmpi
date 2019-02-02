@@ -6,7 +6,7 @@ else
   cc=@MPI_C_COMPILER@
 fi
 cxx=@MPI_CXX_COMPILER@
-bsponmpi=( "@BSPONMPI_LIB_DIR@" "@BSPONMPI_RMA_LIB@" )
+bsponmpi=( "-L@BSPONMPI_LIB_DIR@" "@BSPONMPI_RMA_LIB@" )
 cflags="-I@BSPONMPI_INCLUDE@"
 
 linking=yes
@@ -125,11 +125,11 @@ do
         ;;
 
     -rma|--rma)
-        bsponmpi=( "@BSPONMPI_LIB_DIR@" "@BSPONMPI_RMA_LIB@" )
+        bsponmpi=( "-L@BSPONMPI_LIB_DIR@" "@BSPONMPI_RMA_LIB@" )
         ;;
 
     -msg|--msg)
-        bsponmpi=( "@BSPONMPI_LIB_DIR@" "@BSPONMPI_MSG_LIB@" )
+        bsponmpi=( "-L@BSPONMPI_LIB_DIR@" "@BSPONMPI_MSG_LIB@" )
         ;;
 
     -c) linking=no
