@@ -30,14 +30,14 @@ public:
     { return m_send_sizes[ dst_pid ]; }
 
     const void * recv_top( int src_pid ) const {
-        std::size_t o = m_recv_offsets[src_pid];
-        return static_cast< const void *>( &m_recv_bufs[src_pid][o] );
+        std::size_t o = src_pid * m_recv_cap + m_recv_pos[src_pid];
+        return static_cast< const void *>( &m_recv_bufs[o] );
     }
 
     bool recv_pop( int src_pid, std::size_t size ){
-        std::size_t o = m_recv_offsets[src_pid];
+        std::size_t o = m_recv_pos[src_pid];
         if ( m_recv_sizes[src_pid] - o  >= size ) {
-            m_recv_offsets[src_pid] += size;
+            m_recv_pos[src_pid] += size;
             return true;
         }
         else {
@@ -46,14 +46,14 @@ public:
     }
 
     void recv_rewind( int src_pid ) {
-        m_recv_offsets[src_pid] = 0;
+        m_recv_pos[src_pid] = 0;
     }
 
     std::size_t recv_pos( int src_pid ) const 
-    { return m_recv_offsets[ src_pid ]; }
+    { return m_recv_pos[ src_pid ]; }
     
     std::size_t recv_size( int src_pid ) const
-    { return m_recv_sizes[ src_pid ] - m_recv_offsets[ src_pid ]; }
+    { return m_recv_sizes[ src_pid ] - m_recv_pos[ src_pid ]; }
     
     void exchange();
 
@@ -67,20 +67,20 @@ private:
     int m_nprocs;
     const std::size_t m_max_msg_size;
     const std::size_t m_small_a2a_size_per_proc;
+    std::size_t m_send_cap, m_recv_cap;
 
-    std::vector< std::size_t > m_send_sizes, m_send_offsets;
-    std::vector< std::vector< char > > m_send_bufs;
-    std::vector< std::size_t > m_recv_sizes, m_recv_offsets;
-    std::vector< std::vector< char > > m_recv_bufs;
-    std::vector< MPI_Request > m_reqs;
-    std::vector< int > m_ready;
+    std::vector< std::size_t > m_send_sizes, m_send_pos;
+    std::vector< char > m_send_bufs;
+    std::vector< std::size_t > m_recv_sizes, m_recv_pos;
+    std::vector< char > m_recv_bufs;
     std::vector< char > m_small_send_buf, m_small_recv_buf;
-    std::vector< std::size_t > m_new_recv_cap;
     MPI_Comm m_comm;
 
 #ifdef USE_ONESIDED
-    bool m_renew_win;
-    std::vector< MPI_Win > m_recv_win ;
+    MPI_Win m_recv_win ;
+#else
+    std::vector< MPI_Request > m_reqs;
+    std::vector< int > m_ready;
 #endif
 };
 
