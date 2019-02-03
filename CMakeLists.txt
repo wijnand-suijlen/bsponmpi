@@ -12,6 +12,7 @@ set(CPACK_STRIP_FILES TRUE)
 set(CPACK_RPM_PACKAGE_RELEASE 1)
 set(CPACK_PACKAGE_CONTACT "wijnandsuijlen@gmail.com")
 set(CPACK_RPM_USER_BINARY_SPECFILE "${PROJECT_SOURCE_DIR}/bsponmpi.spec.in")
+set(CPACK_RPM_EXCLUDE_FROM_AUTO_FILELIST "/usr;/usr/bin;/usr/lib;/usr/include;/usr/share;/usr/share/man;/usr/share/man/man1;/usr/share/man/man3;/usr/share/doc")
 
 find_program(RPMBUILD rpmbuild)
 find_program(DPKG     dpkg-deb)
@@ -261,16 +262,47 @@ if (DOXYGEN_FOUND)
     doxygen_add_docs( manual include/bsp.h )
     add_custom_target(docs ALL DEPENDS manual)
 
-    install(DIRECTORY ${CMAKE_BINARY_DIR}/man
-            DESTINATION share)
+    set(man3 ${PROJECT_BINARY_DIR}/man/man3)
+    install( FILES ${man3}/BSP_BSMP.3
+                   ${man3}/BSP_DRMA.3
+                   ${man3}/BSP_SPMD.3
+                   ${man3}/BSP_TYPES.3
+                   ${man3}/MCBSP.3
+                   ${man3}/bsp_abort.3
+                   ${man3}/bsp_begin.3
+                   ${man3}/bsp_end.3
+                   ${man3}/bsp_get.3
+                   ${man3}/bsp_get_tag.3
+                   ${man3}/bsp_hpget.3
+                   ${man3}/bsp_hpmove.3
+                   ${man3}/bsp_hpput.3
+                   ${man3}/bsp_init.3
+                   ${man3}/bsp_move.3
+                   ${man3}/bsp_nprocs.3
+                   ${man3}/bsp_pid.3
+                   ${man3}/bsp_pid_t.3
+                   ${man3}/bsp_pop_reg.3
+                   ${man3}/bsp_push_reg.3
+                   ${man3}/bsp_put.3
+                   ${man3}/bsp_qsize.3
+                   ${man3}/bsp_send.3
+                   ${man3}/bsp_set_tagsize.3
+                   ${man3}/bsp_size_t.3
+                   ${man3}/bsp_sync.3
+                   ${man3}/bsp_time.3
+            DESTINATION share/man/man3/ )
+
+
     install(DIRECTORY ${CMAKE_BINARY_DIR}/html 
             DESTINATION share/doc/bsponmpi)
     install(FILES LICENSE README
             DESTINATION share/doc/bsponmpi)
 else()
     message( STATUS "Doxygen was not found - Documentation will not be generated")
-    
 endif()
+
+install( FILES man/bsprun.1 man/bspcc.1
+         DESTINATION share/man/man1/ )
 
 ### post install check
 configure_file( cmake/post-install-check.cmake.in post-install-check.cmake @ONLY)

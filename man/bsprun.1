@@ -1,0 +1,120 @@
+.TH BSPRUN 1 
+.SH NAME
+bsprun \- The BSPonMPI program launcher
+.
+.SH SYNOPSIS
+.nf
+.HP 7 
+\fBbsprun\fR [\fB\-\-help\fR] [\fB\-\-version\fR] [\fB\-\-show\fR]
+[\fB\-\-max\-msg\-size=\fR\fIbytes\fR]
+[\fB\-\-small\-exchange\-size=\fR\fIbytes\fR]
+.IR command ...
+.fi
+.
+.SH DESCRIPTION
+Runs a BSPlib program that has been compiled with BSPonMPI's 
+.B bspcc
+or
+.B bspcxx
+compiler frontend.
+It is essentally a wrapper around the
+.I mpirun
+from the MPI implementation that was used to build BSPonMPI.
+For directions on how to launch a program, it is, therefore, essential
+to consult the 
+.I mpirun
+(1) manual as well. However, in most cases the following will just work:
+.PP
+.nf
+.RS
+$ bsprun -n 5 ./a.out
+.RE
+.fi
+.PP
+wich will run ./a.out with 5 processes.
+If the system requires use of a different launcher, then the user
+is invited to copy the 
+.B bsprun
+shell script and to modify it accordingly. 
+Alternatively, the 
+.B \-\-show
+option can be used to generate a template script.
+.
+.SH OPTIONS
+Only 
+.B bsprun
+specific options are listed here. 
+All unrecognized options are passed on to the
+.I mpirun
+command.
+.TP
+.BR \-\-help
+Gives a brief usage overview.
+.TP
+.BR \-\-version
+Shows version information.
+.TP
+.BR \-\-show
+Instead of launching the command it show what exactly will be executed.
+.TP
+.BR \-\-max\-msg\-size=\fIbytes\fR
+Restricts the runtime to messages equal or less than \fIbytes\fR bytes.
+It may be necessary to change this value to improve speed or work 
+around MPI implementation specific stabilty issues.
+By default this value is equal to 
+.I INT_MAX.
+.TP
+.BR \-\-small\-exchange\-size=\fIbytes\fR
+Specifies the maximum number of \fIbytes\fR per process
+that is still considered to be a small exchange.
+For small exchanges an 
+.I MPI_Alltoall 
+(3) is used, for which there is an O(log p) algorithm on high-bandwidth
+networks, where p is the number of processes.
+For large exchanges throughput
+optimal methods, such as 
+.I MPI_Put
+(3) when linked with \-\-rma or
+.I MPI_Irsend
+(3) and
+.I MPI_Irecv
+(3) when linked with \-\-msg are used. 
+These have, however, also a higher latency of O(p). 
+Hence, the general advice is to increase this value if your application
+is sensitive to synchronisation latency.
+By default a communication of 1024 bytes per process or less is a small
+exchange.
+.
+.SH ENVIRONMENT
+.B bsprun
+is essentially a wrapper around 
+.I mpirun
+(1) but sets an additional set of environment variables:
+.TP
+.B BSPONMPI_MAX_MSG_SIZE
+Sets the maximum message size. See the description of 
+.B \-\-max-msg-size
+above.
+.TP
+.B BSPONMPI_SMALL_EXCHANGE_SIZE
+Sets the maximum for small exchanges. See the description of
+.B \-\-small\-exchange\-size
+above.
+.P
+In order for the dynamic linker to find the BSPonMPI dynamic
+library the
+.B DYLD_LIBRARY_PATH
+and
+.B LD_LIBRARY_PATH
+variables are extended to include the path to the library.
+.
+.SH AUTHOR
+Written by Wijnand J. Suijlen
+.
+.SH SEE ALSO
+.B mpirun
+(1),
+.B bspcc
+(1)
+.PP
+"BSPlib: The BSP programming library," by J. M. D. Hill, W. F. McColl, D. C. Stefanescu, M. W. Goudreau, K. Lang, S. B. Rao, T. Suel, Th. Tsantilas, R. H. Bisseling, Elsevier, Parallel Computing, Volume 24, Issue 14, December 1998, pages 1947–1980. 

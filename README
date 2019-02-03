@@ -29,9 +29,9 @@ Getting Started
 
 Prerequisites
 -------------
-  - CMake version 3.13
+  - CMake version 3.7
 
-  - An MPI-1 implementation, such as MPICH, OpenMPI, MVAPICH, IBM Platform,
+  - An MPI-2 implementation, such as MPICH, OpenMPI, MVAPICH, IBM Platform,
     Intel MPI, Microsoft MPI.
     (note: When using a Linux package manager, make sure you get the '-devel'
      package)
@@ -68,7 +68,7 @@ Assuming you have a source file helloworld.c, you can compile it as follows
   
   $ bspcc helloworld.c -o helloworld
 
-Likewise, if you have C++ source file helloworld.cpp, you can do
+Likewise, if you have a C++ source file helloworld.cpp, you can do
 
   $ bspcxx helloworld.cpp -o helloworld
 
@@ -76,15 +76,27 @@ Likewise, if you have C++ source file helloworld.cpp, you can do
 Running programs
 ----------------
 
-Programs can be ran through the bsprun command, which is a simple replacement
+Programs can be run through the bsprun command, which is a simple replacement
 for mpirun
 
   $ bsprun -n 5 ./helloworld
 
 
 
-Linux distribution specific installation hints
+OS specific installation hints
 ==============================================
+
+Mac OS X / macOS / Darwin
+-------------------------
+The MacPorts collection provides easy access to Unix development tools, which
+are necessary to build, install, and use BSPonMPI. See https://macports.org
+MacPorts also needs Xcode to be installed. Once you have both installed, 
+you can install the required dependencies through MacPorts: 
+
+ $ sudo port install cmake mpich-devel-default doxygen
+
+See the previous installation section how to proceed installation.
+
 
 CentOS 7
 --------

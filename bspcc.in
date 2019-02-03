@@ -82,7 +82,7 @@ function show_help()
    echo "              what command will be executed"
    echo
    echo "    --mcbsp   Use the MulticoreBSP for C compatible headers."
-   echo "              By default the header compatible with the"
+   echo "              By default the header that is compatible with the"
    echo "              publication of Hill et al. 1998 is loaded."
    echo
    echo "    --msg     Link with runtime based on MPI message passing:"
