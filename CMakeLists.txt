@@ -112,7 +112,7 @@ function( add_mpi_unit_test NAME P )
 endfunction()
  
 function( add_mpi_test NAME P )
-    foreach ( flavour msg rma )
+    foreach ( flavour msg rma rma_prof )
         set( exe "test_${NAME}_${flavour}")
         add_executable( ${exe} test/${NAME}.c )
         set_target_properties( ${exe} PROPERTIES 
@@ -133,34 +133,28 @@ set(BSPONMPI_SOURCES
    )
 
 # library using message passing
-add_library( bsponmpi_msg ${BSPONMPI_SOURCES})
-target_link_libraries( bsponmpi_msg ${MPI_C_LIBRARIES})
-if (BSPONMPI_PROFILE)
-    target_compile_definitions(bsponmpi_msg PRIVATE PROFILE )
-endif()
+function ( make_bsponmpi name )
+    add_library( ${name} ${BSPONMPI_SOURCES})
+    target_link_libraries( ${name} ${MPI_C_LIBRARIES})
+    target_compile_definitions(${name} PRIVATE ${ARGN})
+    install( TARGETS ${name}
+             RUNTIME DESTINATION bin
+             LIBRARY DESTINATION lib
+             ARCHIVE DESTINATION lib
+           )
+endfunction()
 
-# library using ones-sided
-add_library( bsponmpi_rma ${BSPONMPI_SOURCES})
-target_link_libraries( bsponmpi_rma ${MPI_C_LIBRARIES})
-target_compile_definitions(bsponmpi_rma PRIVATE USE_ONESIDED )    
-if (BSPONMPI_PROFILE)
-    target_compile_definitions(bsponmpi_rma PRIVATE PROFILE )
-endif()
-
+make_bsponmpi( bsponmpi_msg )
+make_bsponmpi( bsponmpi_rma USE_ONESIDED )
+make_bsponmpi( bsponmpi_msg_prof PROFILE )
+make_bsponmpi( bsponmpi_rma_prof USE_ONESIDED PROFILE )
 
 # Installation
-install( TARGETS bsponmpi_msg bsponmpi_rma
-         RUNTIME DESTINATION bin
-         LIBRARY DESTINATION lib
-         ARCHIVE DESTINATION lib
-       )
 install(FILES include/bsp.h 
          DESTINATION include )
 
 # Compiler and bsprun frontends
 set(BSPONMPI_LIB_DIR "${CMAKE_INSTALL_PREFIX}/lib")
-set(BSPONMPI_MSG_LIB "-lbsponmpi_msg")
-set(BSPONMPI_RMA_LIB "-lbsponmpi_rma")
 set(BSPONMPI_INCLUDE "${CMAKE_INSTALL_PREFIX}/include")
 
 configure_file( bspcc.in bspcc @ONLY )
@@ -190,10 +184,10 @@ add_mpi_test( init_2 8 )
 add_mpi_test( nprocs_1 2 )
 add_mpi_test( nprocs_2 4 )
 add_mpi_test( nprocs_3 5 )
-add_mpi_test( paper_example_reverse 5 ) 
-add_mpi_test( paper_example_put_array 7 ) 
+add_mpi_test( paper_example_reverse 4 ) 
+add_mpi_test( paper_example_put_array 3 ) 
 add_mpi_test( paper_example_bsp_sum 3 )
-add_mpi_test( paper_example_all_gather_sparse_vec 10 )
+add_mpi_test( paper_example_all_gather_sparse_vec 3 )
 add_mpi_test( sync_1 3 )
 add_mpi_test( sync_2 4 )
 add_mpi_test( sync_3 3 )
@@ -250,7 +244,7 @@ add_mpi_test( set_tagsize_2 3 )
 add_mpi_test( set_tagsize_3 4 )
 add_mpi_test( set_tagsize_4 3 )
 
-add_mpi_test( send_various_tags_1 5 )
+add_mpi_test( send_various_tags_1 4 )
 
 add_mpi_test( move_1 2 )
 

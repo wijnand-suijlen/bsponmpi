@@ -40,7 +40,7 @@ void Bsmp::sync( bool dummy )
         serial( m_a2a, p, m_next_tag_size );
     
 #ifdef PROFILE
-        t.addBytes( m_a2a.send_size(p) );
+        t.add_bytes( m_a2a.send_size(p) );
 #endif
     }
 

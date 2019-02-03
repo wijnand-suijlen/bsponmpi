@@ -1,10 +1,10 @@
 #ifndef BSPONMPI_TICTOC_HPP
 #define BSPONMPI_TICTOC_HPP
 
+#include <mpi.h>
+
 #if HAS_CLOCK_GETTIME
   #include <time.h>
-#else
-  #include <mpi.h>
 #endif
 
 #include <iosfwd>
@@ -24,9 +24,10 @@ public:
     typedef double Time;
 #endif
 
-    enum Category { DUMMY, SYNC, PUT, GET, HPPUT, HPGET, BSMP, 
-        MPI_META_A2A, MPI_SMALL_A2A, MPI_LARGE_RECV,
+    enum Category { DUMMY, TOTAL, SYNC, PUT, GET, HPPUT, HPGET, 
+        BSMP, MPI_META_A2A, MPI_SMALL_A2A, MPI_LARGE_RECV,
         MPI_LARGE_SEND, MPI_PUT, MPI_UNBUF,
+        IMBALANCE,
         N_CATEGORIES };
 
     TicToc( Category c, size_t bytes = 0u)
@@ -36,7 +37,7 @@ public:
      {
      }
 
-    void addBytes( size_t bytes ) 
+    void add_bytes( size_t bytes ) 
     { m_nbytes += bytes; }
 
     ~TicToc()
@@ -50,7 +51,7 @@ public:
     }
 
 
-    static void printStats(std::ostream & out);
+    static void print_stats(MPI_Comm comm, std::ostream & out);
 
 private:
 #if HAS_CLOCK_GETTIME
@@ -86,8 +87,8 @@ private:
     static Time zero() 
     { Time t; t.tv_sec = 0; t.tv_nsec = 0; return t;}
 
-    static double usec( Time x ) { 
-        return x.tv_sec * 1e+6 + 1e-3 * x.tv_nsec;
+    static double sec( Time x ) { 
+        return x.tv_sec + 1e-9 * x.tv_nsec;
     }
 
 #else
@@ -97,7 +98,7 @@ private:
     static Time timeAdd( Time a, Time b) { return a + b; }
     static Time timeDiff( Time a, Time b ) { return a - b; }
     static Time zero() { return 0.0; }
-    static double usec( Time x ) { return x*1e+6; }
+    static double sec( Time x ) { return x; }
 #endif
     struct Record {
         Time time;

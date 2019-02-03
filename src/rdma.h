@@ -14,6 +14,10 @@
 
 #include <mpi.h>
 
+#ifdef PROFILE
+#include "tictoc.h"
+#endif
+
 namespace bsplib {
 
 class DLL_LOCAL Rdma { 
@@ -176,6 +180,9 @@ private:
     void write_gets();
     void write_puts();
 
+#ifdef PROFILE
+    TicToc m_tictoc;
+#endif
 };
 
 }

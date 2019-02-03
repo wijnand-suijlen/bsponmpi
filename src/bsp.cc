@@ -48,33 +48,11 @@ static void bsp_finalize(void)
     }
     if ( s_aborting ) return;
 
-#ifdef PROFILE
-    std::ostringstream out;
-    TicToc :: printStats( out );
-#endif
-
     int init = 0;
     MPI_Initialized(&init);
     if (init) {
-#ifdef PROFILE
-        int pid, nprocs, i;
-        MPI_Comm_rank( MPI_COMM_WORLD, &pid );
-        MPI_Comm_size( MPI_COMM_WORLD, &nprocs );
-        for ( i = 0 ; i < nprocs; ++i ) {
-            if ( i==pid)
-                std::printf("[%d] ---   PROFILE   ---\n%s\n\n", pid, out.str().c_str() );
-            MPI_Barrier(MPI_COMM_WORLD);
-        }
-#endif
         MPI_Finalize();
     }
-#ifdef PROFILE
-    else
-    {
-        std::printf("--- PROFILE ---\n%s\n", out.str().c_str() );
-    }
-#endif
-
 }
 
 
@@ -220,6 +198,14 @@ void bsp_end()
     s_rdma = NULL;
     delete s_bsmp;
     s_bsmp = NULL;
+
+#ifdef PROFILE
+    std::ostringstream out;
+    bsplib::TicToc::print_stats( s_spmd->comm(), out );
+    if ( s_spmd->pid() == 0 )
+        printf("--- PROFILE between bsp_begin() - bsp_end() ---\n%s\n",
+                out.str().c_str() );
+#endif
 }
 
 bsp_pid_t bsp_nprocs()
@@ -261,10 +247,6 @@ double bsp_time()
   
 void bsp_sync()
 {
-#ifdef PROFILE
-    TicToc t( TicToc::SYNC );
-#endif
-
     if (!s_spmd && !s_spmd->ended())
         bsp_abort("bsp_sync: can only be called within SPMD section\n");
 
@@ -272,6 +254,15 @@ void bsp_sync()
         bsp_abort("bsp_sync/bsp_end: Some processes have called bsp_sync, "
                "while others have called bsp_end instead\n");
 
+#ifdef PROFILE
+    { TicToc imb( TicToc::IMBALANCE );
+      MPI_Barrier( s_spmd->comm() );
+    }
+#endif
+
+#ifdef PROFILE
+    TicToc t( TicToc::SYNC );
+#endif
     bool dummy_bsmp = s_bsmp->is_dummy();
 
     try {

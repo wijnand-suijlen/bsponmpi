@@ -43,7 +43,7 @@ public:
         m_a2a.send( pid, payload, nbytes );
 #ifdef PROFILE
         size_t end = m_a2a.send_size(pid);
-        t.addBytes(end-start);
+        t.add_bytes(end-start);
 #endif
     }
 

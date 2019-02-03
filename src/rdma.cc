@@ -22,6 +22,9 @@ Rdma :: Rdma( MPI_Comm comm, size_t max_msg_size, size_t small_exch_size  )
     , m_unbuf( max_msg_size, comm )
     , m_send_push_pop_comm_buf()
     , m_recv_push_pop_comm_buf()
+#ifdef PROFILE
+    , m_tictoc( TicToc :: TOTAL )
+#endif
 {}
 
 
@@ -77,7 +80,7 @@ void Rdma::put( const void * src,
     m_second_exchange.send( dst_pid, src, size );
 #ifdef PROFILE
     size_t t_b = m_second_exchange.send_size(dst_pid);
-    t.addBytes(t_b-t_a);
+    t.add_bytes(t_b-t_a);
 #endif
 }
 
@@ -153,7 +156,7 @@ void Rdma::write_gets()
         }
 #ifdef PROFILE
         size_t end = m_second_exchange.recv_pos(p);
-        t.addBytes( end - start );
+        t.add_bytes( end - start );
 #endif
    }
 }
@@ -180,7 +183,7 @@ void Rdma::write_puts()
             m_second_exchange.recv_pop(p, size );
         }
 #ifdef PROFILE
-        t.addBytes( end );
+        t.add_bytes( end );
 #endif
    }
 }
@@ -253,7 +256,7 @@ void Rdma::ActionBuf::serialize( A2A & a2a )
         serial( a2a, a.target_pid, a.size );
 #ifdef PROFILE
         size_t end = a2a.send_size(a.target_pid);
-        t.addBytes(end-start);
+        t.add_bytes(end-start);
 #endif
     }
 }
@@ -323,7 +326,7 @@ void Rdma::ActionBuf::execute( Rdma & rdma )
                 rdma.m_second_exchange.send( a.dst_pid, addr, a.size );
 #ifdef PROFILE
                 size_t end=rdma.m_second_exchange.send_size(a.dst_pid);
-                t.addBytes(end-start);
+                t.add_bytes(end-start);
 #endif
                 break;
             }
@@ -334,7 +337,7 @@ void Rdma::ActionBuf::execute( Rdma & rdma )
                 addr += a.offset;
                 rdma.m_unbuf.recv( a.tag, a.src_pid, addr, a.size );
 #ifdef PROFILE
-                t.addBytes(a.size);
+                t.add_bytes(a.size);
 #endif
                 break;
             }
@@ -345,7 +348,7 @@ void Rdma::ActionBuf::execute( Rdma & rdma )
                 addr += a.offset;
                 rdma.m_unbuf.send( a.tag, a.dst_pid, addr, a.size );
 #ifdef PROFILE
-                t.addBytes(a.size);
+                t.add_bytes(a.size);
 #endif
                 break;
             }

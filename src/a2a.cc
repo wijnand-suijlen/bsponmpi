@@ -163,7 +163,7 @@ void A2A::exchange( )
                     m_send_bufs.data() + p * m_send_cap,
                     m_send_sizes[p] );
 #ifdef PROFILE
-            t.addBytes( m_send_sizes[p] );
+            t.add_bytes( m_send_sizes[p] );
 #endif
         }
         // In small exchanges, Bruck's algorithm will be used again
@@ -192,7 +192,7 @@ void A2A::exchange( )
             std::size_t o1 = m_send_cap * p;
             std::size_t o2 = m_recv_cap * m_pid;
 #ifdef PROFILE
-            t.addBytes( size );
+            t.add_bytes( size );
 #endif
             while ( size > 0 ) {
                 std::size_t s = std::min( m_max_msg_size, size );
@@ -228,7 +228,7 @@ void A2A::exchange( )
 
                 int recv_size = std::min( m_max_msg_size, m_recv_sizes[p] );
 #ifdef PROFILE
-                tr.addBytes( recv_size );
+                tr.add_bytes( recv_size );
 #endif
 
                 int tag = 0;
@@ -250,7 +250,7 @@ void A2A::exchange( )
 
                 int send_size = std::min( m_max_msg_size, m_send_sizes[p] );
 #ifdef PROFILE
-                ts.addBytes( send_size );
+                ts.add_bytes( send_size );
 #endif
 
                 int tag = 0;
