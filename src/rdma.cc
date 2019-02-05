@@ -5,6 +5,7 @@
 #endif
 
 #include <cstring>
+#include <algorithm>
 
 namespace bsplib {
 

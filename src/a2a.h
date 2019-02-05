@@ -31,7 +31,7 @@ public:
 
     const void * recv_top( int src_pid ) const {
         std::size_t o = src_pid * m_recv_cap + m_recv_pos[src_pid];
-        return static_cast< const void *>( &m_recv_bufs[o] );
+        return static_cast< const void *>( m_recv_bufs.data() + o );
     }
 
     bool recv_pop( int src_pid, std::size_t size ){

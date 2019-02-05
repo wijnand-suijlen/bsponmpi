@@ -73,7 +73,7 @@ void * A2A::send( int dst_pid, const void * data, std::size_t size )
     std::size_t offset = m_send_sizes[ dst_pid ];
     if ( m_send_cap < offset + size ) {
         std::size_t new_cap =
-           std::max( 2ul * m_send_cap , offset + size );
+           std::max( 2 * m_send_cap , offset + size );
 
         m_send_bufs.resize( m_nprocs * new_cap );
         for ( int p = m_nprocs; p > 0; --p ) {
@@ -142,7 +142,7 @@ void A2A::exchange( )
 #ifdef USE_ONESIDED
     if ( new_cap != m_recv_cap ) {
         MPI_Win_create( m_recv_bufs.data(), 
-                new_cap, 1, 
+                new_cap * m_nprocs, 1, 
                 MPI_INFO_NULL, m_comm, &m_recv_win );
     }
 #endif

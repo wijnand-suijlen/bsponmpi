@@ -123,3 +123,30 @@ Make sure you have CMake, Doxygen, and an MPI installed. E.g. do
 
   $ sudo apt install cmake doxygen mpich doxygen
 
+
+Windows 10
+----------
+
+This is tested with Microsoft MPI 10.0.0. There is also a Windows version from
+IBM.  You can get MS MPI from
+  https://docs.microsoft.com/en-us/message-passing-interface
+
+Get other development tools: Visual Studio & CMake. If you like to generate
+HTML documentation, then also download Doxygen, a Tex distribution (e.g.
+MikTex), and Ghostscript. Make sure the executables of these tools are in
+your PATH environment variable.
+  - Enable Desktop C++ development in VS (Tools->Get Tools and Features)
+  - Run CMake-gui. Select the source folder and the build directory, and
+    run configure and generate. This will generate a Visual Studio solution
+    in the build directory
+  - Open the VS solution
+  - Build it (CTRL+SHIFT+B)
+    
+     Note: if you get lots of error messages "Object reference not set to an
+     instance of an object", update your Visual Studio to the latest version.
+
+  
+
+
+
+

@@ -10,7 +10,7 @@ set(CPACK_PACKAGE_FILE_NAME     "${CPACK_PACKAGE_NAME}-${CPACK_PACKAGE_VERSION}-
 set(CPACK_RESOURCE_FILE_LICENSE "${PROJECT_SOURCE_DIR}/LICENSE")
 set(CPACK_STRIP_FILES TRUE)
 set(CPACK_RPM_PACKAGE_RELEASE 1)
-set(CPACK_PACKAGE_CONTACT "wijnandsuijlen@gmail.com")
+set(CPACK_PACKAGE_CONTACT "bsponmpi@suijlen.net")
 set(CPACK_RPM_USER_BINARY_SPECFILE "${PROJECT_SOURCE_DIR}/bsponmpi.spec.in")
 set(CPACK_RPM_EXCLUDE_FROM_AUTO_FILELIST "/usr;/usr/bin;/usr/lib;/usr/include;/usr/share;/usr/share/man;/usr/share/man/man1;/usr/share/man/man3;/usr/share/doc")
 
@@ -44,6 +44,10 @@ if (NOT MPIEXEC_EXECUTABLE)
     set(MPIEXEC_EXECUTABLE "${MPIEXEC}")
 endif()
 string(REPLACE mpiexec mpirun mpirun_exec ${MPIEXEC_EXECUTABLE})
+# fallback to mpiexec if mpirun does not exist
+if (NOT EXISTS "${mpirun_exec}")
+  set(mpirun_exec "${MPIEXEC_EXECUTABLE}")
+endif()
 set( MPIRUN_EXECUTABLE "${mpirun_exec}" CACHE FILEPATH "The path to the mpirun launcher (or equivalent)" )
 
 # Disable C++ bindings in OpenMPI
@@ -81,17 +85,23 @@ if (HAS_CLOCK_GETTIME)
     add_definitions(-DHAS_CLOCK_GETTIME)
 endif()
 
+check_symbol_exists( _dupenv_s "stdlib.h" HAS_DUPENV_S_WIN32)
+if (HAS_DUPENV_S_WIN32 AND WIN32)
+    add_definitions(-DHAS_DUPENV_S_WIN32)
+endif()
+
 if (CMAKE_COMPILER_IS_GNUCXX)
 set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -Wall -Wextra -g -pedantic")
 set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -Wall -Wextra -pedantic")
 endif()
 
-# On Apple we want to build a shared lib by default. On other machinse
-# we prefer static
-option(BUILD_SHARED_LIBS "Build BSPonMPI as a shared library; When you get strange linking problems, you might want to toggle this option" "${APPLE}" ) 
-
-# Option to whether or not compile in the internal profiling library
-option(BSPONMPI_PROFILE "Enable internal profiling" FALSE)
+# On Apple and Win32 we want to build a shared lib by default. On other
+# machines we prefer static
+set(prefer_shared_libs OFF)
+if (APPLE OR WIN32)
+  set(prefer_shared_libs ON)
+endif()
+option(BUILD_SHARED_LIBS "Build BSPonMPI as a shared library; When you get strange linking problems, you might want to toggle this option" "${prefer_shared_libs}" ) 
 
 # Macro's to facilitate Testing
 
@@ -109,7 +119,7 @@ function( add_mpi_unit_test NAME P )
     add_executable( ${exe} src/${NAME}.t.cc ${ARGN} )
     target_link_libraries(${exe} ${MPI_C_LIBRARIES} )
     set( testname "unit_test_${NAME}_p${P}" )
-    add_test( NAME "${testname}" COMMAND ${MPIRUN_EXECUTABLE} -n ${P} ./${exe} )
+    add_test( NAME "${testname}" COMMAND ${MPIRUN_EXECUTABLE} -n ${P} $<TARGET_FILE:${exe}> )
 endfunction()
  
 function( add_mpi_test NAME P )
@@ -121,7 +131,7 @@ function( add_mpi_test NAME P )
                 "${PROJECT_SOURCE_DIR}/include;${PROJECT_SOURCE_DIR}/test;${PROJECT_SOURCE_DIR}/src;${MPI_INCLUDE_PATH}" )
         target_link_libraries( ${exe} "bsponmpi_${flavour}" )
         set( testname "${NAME}_${flavour}_p${P}" )
-        add_test( NAME "${testname}" COMMAND ${MPIRUN_EXECUTABLE} -n ${P} ./${exe} )
+        add_test( NAME "${testname}" COMMAND ${MPIRUN_EXECUTABLE} -n ${P} $<TARGET_FILE:${exe}> )
     endforeach()
 endfunction()
 
@@ -137,7 +147,7 @@ set(BSPONMPI_SOURCES
 function ( make_bsponmpi name )
     add_library( ${name} ${BSPONMPI_SOURCES})
     target_link_libraries( ${name} ${MPI_C_LIBRARIES})
-    target_compile_definitions(${name} PRIVATE ${ARGN})
+    target_compile_definitions(${name} PRIVATE BUILDING_DLL ${ARGN})
     install( TARGETS ${name}
              RUNTIME DESTINATION bin
              LIBRARY DESTINATION lib

@@ -2,6 +2,7 @@
 #include "exception.h"
 
 #include <limits>
+#include <algorithm>
 
 namespace bsplib {
 

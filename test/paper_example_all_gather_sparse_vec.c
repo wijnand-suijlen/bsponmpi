@@ -71,10 +71,10 @@ TEST( paper_all_gather_sparce_vec, success() )
         rand();
 
     for ( i = 0; i < nz/p; ++i ) {
-        j = rand() / (1.0 + RAND_MAX) * N/p;
+        j = (int) (rand() / (1.0 + RAND_MAX) * N/p);
         while (dense[j] != 0.0) j = (j+1)%(N/p);
 
-        x = rand() / (1.0 + RAND_MAX);
+        x = (float) (rand() / (1.0 + RAND_MAX) );
 
         EXPECT_OP( "%d", j, >=, 0);
         EXPECT_OP( "%d", j, <, N/p );
