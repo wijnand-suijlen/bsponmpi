@@ -17,7 +17,7 @@ public:
     explicit Spmd( int nprocs ); // Collective
     ~Spmd();  // Collective
 
-    bool ended() { return m_ended; }
+    bool closed() { return m_closed; }
     bool active() { return m_active; }
     int pid() const { return m_pid; }
     int nprocs() const { return m_nprocs; }
@@ -35,12 +35,13 @@ public:
 
     int normal_sync(); // return non-zero on error
     int end_sync();   // return non-zero on error
+    void close();  // must be called before destructor
 
     MPI_Comm comm() const { return m_comm; }
 
 private:
     MPI_Comm m_comm;
-    bool m_ended;
+    bool m_closed;
     bool m_active;
 #ifdef HAS_CLOCK_GETTIME
     struct timespec m_time;
