@@ -86,7 +86,7 @@ void * A2A::send( int dst_pid, const void * data, std::size_t size )
         m_send_cap = new_cap;
     }
     m_send_sizes[ dst_pid ] += size;
-    void * send_buf = &m_send_bufs[ dst_pid * m_send_cap + offset];
+    void * send_buf = m_send_bufs.data() + dst_pid * m_send_cap + offset;
     std::memcpy( send_buf , data, size );
     return send_buf;
 }
