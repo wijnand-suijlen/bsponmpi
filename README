@@ -145,8 +145,20 @@ your PATH environment variable.
      Note: if you get lots of error messages "Object reference not set to an
      instance of an object", update your Visual Studio to the latest version.
 
-  
-
-
+To use the library in your Visual Studio project 
+(see also https://blogs.technet.microsoft.com/windowshpc/2015/02/02/how-to-
+                                     compile-and-run-a-simple-ms-mpi-program/)
+  - Create a new Windows Console application project with Visual C++
+  - Add include path in the project properties -> C/C++ -> General ->
+    Additional Include Directories
+  - Add the Debug or Release subdirectory in the build directory to the 
+    "Additional Library Directores" field in the project properties ->
+    Linker -> General, and add the .LIB file of one of the four built 
+    flavours: bsponmpi_msg.lib, bsponmpi_rma.lib, bsponmpi_msg_prof.lib,
+    or bsponmpi_rma_prof.lib. If you're not sure, choose bsponmpi_rma.lib
+  - Build your program
+  - When you want to run the program, make sure the bsponmpi_*.dll is in the
+    same path as your executable. Then use the MPI launcher to run your program,
+    i.e.: Start a command prompt and run "mpiexec -n 5 helloworld.exe"
 
 
