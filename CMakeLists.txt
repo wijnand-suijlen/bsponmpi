@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.7)
+cmake_minimum_required(VERSION 2.8.12)
 project(BSPonMPI) 
 
 set(CPACK_PACKAGE_NAME          "bsponmpi")
@@ -260,7 +260,11 @@ add_mpi_test( send_various_tags_1 4 )
 add_mpi_test( move_1 2 )
 
 # Documentation
+if (NOT COMMAND doxygen_add_docs)
+   
+endif()
 if (DOXYGEN_FOUND)
+    if (COMMAND doxygen_add_docs)
     set(DOXYGEN_BRIEF_MEMBER_DESC YES)
     set(DOXYGEN_JAVADOC_AUTOBRIEF YES)
     set(DOXYGEN_MACRO_EXPANSION YES)
@@ -307,6 +311,9 @@ if (DOXYGEN_FOUND)
             DESTINATION share/doc/bsponmpi)
     install(FILES LICENSE README
             DESTINATION share/doc/bsponmpi)
+else()
+    message( STATUS "CMake does not know about doxygen_add_docs - Use CMake 3.9 or later to generate docs")
+endif()
 else()
     message( STATUS "Doxygen was not found - Documentation will not be generated")
 endif()
