@@ -88,8 +88,8 @@ function show_help()
    echo "    --msg     Link with runtime based on MPI message passing:"
    echo "              MPI_Irsend/MPI_Isend - MPI_Irecv - MPI_Waitsome"
    echo "              Note: Not all MPI implementations are suitable"  
-   echo                to guarantee BSP cost semantics. If performance"
-   echo                is unsatisfactory, try the -rma option."
+   echo "              to guarantee BSP cost semantics. If performance"
+   echo "              is unsatisfactory, try the -rma option."
    echo 
    echo "    --rma     Link with runtime based on MPI remote memory access:"
    echo "              MPI_Fence - MPI_Put"

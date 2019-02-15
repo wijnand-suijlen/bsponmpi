@@ -18,7 +18,7 @@ from the MPI implementation that was used to build BSPonMPI.
 All options that are not recognized by 
 .B bspcc
 are passed on verbatim to 
-.I mpicc.
+.I mpicc\fR.
 .
 .SH OPTIONS
 Only 
@@ -51,7 +51,7 @@ based on
 (3) - 
 .I MPI_Irecv
 (3) -
-.I MPI_Waitsome.
+.I MPI_Waitsome\fR.
 The effectiveness of this protocol depends on the MPI implementation and
 the fabric. 
 Its performance might not conform the BSP cost model, in which case
@@ -93,7 +93,7 @@ Statistics are labelled per category and displayed hierarchically:
 The total time between 
 .I bsp_begin
 and
-.I bsp_end.
+.I bsp_end\fR.
 .TP
 .B IMBALANCE
 The total time lost due to load imbalance.
@@ -105,9 +105,11 @@ excluding imbalance
 .TP
 .B PUT, GET, HPPUT, HPGET
 Time spent and data sent for
-.I bsp_put, bsp_get, bsp_hpput,
+.IR bsp_put ,
+.IR bsp_get , 
+.IR bsp_hpput ,
 and
-.I bsp_hpget,
+.IR bsp_hpget ,
 respectively
 .TP
 .B BSMP

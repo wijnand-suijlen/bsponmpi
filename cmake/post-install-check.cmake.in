@@ -48,6 +48,6 @@ execute_process( COMMAND @CMAKE_CTEST_COMMAND@ -V
                         ERROR_FILE  ${BINDIR}/post-install-cmake-ctest.log
                 )  
 if (NOT TEST_SUCCESS EQUAL 0)
-    message(SEND_ERROR "Tests in test CMake project were unsuccessful: ${BINDIR}/post-install-cmake-ctest.log")
+    message(WARNING "Tests in test CMake project were unsuccessful: ${BINDIR}/post-install-cmake-ctest.log")
 endif()
 

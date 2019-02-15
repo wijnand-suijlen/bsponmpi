@@ -3,11 +3,8 @@
 bsprun \- The BSPonMPI program launcher
 .
 .SH SYNOPSIS
-.nf
-.HP 7 
-\fBbsprun\fR [\fB\-\-help\fR] [\fB\-\-version\fR] [\fB\-\-show\fR]
-[\fB\-\-max\-msg\-size=\fR\fIbytes\fR]
-[\fB\-\-small\-exchange\-size=\fR\fIbytes\fR]
+.BR bsprun 
+.RI [ OPTIONS ...]
 .IR command ...
 .fi
 .
@@ -23,7 +20,7 @@ from the MPI implementation that was used to build BSPonMPI.
 For directions on how to launch a program, it is, therefore, essential
 to consult the 
 .I mpirun
-(1) manual as well. However, in most cases the following will just work:
+(1) manual as well. However, the following will just work:
 .PP
 .nf
 .RS
@@ -31,14 +28,14 @@ $ bsprun -n 5 ./a.out
 .RE
 .fi
 .PP
-wich will run ./a.out with 5 processes.
-If the system requires use of a different launcher, then the user
+which runs ./a.out with 5 processes.
+If the system requires a different launcher, then the user
 is invited to copy the 
 .B bsprun
 shell script and to modify it accordingly. 
 Alternatively, the 
 .B \-\-show
-option can be used to generate a template script.
+option can be used to generate a template launch script.
 .
 .SH OPTIONS
 Only 
@@ -47,6 +44,9 @@ specific options are listed here.
 All unrecognized options are passed on to the
 .I mpirun
 command.
+.TP
+.BI \-n\  nprocs ,\ \-\-nprocs= nprocs
+Launches the program with at most \fInprocs\fR processes.
 .TP
 .BR \-\-help
 Gives a brief usage overview.

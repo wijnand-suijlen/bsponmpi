@@ -217,9 +217,8 @@ DLL_PUBLIC void bsp_begin(bsp_pid_t maxprocs);
  * \throws bsp_abort When bsp_end() is called without a preceding bsp_begin()
  * \throws bsp_abort When bsp_end() is not called before the end of the program.
  * 
- * \warning Undefined behaviour results when bsp_begin() is not the last 
- *          statement. Note that variable or function declarations are not
- *          statements.
+ * \warning Undefined behaviour results when bsp_end() is not the last 
+ *          statement. 
  * \warning Undefined behaviour results when bsp_end() is called in another
  *          function than where bsp_begin() was called.
 */

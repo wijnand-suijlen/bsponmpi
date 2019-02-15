@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 2.8.12)
+cmake_minimum_required(VERSION 2.8.11)
 project(BSPonMPI) 
 
 set(CPACK_PACKAGE_NAME          "bsponmpi")
@@ -13,6 +13,11 @@ set(CPACK_RPM_PACKAGE_RELEASE 1)
 set(CPACK_PACKAGE_CONTACT "bsponmpi@suijlen.net")
 set(CPACK_RPM_USER_BINARY_SPECFILE "${PROJECT_SOURCE_DIR}/bsponmpi.spec.in")
 set(CPACK_RPM_EXCLUDE_FROM_AUTO_FILELIST "/usr;/usr/bin;/usr/lib;/usr/include;/usr/share;/usr/share/man;/usr/share/man/man1;/usr/share/man/man3;/usr/share/doc")
+set(CPACK_RPM_SPEC_MORE_DEFINE "%define _rpmdir %_topdir/RPMS")
+if (CMAKE_VERSION VERSION_LESS 3)
+# Workaround for older CMake versions
+    set(CPACK_RPM_SPEC_MORE_DEFINE "%define _rpmdir %_topdir")
+endif()
 
 find_program(RPMBUILD rpmbuild)
 find_program(DPKG     dpkg-deb)
@@ -33,6 +38,7 @@ include(CheckSymbolExists)
 string(TIMESTAMP BUILD_DATE)
 set(SOVERSION "${CPACK_PACKAGE_VERSION}")
 
+set(DOXYGEN_SKIP_DOT TRUE)
 find_package(Doxygen)
 find_package(MPI)
 
@@ -49,6 +55,8 @@ if (NOT EXISTS "${mpirun_exec}")
   set(mpirun_exec "${MPIEXEC_EXECUTABLE}")
 endif()
 set( MPIRUN_EXECUTABLE "${mpirun_exec}" CACHE FILEPATH "The path to the mpirun launcher (or equivalent)" )
+set( MPIRUN_NPROCS_PARAM "${MPIEXEC_NUMPROC_FLAG};" CACHE STRING "Parameter to mpirun for setting the number of processes. Use a semicolon ; to denotes that the actual number of processes is the next separate command line parameter")
+string(REPLACE ";" " " MPIRUN_NPROCS_PARAM_SCRIPT "${MPIRUN_NPROCS_PARAM}")
 
 # Disable C++ bindings in OpenMPI
 add_definitions(-DOMPI_SKIP_MPICXX)
@@ -119,7 +127,7 @@ function( add_mpi_unit_test NAME P )
     add_executable( ${exe} src/${NAME}.t.cc ${ARGN} )
     target_link_libraries(${exe} ${MPI_C_LIBRARIES} )
     set( testname "unit_test_${NAME}_p${P}" )
-    add_test( NAME "${testname}" COMMAND ${MPIRUN_EXECUTABLE} -n ${P} $<TARGET_FILE:${exe}> )
+    add_test( NAME "${testname}" COMMAND ${MPIRUN_EXECUTABLE} ${MPIRUN_NPROCS_PARAM}${P} $<TARGET_FILE:${exe}> )
 endfunction()
  
 function( add_mpi_test NAME P )
@@ -131,7 +139,7 @@ function( add_mpi_test NAME P )
                 "${PROJECT_SOURCE_DIR}/include;${PROJECT_SOURCE_DIR}/test;${PROJECT_SOURCE_DIR}/src;${MPI_INCLUDE_PATH}" )
         target_link_libraries( ${exe} "bsponmpi_${flavour}" )
         set( testname "${NAME}_${flavour}_p${P}" )
-        add_test( NAME "${testname}" COMMAND ${MPIRUN_EXECUTABLE} -n ${P} $<TARGET_FILE:${exe}> )
+        add_test( NAME "${testname}" COMMAND ${MPIRUN_EXECUTABLE} ${MPIRUN_NPROCS_PARAM}${P} $<TARGET_FILE:${exe}> )
     endforeach()
 endfunction()
 
@@ -264,19 +272,17 @@ if (NOT COMMAND doxygen_add_docs)
    
 endif()
 if (DOXYGEN_FOUND)
-    if (COMMAND doxygen_add_docs)
-    set(DOXYGEN_BRIEF_MEMBER_DESC YES)
-    set(DOXYGEN_JAVADOC_AUTOBRIEF YES)
-    set(DOXYGEN_MACRO_EXPANSION YES)
-    set(DOXYGEN_EXPAND_ONLY_PREDEF YES)
-    set(DOXYGEN_EXPAND_AS_DEFINED "DLL_LOCAL;DLL_PUBLIC")
-    set(DOXYGEN_GENERATE_HTML YES)
-    set(DOXYGEN_GENERATE_MAN  YES)
-    set(DOXYGEN_MAN_LINKS YES) # create individual entries for each primitive
-    doxygen_add_docs( manual include/bsp.h )
-    add_custom_target(docs ALL DEPENDS manual)
-
+    configure_file(Doxyfile.in Doxyfile @ONLY)
     set(man3 ${PROJECT_BINARY_DIR}/man/man3)
+    set(html ${PROJECT_BINARY_DIR}/html)
+    add_custom_command(OUTPUT ${html}/index.html
+            COMMAND ${DOXYGEN_EXECUTABLE} ${PROJECT_BINARY_DIR}/Doxyfile
+            MAIN_DEPENDENCY ${PROJECT_SOURCE_DIR}/include/bsp.h
+            WORKING_DIRECTORY ${PROJECT_BINARY_DIR}
+            COMMENT "Invoking Doxygen to generate user documentation"
+            )
+    add_custom_target(docs ALL DEPENDS ${html}/index.html )
+
     install( FILES ${man3}/BSP_BSMP.3
                    ${man3}/BSP_DRMA.3
                    ${man3}/BSP_SPMD.3
@@ -311,9 +317,44 @@ if (DOXYGEN_FOUND)
             DESTINATION share/doc/bsponmpi)
     install(FILES LICENSE README
             DESTINATION share/doc/bsponmpi)
-else()
-    message( STATUS "CMake does not know about doxygen_add_docs - Use CMake 3.9 or later to generate docs")
-endif()
+
+    find_program(PDFLATEX pdflatex)
+    find_program(MAKEINDEX makeindex)
+
+    if (PDFLATEX AND MAKEINDEX)
+       file(MAKE_DIRECTORY ${PROJECT_BINARY_DIR}/latex_test)
+       file(COPY cmake/latex_test.tex 
+               DESTINATION ${PROJECT_BINARY_DIR}/latex_test)
+       execute_process(COMMAND ${PDFLATEX} latex_test
+               WORKING_DIRECTORY ${PROJECT_BINARY_DIR}/latex_test
+               RESULT_VARIABLE LATEX_WORKS
+               OUTPUT_FILE cmake-latex-test.log
+               ERROR_FILE cmake-latex-test.log
+               )
+
+       if (LATEX_WORKS EQUAL 0)
+    
+           add_custom_command( TARGET docs POST_BUILD
+                   COMMAND ${PDFLATEX} refman
+                   COMMAND ${MAKEINDEX} refman.idx
+                   COMMAND ${PDFLATEX} refman
+                   COMMAND ${PDFLATEX} refman
+                   COMMAND ${MAKEINDEX} refman.idx
+                   COMMAND ${PDFLATEX} refman
+                   WORKING_DIRECTORY ${PROJECT_BINARY_DIR}/latex
+                   COMMENT "Invoking Latex to generate PDF of manual"
+                   )
+
+           install(FILES ${PROJECT_BINARY_DIR}/latex/refman.pdf
+                  DESTINATION share/doc/bsponpmi
+                  RENAME bsponmpi.pdf
+                  )
+        else()
+            message(STATUS "The Latex installtion misses some packages - A PDF of the reference documentation will not be generated")
+        endif()
+    else()
+       message( STATUS "Latex and makeindex were not found - A PDF of the reference documentation will not be generated")
+    endif()
 else()
     message( STATUS "Doxygen was not found - Documentation will not be generated")
 endif()

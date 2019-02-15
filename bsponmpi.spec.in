@@ -11,7 +11,7 @@ Release:        @CPACK_RPM_PACKAGE_RELEASE@
 License:        MIT
 
 Requires: mpich-3.0-devel
-BuildRequires:  cmake3 >= 3.7, doxygen >= 1.8.5, mpich-3.0-devel
+BuildRequires:  cmake >= 2.8.11, doxygen >= 1.8.5, mpich-3.0-devel
 @TMP_RPM_URL@
 @TMP_RPM_REQUIRES@
 @TMP_RPM_REQUIRES_PRE@
@@ -26,14 +26,13 @@ BuildRequires:  cmake3 >= 3.7, doxygen >= 1.8.5, mpich-3.0-devel
 @TMP_RPM_AUTOREQ@
 @TMP_RPM_AUTOREQPROV@
 @TMP_RPM_BUILDARCH@
-@TMP_RPM_PREFIXES@
+@TMP_RPM_PREFIX@
 @TMP_RPM_EPOCH@
 
 @TMP_RPM_DEBUGINFO@
 
-%define _rpmdir %_topdir/RPMS
 %define _srcrpmdir %_topdir/SRPMS
-@FILE_NAME_DEFINE@
+%define _rpmfilename @CPACK_RPM_FILE_NAME@
 %define _unpackaged_files_terminate_build 0
 @TMP_RPM_SPEC_INSTALL_POST@
 @CPACK_RPM_SPEC_MORE_DEFINE@
@@ -109,7 +108,7 @@ mv %_topdir/tmpBBroot $RPM_BUILD_ROOT
 @CPACK_RPM_SPEC_PREUNINSTALL@
 
 %files
-%defattr(@TMP_DEFAULT_FILE_PERMISSIONS@,@TMP_DEFAULT_USER@,@TMP_DEFAULT_GROUP@,@TMP_DEFAULT_DIR_PERMISSIONS@)
+%defattr(-,root,root,-)
 @CPACK_RPM_INSTALL_FILES@
 @CPACK_RPM_ABSOLUTE_INSTALL_FILES@
 @CPACK_RPM_USER_INSTALL_FILES@

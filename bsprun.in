@@ -15,7 +15,7 @@ function show_help()
    echo
    echo "SYNOPSIS"
    echo "    $0 [--help [--version] [--show] [--max-msg-size=<bytes>]"
-   echo "       [--small-exchange-size=<bytes>] <command>"
+   echo "       [-n <nprocs>] [--small-exchange-size=<bytes>] <command>"
    echo
    echo "    Only $0 specific options are listed here. See the manual"
    echo "    of @MPIRUN_EXECUTABLE@ for more specific options"
@@ -27,6 +27,10 @@ function show_help()
    echo 
    echo "    --show    Instead of launching the command it shows what"
    echo "              command will be executed"
+   echo 
+   echo "    -n <procs>  or --nprocs=<procs>"
+   echo "              Launches the program with at most <procs> parallel"
+   echo "              processes"
    echo
    echo "    --max-msg-size=<bytes>  [default: $((2**31-1))]"
    echo "              Restricts the runtime to messages equal or less"
@@ -45,12 +49,21 @@ function show_help()
    echo "              used, but that have also higher latency L = O(p)."
 }
 
+state=normal
 rest=()
 show=
 max_msg_size=$((2**31 - 1))
 small_exchange_size=1024
 for arg
 do
+
+  case $state in
+    nprocs)  
+       rest=( "${rest[@]}"  @MPIRUN_NPROCS_PARAM_SCRIPT@${arg} )
+       state=normal
+       ;;
+
+    normal)
 
   case $arg in
      -help|--help) 
@@ -60,6 +73,15 @@ do
         echo
         show_help
         exit 0
+        ;;
+
+
+     -n)
+        state=nprocs
+        ;;
+
+    --nprocs=*)
+        rest=( "${rest[@]}"  @MPIRUN_NPROCS_PARAM_SCRIPT@${arg#--nprocs==} )
         ;;
 
     -version|--version) 
@@ -80,6 +102,8 @@ do
         
     *)   rest=( "${rest[@]}" "$arg" )
          ;;
+  esac
+  ;;
   esac
 done
 
