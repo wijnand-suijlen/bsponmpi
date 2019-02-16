@@ -347,7 +347,8 @@ if (DOXYGEN_FOUND)
                    COMMAND ${MAKEINDEX} refman.idx
                    COMMAND ${PDFLATEX} refman
                    WORKING_DIRECTORY ${PROJECT_BINARY_DIR}/latex
-                   MAIN_DEPENDENCY ${PROJECT_SOURCE_DIR}/include/bsp.h
+                   MAIN_DEPENDENCY ${PROJECT_SOURCE_DIR}/include/bsp.h 
+                   DEPENDS ${html}/index.html
                    COMMENT "Invoking Latex to generate PDF of manual"
                    )
 
