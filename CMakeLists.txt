@@ -368,7 +368,7 @@ if (DOXYGEN_FOUND)
 
            list(APPEND doc_output ${pdf})
         else()
-            message(STATUS "The Latex installtion misses some packages - A PDF of the reference documentation will not be generated")
+            message(STATUS "The Latex installation misses some packages - A PDF of the reference documentation will not be generated")
         endif()
     else()
        message( STATUS "Latex and makeindex were not found - A PDF of the reference documentation will not be generated")
