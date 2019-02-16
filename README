@@ -154,12 +154,14 @@ shell environment
 
 
 
-Ubuntu 18.04 LTS (Bionic Beaver)
---------------------------------
+Ubuntu 18.04 LTS (Bionic Beaver)   and  Debian 9 (stretch)
+----------------------------------------------------------
 
 Make sure you have CMake, Doxygen, and an MPI installed. E.g. do
 
   $ sudo apt install cmake doxygen mpich doxygen-latex
+
+Then proceed as usual
 
 
 FreeBSD 12.0
