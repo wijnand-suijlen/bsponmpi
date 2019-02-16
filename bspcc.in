@@ -1,4 +1,4 @@
-#!/bin/bash
+#!@BASH@
 name=`basename "$0"`
 if [ $name = bspcxx ]; then
   cc=@MPI_CXX_COMPILER@

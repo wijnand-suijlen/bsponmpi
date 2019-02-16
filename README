@@ -159,7 +159,26 @@ Ubuntu 18.04 LTS (Bionic Beaver)
 
 Make sure you have CMake, Doxygen, and an MPI installed. E.g. do
 
-  $ sudo apt install cmake doxygen mpich doxygen
+  $ sudo apt install cmake doxygen mpich doxygen-latex
+
+
+FreeBSD 12.0
+------------
+
+Use the FreeBSD package manager `pkg' to download and install
+the prerequisites. 
+
+Do as root
+  $ pkg install cmake mpich 
+  
+To generate the full documentation, also do 
+  $ pkg install doxygen texlive-full-20150521  
+
+Then proceed as usual.
+
+In case you get strange (runtime) linking errors, be prepared to reinstall mpich
+from source. In the version I tried (3.2.1_3) the clang 6 and gcc 8 toolchains
+got mixed up. 
 
 
 Windows 10

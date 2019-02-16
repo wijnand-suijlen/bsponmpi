@@ -178,6 +178,9 @@ install(FILES include/bsp.h
 # Compiler and bsprun frontends
 set(BSPONMPI_LIB_DIR "${CMAKE_INSTALL_PREFIX}/lib")
 set(BSPONMPI_INCLUDE "${CMAKE_INSTALL_PREFIX}/include")
+find_program(BASH bash)
+
+if (BASH)
 
 configure_file( bspcc.in bspcc @ONLY )
 configure_file( bspcc.in bspcxx @ONLY )
@@ -187,6 +190,12 @@ install( PROGRAMS ${CMAKE_BINARY_DIR}/bspcc
                   ${CMAKE_BINARY_DIR}/bsprun
          DESTINATION bin
        )
+install( FILES man/bsprun.1 man/bspcc.1
+         DESTINATION share/man/man1/ )
+
+else()
+  message(STATUS "Could not find bash; bspcc and bsprun frontends will not be installed" )
+endif()
 
 
 # Unit tests
@@ -372,8 +381,6 @@ else()
     message( STATUS "Doxygen was not found - Documentation will not be generated")
 endif()
 
-install( FILES man/bsprun.1 man/bspcc.1
-         DESTINATION share/man/man1/ )
 
 ### post install check
 configure_file( cmake/post-install-check.cmake.in post-install-check.cmake @ONLY)

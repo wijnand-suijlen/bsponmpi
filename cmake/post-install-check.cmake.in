@@ -9,6 +9,11 @@ if (DEFINED ENV{DESTDIR})
     return()
 endif()
 
+if (@BASH@)
+    message(STATUS "Skipping post-install checks, because bash could not be found")
+    return()
+endif()
+
 message(STATUS "Executing Post-installation checks")
 message(STATUS "1) Testing use in other CMake projects")
 # Create the post-install test directory
