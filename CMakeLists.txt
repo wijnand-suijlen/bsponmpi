@@ -17,6 +17,9 @@ set(CPACK_RPM_SPEC_MORE_DEFINE "%define _rpmdir %_topdir/RPMS")
 if (CMAKE_VERSION VERSION_LESS 3)
 # Workaround for older CMake versions
     set(CPACK_RPM_SPEC_MORE_DEFINE "%define _rpmdir %_topdir")
+else()
+# Worarounds for newer CMake versions
+    cmake_policy(SET CMP0042 NEW)
 endif()
 
 find_program(RPMBUILD rpmbuild)
@@ -281,7 +284,7 @@ if (DOXYGEN_FOUND)
             WORKING_DIRECTORY ${PROJECT_BINARY_DIR}
             COMMENT "Invoking Doxygen to generate user documentation"
             )
-    add_custom_target(docs ALL DEPENDS ${html}/index.html )
+    set(doc_output ${html}/index.html)
 
     install( FILES ${man3}/BSP_BSMP.3
                    ${man3}/BSP_DRMA.3
@@ -332,9 +335,11 @@ if (DOXYGEN_FOUND)
                ERROR_FILE cmake-latex-test.log
                )
 
+
        if (LATEX_WORKS EQUAL 0)
-    
-           add_custom_command( TARGET docs POST_BUILD
+       
+           set(pdf "${PROJECT_BINARY_DIR}/latex/refman.pdf")
+           add_custom_command( OUTPUT ${pdf}
                    COMMAND ${PDFLATEX} refman
                    COMMAND ${MAKEINDEX} refman.idx
                    COMMAND ${PDFLATEX} refman
@@ -342,19 +347,26 @@ if (DOXYGEN_FOUND)
                    COMMAND ${MAKEINDEX} refman.idx
                    COMMAND ${PDFLATEX} refman
                    WORKING_DIRECTORY ${PROJECT_BINARY_DIR}/latex
+                   MAIN_DEPENDENCY ${PROJECT_SOURCE_DIR}/include/bsp.h
                    COMMENT "Invoking Latex to generate PDF of manual"
                    )
 
-           install(FILES ${PROJECT_BINARY_DIR}/latex/refman.pdf
-                  DESTINATION share/doc/bsponpmi
+           install(FILES ${pdf}
+                  DESTINATION share/doc/bsponmpi
                   RENAME bsponmpi.pdf
                   )
+
+           list(APPEND doc_output ${pdf})
         else()
             message(STATUS "The Latex installtion misses some packages - A PDF of the reference documentation will not be generated")
         endif()
     else()
        message( STATUS "Latex and makeindex were not found - A PDF of the reference documentation will not be generated")
     endif()
+
+
+    add_custom_target(docs ALL DEPENDS ${doc_output} )
+
 else()
     message( STATUS "Doxygen was not found - Documentation will not be generated")
 endif()

@@ -8,7 +8,7 @@
 extern "C" {
 #endif
 
-/** \mainpage BSPonMPI - A \ref BSPlib implementation on top of MPI
+/** \mainpage BSPonMPI - A BSPlib implementation on top of MPI
  *
  * \author Wijnand J. Suijlen
  * \copyright MIT License
@@ -60,20 +60,54 @@ extern "C" {
  * Issue 14, December 1998, pages 1947--1980. 
  */
 
-/** \defgroup BSP_TYPES BSPlib convenience typedefs
+/** \defgroup BSP_TYPES BSPlib dialect compatibility
  *
- * These are used as convenience for the programmer to maker her/his
- * program BSPlib dialect oblivious.
+ * The types in this module enable BSPlib dialect oblivious programs. 
+ * By default this implementation is compatible with \ref BSPlib 1998,
+ * which is ABI incompatible with MulticoreBSP for C's native mode, because it
+ * uses types of different signedness and sizes. See the section on 
+ * \ref MCBSP "MulticoreBSP for C compatibility" to read how to choose for that
+ * dialect. However, to enable dialect oblivious program development the
+ * programmer can use these typedefs in the following manner
  *
- * By default this implementation is compatible with \ref BSPlib 1998.
- * See the section about the \ref MCBSP "MulticoreBSP for C compatibilty"  
- * layer how to switch modes. 
+ * \code
+   #if !defined BSPONMPI_BSP_H && !defined _H_MCBSP
+     typedef int bsp_pid_t;
+     typedef int bsp_nprocs_t;
+     typedef int bsp_size_t;
+   #endif 
+
+   ...
+
+   void example( )
+   {
+      int bla = 42;
+      bsp_size_t tagsize = sizeof(bla);
+      bsp_nprocs_t n_recvd_msgs = 0;
+      bsp_size_t recvd_payload = 0;
+
+      bsp_set_tagsize( &tagsize ); 
+
+      bsp_sync();
+      bsp_send(0, &bla, NULL, 0);
+      bsp_sync();
+   
+      bsp_qsize( &n_recvd_msgs, &recvd_payload );
+
+      ...
+ 
+      bsp_set_tagsize( &tagsize );
+   }
+ * \endcode
  *
  * @{ 
  */
 
 /** Data type large enough to store the number of processes */
 typedef int bsp_pid_t;
+
+/** Data type large enough to store the number of processes */
+typedef int bsp_nprocs_t;
 
 /** Data type large enough to express the volume in any communication request */
 typedef int bsp_size_t;
@@ -207,7 +241,7 @@ typedef int bsp_size_t;
  *          statement. Note that variable or function declarations are not
  *          statements.
 */
-DLL_PUBLIC void bsp_begin(bsp_pid_t maxprocs);
+DLL_PUBLIC void bsp_begin(bsp_nprocs_t maxprocs);
 
 /** Ends an SPMD section. This must be called as the last statement of the
  * function that calls bsp_begin(). There can only be one SPMD section in a
@@ -310,7 +344,19 @@ DLL_PUBLIC double bsp_time(void);
  * bsp_hpput(), bsp_get(), bsp_hpget(), and bsp_send().  A side-effect is that
  * all processes synchronise. After the call, a new superstep begins.
  *
- * \throws bsp_abort 
+ * \throws bsp_abort When called outside SPMD section
+ * \throws bsp_abort When another process called bsp_end().
+ * \throws bsp_abort When processes did not call bsp_push_reg() the same number
+ *                   of times.
+ * \throws bsp_abort When processes did not call bsp_pop_reg() the same number
+ *                   of times.
+ * \throws bsp_abort When processes did not call bsp_pop_reg() collectively on the
+ *                   the same memory association.
+ * \throws bsp_abort When a process tried do remove an association on NULL that was
+ *                   never made.
+ * \throws bsp_abort When processes did not call bsp_set_tagsize() the same number
+ *                   of times.
+ * \throws bsp_abort When processes did not set the same tag size.
  */
 DLL_PUBLIC void bsp_sync(void);
 
@@ -634,10 +680,10 @@ DLL_PUBLIC void bsp_hpget( bsp_pid_t pid, const void * src, bsp_size_t offset,
  * \note A much preciser description would be to model this behaviour with a
  * 3-tuple \f$(A, B, C)\f$, where \f$A\f$ is the tag size of the messages
  * in the current receive queue, \f$B\f$ is the tag size of the messages that
- * are now being sent, \f$C\f$ the tag size that was given in the last call
+ * are being sent now, and \f$C\f$ the tag size that was given in the last call
  * to bsp_set_tagsize(). Directly after the bsp_begin() the state is
  * \f$(0, 0, 0)\f$. A call to \c bsp_set_tagsize(X) changes the state 
- * \f$(A, B, C) \rightarrow (A, B, X)\f$ and returns C. A bsp_sync() changes
+ * \f$(A, B, C) \rightarrow (A, B, X)\f$ and returns \f$C\f$. A bsp_sync() changes
  * the state \f$(A, B, C) \rightarrow (B, C, C)\f$.
  *
  * \param tag_nbytes On entry the value is used to set the tag size for after
@@ -687,7 +733,7 @@ DLL_PUBLIC void bsp_send( bsp_pid_t pid, const void * tag, const void * payload,
  * \throws bsp_abort When the number of messages exceeds capacity of #bsp_size_t
  * \throws bsp_abort When the total payload size exceeds capacity of #bsp_size_t
  */
-DLL_PUBLIC void bsp_qsize( bsp_size_t * nmessages, bsp_size_t * accum_nbytes );
+DLL_PUBLIC void bsp_qsize( bsp_nprocs_t * nmessages, bsp_size_t * accum_nbytes );
 
 /** Copies the tag of the first message in the reception queue and sets
   * \a status to the length of the payload. If no messages is available, 
@@ -757,7 +803,7 @@ DLL_PUBLIC bsp_size_t bsp_hpmove( void ** tag_ptr, void ** payload_ptr );
 typedef unsigned int mcbsp_pid_t;
 
 /** Type to store the number of processes in MulticoreBSP for C.
- *  @see bsp_pid_t
+ *  @see bsp_nprocs_t
  */
 typedef unsigned int mcbsp_nprocs_t;
 
@@ -769,6 +815,9 @@ typedef size_t       mcbsp_size_t;
 
 /** @see bsp_begin */
 DLL_PUBLIC void mcbsp_begin( mcbsp_pid_t P );
+
+/** @see bsp_pid */
+DLL_PUBLIC mcbsp_pid_t mcbsp_pid(void);
 
 /** @see bsp_push_reg */
 DLL_PUBLIC void mcbsp_push_reg( void * address, mcbsp_size_t size );
@@ -824,6 +873,7 @@ DLL_PUBLIC void mcbsp_move( void * payload, mcbsp_size_t size );
    #error "MulticoreBSP for C function bsp_direct_get is not supported"
 
 #define bsp_begin         mcbsp_begin
+#define bsp_pid           mcbsp_pid
 #define bsp_push_reg      mcbsp_push_reg
 #define bsp_pop_reg       mcbsp_pop_reg
 #define bsp_put           mcbsp_put

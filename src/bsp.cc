@@ -634,6 +634,11 @@ void mcbsp_begin( mcbsp_pid_t P )
    bsp_begin( std::min( uint_max, P ) );
 }
 
+mcbsp_pid_t mcbsp_pid() 
+{
+    return bsp_pid();
+}
+
 
 void mcbsp_push_reg( void * address, mcbsp_size_t size )
 {
