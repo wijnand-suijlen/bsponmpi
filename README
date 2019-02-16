@@ -197,12 +197,24 @@ your PATH environment variable.
   - Enable Desktop C++ development in VS (Tools->Get Tools and Features)
   - Run CMake-gui. Select the source folder and the build directory, and
     run configure and generate. This will generate a Visual Studio solution
-    in the build directory
+    for a 32-bit or 64-bit build in the build directory
   - Open the VS solution
+  - Choose a configuration (Release, Debug)
   - Build it (CTRL+SHIFT+B)
     
      Note: if you get lots of error messages "Object reference not set to an
      instance of an object", update your Visual Studio to the latest version.
+
+  - If you had set CMAKE_INSTALL_PREFIX variable during CMake configuration,
+    you can then build the INSTALL project to copy the resulting files
+    to that directory.
+    The resulting DLLs will be in the \bin directory, the .LIB files are in the
+    \lib directory, and the bsp.h header will be in the \include directory.
+    Documentation will be in \share\doc\bsponmpi.
+
+    Without running the INSTALL project, the .LIB and .DLL files will be in 
+    either the Release or Debug subdirectory in the build directory.
+
 
 To use the library in your Visual Studio project 
 (see also https://blogs.technet.microsoft.com/windowshpc/2015/02/02/how-to-
@@ -210,11 +222,11 @@ compile-and-run-a-simple-ms-mpi-program/)
   - Create a new Windows Console application project with Visual C++
   - Add include path in the project properties -> C/C++ -> General ->
     Additional Include Directories
-  - Add the Debug or Release subdirectory in the build directory to the 
-    "Additional Library Directores" field in the project properties ->
-    Linker -> General, and add the .LIB file of one of the four built 
-    flavours: bsponmpi_msg.lib, bsponmpi_rma.lib, bsponmpi_msg_prof.lib,
-    or bsponmpi_rma_prof.lib. If you're not sure, choose bsponmpi_rma.lib
+  - Add the path to the bsponmpi_*.LIB files  to the "Additional Library
+    Directores" field in the project properties -> Linker -> General, and add
+    the .LIB file of one of the four built flavours: bsponmpi_msg.lib,
+    bsponmpi_rma.lib, bsponmpi_msg_prof.lib, or bsponmpi_rma_prof.lib. If
+    you're not sure, choose bsponmpi_rma.lib
   - Build your program
   - When you want to run the program, make sure the bsponmpi_*.dll is in the
     same path as your executable. Then use the MPI launcher to run your program,
