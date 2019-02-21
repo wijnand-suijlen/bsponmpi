@@ -4,7 +4,7 @@ project(BSPonMPI)
 set(CPACK_PACKAGE_NAME          "bsponmpi")
 set(CPACK_PACKAGE_VERSION_MAJOR "1")
 set(CPACK_PACKAGE_VERSION_MINOR "0")
-set(CPACK_PACKAGE_VERSION_PATCH "0")
+set(CPACK_PACKAGE_VERSION_PATCH "1")
 set(CPACK_PACKAGE_VERSION "${CPACK_PACKAGE_VERSION_MAJOR}.${CPACK_PACKAGE_VERSION_MINOR}.${CPACK_PACKAGE_VERSION_PATCH}" )
 set(CPACK_PACKAGE_FILE_NAME     "${CPACK_PACKAGE_NAME}-${CPACK_PACKAGE_VERSION}-${CMAKE_SYSTEM_NAME}-${CMAKE_SYSTEM_PROCESSOR}")
 set(CPACK_RESOURCE_FILE_LICENSE "${PROJECT_SOURCE_DIR}/LICENSE")
@@ -278,6 +278,9 @@ add_mpi_test( set_tagsize_4 3 )
 add_mpi_test( send_various_tags_1 4 )
 
 add_mpi_test( move_1 2 )
+
+add_mpi_test( pid_1 3)
+add_mpi_test( pid_2 3)
 
 # Documentation
 if (NOT COMMAND doxygen_add_docs)

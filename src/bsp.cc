@@ -240,7 +240,7 @@ bsp_pid_t bsp_nprocs()
 
 bsp_pid_t bsp_pid() 
 {
-    if (!s_spmd && !s_spmd->closed())
+    if (!s_spmd || s_spmd->closed())
         bsp_abort("bsp_pid: can only be called within SPMD section\n");
 
     return s_spmd->pid();
@@ -248,7 +248,7 @@ bsp_pid_t bsp_pid()
 
 double bsp_time()
 {
-    if (!s_spmd && !s_spmd->closed())
+    if (!s_spmd || s_spmd->closed())
         bsp_abort("bsp_time: can only be called within SPMD section\n");
 
     return s_spmd->time();
@@ -257,7 +257,7 @@ double bsp_time()
   
 void bsp_sync()
 {
-    if (!s_spmd && !s_spmd->closed())
+    if (!s_spmd || s_spmd->closed())
         bsp_abort("bsp_sync: can only be called within SPMD section\n");
 
     if (s_spmd->normal_sync())
@@ -292,7 +292,7 @@ void bsp_sync()
 
 void bsp_push_reg( const void * addr, bsp_size_t size )
 {
-    if (!s_spmd && !s_spmd->closed())
+    if (!s_spmd || s_spmd->closed())
         bsp_abort("bsp_push_reg: can only be called within SPMD section\n");
 
     if (size < 0)
@@ -303,7 +303,7 @@ void bsp_push_reg( const void * addr, bsp_size_t size )
 
 void bsp_pop_reg( const void * addr )
 {
-    if (!s_spmd && !s_spmd->closed())
+    if (!s_spmd || s_spmd->closed())
         bsp_abort("bsp_pop_reg: can only be called within SPMD section\n");
 
     bsplib::Rdma::Memslot slot = s_rdma->lookup_reg( addr, true, false );
@@ -348,7 +348,7 @@ void bsp_put( bsp_pid_t pid, const void * src, void * dst,
     if (nbytes == 0) // ignore any empty writes
         return;
 
-    if (!s_spmd && !s_spmd->closed())
+    if (!s_spmd || s_spmd->closed())
         bsp_abort("bsp_put: can only be called within SPMD section\n");
 
     if (pid < 0 || pid > s_spmd->nprocs())
@@ -386,7 +386,7 @@ void bsp_hpput( bsp_pid_t pid, const void * src, void * dst,
     if (nbytes == 0) // ignore any empty writes
         return;
 
-    if (!s_spmd && !s_spmd->closed())
+    if (!s_spmd || s_spmd->closed())
         bsp_abort("bsp_put: can only be called within SPMD section\n");
 
     if (pid < 0 || pid > s_spmd->nprocs())
@@ -427,7 +427,7 @@ void bsp_get( bsp_pid_t pid, const void * src, bsp_size_t offset,
     if (nbytes == 0) // ignore any empty reads
         return;
 
-    if (!s_spmd && !s_spmd->closed())
+    if (!s_spmd || s_spmd->closed())
         bsp_abort("bsp_get: can only be called within SPMD section\n");
 
     if (pid < 0 || pid > s_spmd->nprocs())
@@ -464,7 +464,7 @@ void bsp_hpget( bsp_pid_t pid, const void * src, bsp_size_t offset,
     if (nbytes == 0) // ignore any empty reads
         return;
 
-    if (!s_spmd && !s_spmd->closed())
+    if (!s_spmd || s_spmd->closed())
         bsp_abort("bsp_hpget: can only be called within SPMD section\n");
 
     if (pid < 0 || pid > s_spmd->nprocs())
@@ -496,7 +496,7 @@ void bsp_hpget( bsp_pid_t pid, const void * src, bsp_size_t offset,
 
 void bsp_set_tagsize( bsp_size_t * tag_nbytes )
 {
-    if (!s_spmd && !s_spmd->closed())
+    if (!s_spmd || s_spmd->closed())
         bsp_abort("bsp_set_tagsize: can only be called within SPMD section\n");
 
     if (tag_nbytes == NULL)
@@ -511,7 +511,7 @@ void bsp_set_tagsize( bsp_size_t * tag_nbytes )
 void bsp_send( bsp_pid_t pid, const void * tag, const void * payload,
         bsp_size_t payload_nbytes )
 {
-    if (!s_spmd && !s_spmd->closed())
+    if (!s_spmd || s_spmd->closed())
         bsp_abort("bsp_send: can only be called within SPMD section\n");
 
     if (pid < 0 || pid > s_spmd->nprocs())
@@ -533,7 +533,7 @@ void bsp_send( bsp_pid_t pid, const void * tag, const void * payload,
 
 void bsp_qsize( bsp_size_t * nmessages, bsp_size_t * accum_nbytes )
 {
-    if (!s_spmd && !s_spmd->closed())
+    if (!s_spmd || s_spmd->closed())
         bsp_abort("bsp_qsize: can only be called within SPMD section\n");
 
     if ( nmessages == NULL || accum_nbytes == NULL )
@@ -558,7 +558,7 @@ void bsp_qsize( bsp_size_t * nmessages, bsp_size_t * accum_nbytes )
 
 void bsp_get_tag( bsp_size_t * status, void * tag )
 {
-    if (!s_spmd && !s_spmd->closed())
+    if (!s_spmd || s_spmd->closed())
         bsp_abort("bsp_get_tag: can only be called within SPMD section\n");
 #ifdef PROFILE
     TicToc t( TicToc::BSMP, s_bsmp->recv_tag_size() );
@@ -583,7 +583,7 @@ void bsp_get_tag( bsp_size_t * status, void * tag )
 
 void bsp_move( void * payload, bsp_size_t reception_nbytes )
 {
-     if (!s_spmd && !s_spmd->closed())
+     if (!s_spmd || s_spmd->closed())
         bsp_abort("bsp_move: can only be called within SPMD section\n");
 
      if (reception_nbytes < 0 )
@@ -606,7 +606,7 @@ void bsp_move( void * payload, bsp_size_t reception_nbytes )
 
 bsp_size_t bsp_hpmove( void ** tag_ptr, void ** payload_ptr )
 {
-     if (!s_spmd && !s_spmd->closed())
+     if (!s_spmd || s_spmd->closed())
         bsp_abort("bsp_hpmove: can only be called within SPMD section\n");
 
 #ifdef PROFILE
@@ -642,7 +642,7 @@ mcbsp_pid_t mcbsp_pid()
 
 void mcbsp_push_reg( void * address, mcbsp_size_t size )
 {
-    if (!s_spmd && !s_spmd->closed())
+    if (!s_spmd || s_spmd->closed())
         bsp_abort("bsp_push_reg: can only be called within SPMD section\n");
 
     s_rdma->push_reg( address, size );
@@ -663,7 +663,7 @@ void mcbsp_put( mcbsp_pid_t pid, const void * src,
     if (size == 0) // ignore any empty writes
         return;
 
-    if (!s_spmd && !s_spmd->closed())
+    if (!s_spmd || s_spmd->closed())
         bsp_abort("bsp_put: can only be called within SPMD section\n");
 
     if (pid > mcbsp_pid_t(s_spmd->nprocs()))
@@ -695,7 +695,7 @@ void mcbsp_hpput( mcbsp_pid_t pid, const void * src,
     if (size == 0) // ignore any empty writes
         return;
 
-    if (!s_spmd && !s_spmd->closed())
+    if (!s_spmd || s_spmd->closed())
         bsp_abort("bsp_put: can only be called within SPMD section\n");
 
     if (pid > mcbsp_pid_t(s_spmd->nprocs()))
@@ -729,7 +729,7 @@ void mcbsp_get( mcbsp_pid_t pid, const void * src,
     if (size == 0) // ignore any empty reads
         return;
 
-    if (!s_spmd && !s_spmd->closed())
+    if (!s_spmd || s_spmd->closed())
         bsp_abort("bsp_get: can only be called within SPMD section\n");
 
     if (pid > mcbsp_pid_t(s_spmd->nprocs()))
@@ -760,7 +760,7 @@ void mcbsp_hpget( mcbsp_pid_t pid, const void * src,
     if (size == 0) // ignore any empty reads
         return;
 
-    if (!s_spmd && !s_spmd->closed())
+    if (!s_spmd || s_spmd->closed())
         bsp_abort("bsp_hpget: can only be called within SPMD section\n");
 
     if (pid > mcbsp_pid_t(s_spmd->nprocs()))
@@ -787,7 +787,7 @@ void mcbsp_hpget( mcbsp_pid_t pid, const void * src,
 
 void mcbsp_set_tagsize( mcbsp_size_t * size )
 {
-    if (!s_spmd && !s_spmd->closed())
+    if (!s_spmd || s_spmd->closed())
         bsp_abort("bsp_set_tagsize: can only be called within SPMD section\n");
 
     if (size == NULL)
@@ -799,7 +799,7 @@ void mcbsp_set_tagsize( mcbsp_size_t * size )
 void mcbsp_send( mcbsp_pid_t pid, const void * tag, 
              const void * payload, mcbsp_size_t size )
 {
-    if (!s_spmd && !s_spmd->closed())
+    if (!s_spmd || s_spmd->closed())
         bsp_abort("bsp_send: can only be called within SPMD section\n");
 
     if (pid > mcbsp_pid_t(s_spmd->nprocs()))
@@ -819,7 +819,7 @@ void mcbsp_send( mcbsp_pid_t pid, const void * tag,
 void mcbsp_qsize( mcbsp_nprocs_t * packets, 
                              mcbsp_size_t * total_size )
 {
-    if (!s_spmd && !s_spmd->closed())
+    if (!s_spmd || s_spmd->closed())
         bsp_abort("bsp_qsize: can only be called within SPMD section\n");
 
     if ( packets == NULL || total_size == NULL )
@@ -846,7 +846,7 @@ void mcbsp_qsize( mcbsp_nprocs_t * packets,
 
 void mcbsp_get_tag( mcbsp_size_t * status, void * tag )
 {
-    if (!s_spmd && !s_spmd->closed())
+    if (!s_spmd || s_spmd->closed())
         bsp_abort("bsp_get_tag: can only be called within SPMD section\n");
 
 #ifdef PROFILE
@@ -873,7 +873,7 @@ void mcbsp_get_tag( mcbsp_size_t * status, void * tag )
 
 void mcbsp_move( void * payload, mcbsp_size_t reception_bytes )
 {
-     if (!s_spmd && !s_spmd->closed())
+     if (!s_spmd || s_spmd->closed())
         bsp_abort("bsp_move: can only be called within SPMD section\n");
 
      if ( payload == NULL && reception_bytes > 0 )
