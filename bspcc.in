@@ -1,4 +1,4 @@
-#!/bin/bash
+#!@BASH@
 name=`basename "$0"`
 if [ $name = bspcxx ]; then
   cc=@MPI_CXX_COMPILER@
@@ -6,7 +6,7 @@ else
   cc=@MPI_C_COMPILER@
 fi
 cxx=@MPI_CXX_COMPILER@
-bsponmpi="@BSPONMPI_LIB@"
+bsponmpi=( "-L@BSPONMPI_LIB_DIR@" -lbsponmpi_rma )
 cflags="-I@BSPONMPI_INCLUDE@"
 
 linking=yes
@@ -67,22 +67,41 @@ function show_help()
    echo "The BSPonMPI compiler frontend - @CPACK_PACKAGE_VERSION@"
    echo
    echo "SYNOPSIS"
-   echo "    $0 [-help] [-version] [-show] [-mcbsp] ..."
+   echo "    $0 [--help] [--version] [--show] [--mcbsp] "
+   echo "       [--msg|--rma] ..."
    echo
    echo "    Only $0 specific options are listed here. See the manual"
    echo "    of $cc for more specific options"
    echo 
    echo "OPTIONS"
-   echo "    -help     Shows this description"
+   echo "    --help    Shows this description"
    echo 
-   echo "    -version  Shows version information"
+   echo "    --version Shows version information"
    echo 
-   echo "    -show     Instead of performing the compilation it shows"
+   echo "    --show    Instead of performing the compilation it shows"
    echo "              what command will be executed"
    echo
-   echo "    -mcbsp    Use the MulticoreBSP for C compatible headers."
-   echo "              By default the header compatible with the"
+   echo "    --mcbsp   Use the MulticoreBSP for C compatible headers."
+   echo "              By default the header that is compatible with the"
    echo "              publication of Hill et al. 1998 is loaded."
+   echo
+   echo "    --msg     Link with runtime based on MPI message passing:"
+   echo "              MPI_Irsend/MPI_Isend - MPI_Irecv - MPI_Waitsome"
+   echo "              Note: Not all MPI implementations are suitable"  
+   echo "              to guarantee BSP cost semantics. If performance"
+   echo "              is unsatisfactory, try the -rma option."
+   echo 
+   echo "    --rma     Link with runtime based on MPI remote memory access:"
+   echo "              MPI_Fence - MPI_Put"
+   echo "              Note: 1) Not all MPI implementations are stable, "
+   echo "              but when they are, it is usually faster. "
+   echo "              2) If performance is bad, try the -msg option."
+   echo "              3) By default this runtime is used"
+   echo 
+   echo "    --msg-prof or --rma-prof"
+   echo "              Tracks time spent across BSPlib and MPI routines"
+   echo "              using either the message-passing or RDMA backend."
+   echo
 }
 
 
@@ -109,6 +128,22 @@ do
 
     -mcbsp|--mcbsp)
         add_compile_flag "-DBSPONMPI_MCBSP_COMPAT=1"
+        ;;
+
+    -rma|--rma)
+        bsponmpi=( "-L@BSPONMPI_LIB_DIR@" -lbsponmpi_rma )
+        ;;
+
+    -rma-prof|--rma-prof)
+        bsponmpi=( "-L@BSPONMPI_LIB_DIR@" -lbsponmpi_rma_prof )
+        ;;
+
+    -msg|--msg)
+        bsponmpi=( "-L@BSPONMPI_LIB_DIR@" -lbsponmpi_msg )
+        ;;
+
+    -msg-prof|--msg-prof)
+        bsponmpi=( "-L@BSPONMPI_LIB_DIR@" -lbsponmpi_msg_prof )
         ;;
 
     -c) linking=no
@@ -178,7 +213,7 @@ else
 
   $show $cxx $cflags "${compile_flags[@]}" \
            "${tmp_objects[@]}" "${objects[@]}" \
-           "${link_flags[@]}" $bsponmpi "${output_flag[@]}"
+           "${link_flags[@]}" "${bsponmpi[@]}" "${output_flag[@]}"
   exit_status=$?
 fi
 

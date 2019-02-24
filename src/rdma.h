@@ -14,6 +14,10 @@
 
 #include <mpi.h>
 
+#ifdef PROFILE
+#include "tictoc.h"
+#endif
+
 namespace bsplib {
 
 class DLL_LOCAL Rdma { 
@@ -26,22 +30,8 @@ public:
     };
     typedef size_t Memslot;
 
-    Rdma( MPI_Comm comm , size_t max_msg_size  )
-        : m_first_exchange( comm, max_msg_size )
-        , m_second_exchange( comm, max_msg_size )
-        , m_pid(m_first_exchange.pid())
-        , m_nprocs(m_first_exchange.nprocs())
-        , m_register()
-        , m_used_slots()
-        , m_free_slots()
-        , m_cached_slot( no_slot() )
-        , m_send_actions( m_nprocs )
-        , m_recv_actions( m_nprocs )
-        , m_unbuf( max_msg_size, comm )
-        , m_send_push_pop_comm_buf()
-        , m_recv_push_pop_comm_buf()
-    {}
-
+    Rdma( MPI_Comm comm , size_t max_msg_size, size_t small_exch_size );
+    
     void push_reg( void * addr, size_t size );
     void pop_reg( Memslot slot );
 
@@ -112,12 +102,13 @@ private:
     std::vector< Memblock > m_used_slots;
     std::vector< Memslot > m_free_slots;
     mutable Memslot m_cached_slot;
-
+    std::vector< void * > m_local_slots;
+ 
     struct Action { 
         enum Kind { GET, HPPUT, HPGET } kind; 
         int target_pid, src_pid, dst_pid, tag;
-        size_t src_addr, dst_addr;
-        size_t size;
+        Memslot src_slot, dst_slot;
+        size_t offset, size;
     };
 
     struct ActionBuf {
@@ -189,6 +180,9 @@ private:
     void write_gets();
     void write_puts();
 
+#ifdef PROFILE
+    TicToc m_tictoc;
+#endif
 };
 
 }

@@ -14,7 +14,7 @@ Spmd :: Spmd( int nprocs )
     MPI_Bcast( &nprocs, 1, MPI_INT, 0, MPI_COMM_WORLD );
 
     MPI_Comm_rank( MPI_COMM_WORLD, & world_pid );
-    m_ended = false;
+    m_closed = false;
     m_active = world_pid < nprocs;
     MPI_Comm_split( MPI_COMM_WORLD, m_active, world_pid, &m_comm );
 
@@ -29,8 +29,8 @@ Spmd :: Spmd( int nprocs )
 }
 
 Spmd :: ~Spmd() {
-    MPI_Comm_free( &m_comm );
-    m_comm = MPI_COMM_NULL;
+    assert( m_closed );
+    assert( m_comm == MPI_COMM_NULL );
 }
 
 int Spmd :: end_sync() {
@@ -40,11 +40,18 @@ int Spmd :: end_sync() {
     if (total_end != m_nprocs)
         return 1;
 
+    return 0;
+}
+
+void Spmd :: close() {
     // wait for inactive & active processes to synchronize
     MPI_Barrier( MPI_COMM_WORLD );
-    m_ended = true;
+    m_closed = true;
 
-    return 0;
+    MPI_Comm_free( &m_comm );
+    m_comm = MPI_COMM_NULL;
+
+    MPI_Finalize();
 }
 
 int Spmd :: normal_sync() {

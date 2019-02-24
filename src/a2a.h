@@ -5,6 +5,7 @@
 #include <vector>
 #include <numeric>
 #include <limits>
+#include <cstddef>
 
 #include <mpi.h>
 
@@ -17,26 +18,26 @@ class DLL_LOCAL A2A
 {
 public:
     A2A( MPI_Comm comm,
-            size_t max_msg_size = std::numeric_limits<int>::max(),
-            size_t small_a2a_size_per_proc = 1024 );
+            std::size_t max_msg_size = std::numeric_limits<int>::max(),
+            std::size_t small_a2a_size_per_proc = 1024 );
     ~A2A();
 
     int pid() const { return m_pid; }
     int nprocs() const { return m_nprocs; }
 
-    void * send( int dst_pid, const void * data, size_t size );
-    size_t send_size( int dst_pid ) const
+    void * send( int dst_pid, const void * data, std::size_t size );
+    std::size_t send_size( int dst_pid ) const
     { return m_send_sizes[ dst_pid ]; }
 
     const void * recv_top( int src_pid ) const {
-        size_t o = m_recv_offsets[src_pid];
-        return static_cast< const void *>( &m_recv_bufs[src_pid][o] );
+        std::size_t o = src_pid * m_recv_cap + m_recv_pos[src_pid];
+        return static_cast< const void *>( m_recv_bufs.data() + o );
     }
 
-    bool recv_pop( int src_pid, size_t size ){
-        size_t o = m_recv_offsets[src_pid];
+    bool recv_pop( int src_pid, std::size_t size ){
+        std::size_t o = m_recv_pos[src_pid];
         if ( m_recv_sizes[src_pid] - o  >= size ) {
-            m_recv_offsets[src_pid] += size;
+            m_recv_pos[src_pid] += size;
             return true;
         }
         else {
@@ -45,14 +46,14 @@ public:
     }
 
     void recv_rewind( int src_pid ) {
-        m_recv_offsets[src_pid] = 0;
+        m_recv_pos[src_pid] = 0;
     }
 
-    size_t recv_pos( int src_pid ) const 
-    { return m_recv_offsets[ src_pid ]; }
+    std::size_t recv_pos( int src_pid ) const 
+    { return m_recv_pos[ src_pid ]; }
     
-    size_t recv_size( int src_pid ) const
-    { return m_recv_sizes[ src_pid ] - m_recv_offsets[ src_pid ]; }
+    std::size_t recv_size( int src_pid ) const
+    { return m_recv_sizes[ src_pid ] - m_recv_pos[ src_pid ]; }
     
     void exchange();
 
@@ -64,17 +65,23 @@ private:
 
     int m_pid;
     int m_nprocs;
-    const size_t m_max_msg_size;
-    const size_t m_small_a2a_size_per_proc;
+    const std::size_t m_max_msg_size;
+    std::size_t m_small_a2a_size_per_proc;
+    std::size_t m_send_cap, m_recv_cap;
 
-    std::vector< size_t > m_send_sizes, m_send_offsets;
-    std::vector< std::vector< char > > m_send_bufs;
-    std::vector< size_t > m_recv_sizes, m_recv_offsets;
-    std::vector< std::vector< char > > m_recv_bufs;
-    std::vector< MPI_Request > m_reqs;
-    std::vector< int > m_ready;
+    std::vector< std::size_t > m_send_sizes, m_send_pos;
+    std::vector< char > m_send_bufs;
+    std::vector< std::size_t > m_recv_sizes, m_recv_pos;
+    std::vector< char > m_recv_bufs;
     std::vector< char > m_small_send_buf, m_small_recv_buf;
     MPI_Comm m_comm;
+
+#ifdef USE_ONESIDED
+    MPI_Win m_recv_win ;
+#else
+    std::vector< MPI_Request > m_reqs;
+    std::vector< int > m_ready;
+#endif
 };
 
 template <typename UInt>

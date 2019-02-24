@@ -1,0 +1,151 @@
+.TH BSPCC 1 
+.SH NAME
+bspcc \- The BSPonMPI C compiler frontend
+.
+.SH SYNOPSIS
+.nf
+.HP 6 
+\fBbspcc\fR [\fB\-\-help\fR] [\fB\-\-version\fR] [\fB\-\-show\fR] 
+[\fB\-\-mcbsp\fR] [\fB\-\-msg\fR] [\fB\-\-rma\fR]
+.IR sources ...
+.fi
+.
+.SH DESCRIPTION
+Compiles a C program that uses BSPlib program and links it with BSPonMPI.
+It is essentally a wrapper around the
+.I mpicc
+from the MPI implementation that was used to build BSPonMPI.
+All options that are not recognized by 
+.B bspcc
+are passed on verbatim to 
+.I mpicc\fR.
+.
+.SH OPTIONS
+Only 
+.B bspcc
+specific options are listed here. 
+All unrecognized options are passed on to the
+.I mpicc
+command.
+.TP
+.BR \-\-help
+Gives a brief usage overview.
+.TP
+.BR \-\-version
+Shows version information.
+.TP
+.BR \-\-show
+Do not do anything but show what exactly will be executed.
+.TP
+.BR \-\-mcbsp
+Use the MulticoreBSP for C compatible headers. 
+By default the header that is compatible with the original BSPlib
+paper by Hill et al., is loaded.
+.TP
+.BR \-\-msg
+Link with the runtime based on MPI message-passing, which uses a protocol
+based on 
+.I MPI_Irsend
+(3)/
+.I MPI_Isend
+(3) - 
+.I MPI_Irecv
+(3) -
+.I MPI_Waitsome\fR.
+The effectiveness of this protocol depends on the MPI implementation and
+the fabric. 
+Its performance might not conform the BSP cost model, in which case
+the remote memory access protocol should be used (use the
+.BR
+\-\-rma
+option ).
+.TP
+.BR \-\-rma
+Link with the runtime based on MPI remote memory access (RDMA), which uses
+a protoccol based on
+.I MPI_Put
+(3) and
+.I
+MPI_Fence
+(3). Note that some MPI implemenations have poor RDMA performance, even
+when the fabric supports it.
+Also, RDMA might be buggy in some implementations. 
+However, when MPI knows how to handle RDMA correctly, its performance
+is unparalleled.
+For that reason, this protocol is chosen by default.
+.
+.SS Experimental
+.TP
+.BR \-\-rma\-prof
+Link with the RDMA runtime and enable the internal profiler.
+The internal profiler will measure usage of BSPlib primitives
+that are being called between 
+.I bsp_begin
+(3) and
+.I bsp_end
+(3), and writes a summary of the statistics when 
+.I bsp_end
+is called. 
+Statistics are labelled per category and displayed hierarchically:
+.RS
+.TP 
+.B TOTAL
+The total time between 
+.I bsp_begin
+and
+.I bsp_end\fR.
+.TP
+.B IMBALANCE
+The total time lost due to load imbalance.
+.TP
+.B SYNC
+The total time spent in 
+.I bsp_sync
+excluding imbalance
+.TP
+.B PUT, GET, HPPUT, HPGET
+Time spent and data sent for
+.IR bsp_put ,
+.IR bsp_get , 
+.IR bsp_hpput ,
+and
+.IR bsp_hpget ,
+respectively
+.TP
+.B BSMP
+Time spent and data sent for BSMP primitives
+.TP
+.B MPI_META_A2A
+Time spent and data sent in internal meta-data exchanges
+.TP
+.B MPI_LARGE_RECV
+Data received through 
+.I MPI_Irecv
+.TP
+.B MPI_LARGE_SEND
+Data sent through 
+.I MPI_Irsend
+and
+.I MPI_Isend
+.TP
+.B MPI_PUT
+Data sent through 
+.I MPI_Put
+.TP 
+.B MPI_UNBUF
+Data sent through unbuffered routines
+.RE
+.TP
+.BR \-\-msg\-prof
+Link with the message-passing runtime and enable the internal profiler.
+.
+.SH AUTHOR
+Written by Wijnand J. Suijlen
+.
+.SH SEE ALSO
+.B mpicc
+(1),
+.B bsprun
+(1)
+.PP
+"BSPlib: The BSP programming library," by J. M. D. Hill, W. F. McColl, D. C. Stefanescu, M. W. Goudreau, K. Lang, S. B. Rao, T. Suel, Th. Tsantilas, R. H. Bisseling, Elsevier, Parallel Computing, Volume 24, Issue 14, December 1998, pages 1947–1980. 

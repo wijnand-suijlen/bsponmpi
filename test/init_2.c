@@ -28,21 +28,20 @@ void spmd(void)
 
 TEST( init_2, success() )
 {
-    int pid1, pid2;
+    int pid;
     bsp_init( spmd, 0, NULL);
 
-    MPI_Comm_rank( MPI_COMM_WORLD, &pid1 );
+    MPI_Comm_rank( MPI_COMM_WORLD, &pid );
 
     s_some_int = 5;
     s_nprocs = bsp_nprocs();
-    EXPECT_OP( "%d", pid1, <, s_nprocs );
+    EXPECT_OP( "%d", pid, <, s_nprocs );
 
     spmd();
 
-    MPI_Comm_rank( MPI_COMM_WORLD, &pid2 );
-    EXPECT_EQ( "%d", pid2, 0 );
+    EXPECT_EQ( "%d", pid, 0 );
 
-    EXPECT_EQ("%d", bsp_nprocs(), s_nprocs );
+    EXPECT_EQ("%d", bsp_nprocs(), s_nprocs / 2 );
 
     EXPECT_EQ("%d", s_some_int, -10 );
 }

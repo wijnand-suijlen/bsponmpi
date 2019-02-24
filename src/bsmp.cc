@@ -6,7 +6,7 @@
 #endif
 
 namespace bsplib {
-Bsmp::Bsmp(MPI_Comm comm, size_t max_msg_size)
+Bsmp::Bsmp(MPI_Comm comm, size_t max_msg_size, size_t small_exch_size)
     : m_set_tag_size_counter(0)
     , m_recv_tag_size(0)
     , m_send_tag_size(0)
@@ -14,7 +14,7 @@ Bsmp::Bsmp(MPI_Comm comm, size_t max_msg_size)
     , m_total_n_messages(0)
     , m_total_payload(0)
     , m_send_empty(true)
-    , m_a2a(comm, max_msg_size)
+    , m_a2a(comm, max_msg_size, small_exch_size )
     , m_tag_buffer()
     , m_payloads()
     , m_payload_buffer()
@@ -40,7 +40,7 @@ void Bsmp::sync( bool dummy )
         serial( m_a2a, p, m_next_tag_size );
     
 #ifdef PROFILE
-        t.addBytes( m_a2a.send_size(p) );
+        t.add_bytes( m_a2a.send_size(p) );
 #endif
     }
 

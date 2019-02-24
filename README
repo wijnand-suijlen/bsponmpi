@@ -29,37 +29,48 @@ Getting Started
 
 Prerequisites
 -------------
-  - CMake version 3.13
+  - CMake version 2.8.11
 
-  - An MPI-1 implementation, such as MPICH, OpenMPI, MVAPICH, IBM Platform,
+  - An MPI-2 implementation, such as MPICH, OpenMPI, MVAPICH, IBM Platform,
     Intel MPI, Microsoft MPI.
     (note: When using a Linux package manager, make sure you get the '-devel'
      package)
 
   - A C and C++ compiler
    
-  - (Optional) Doxygen for generating MAN pages and browseable HTML of the API.
-
-(read section below on Linux distribution specific hints)
+  - (Optional) Doxygen 1.8.5 and (Pdf)LaTeX for generating MAN pages,
+    browseable HTML, and a PDF of the API reference documentation.
 
 
 Installation
 ------------
+Like installation of any project from source-code, the installation breaks down
+in configuration, compilation, and installation. For the configuration step,
+this project uses CMake. The procedure for Windows is described in the OS
+specific installation hints below.  On Unix-like systems, like Linux and macOS,
+the the steps to be performed are
 
-  - Unpack the source in some directory, e.g. $SRCDIR
+  - Unpack the source in some directory, e.g. <srcdir>
   
-  - Make a build directory, e.g. $BUILDDIR
+  - Make an empty build directory, e.g. <builddir>
 
-  - Think of a place to install the library, e.g. $INSTALLDIR
+  - Think of a place to install the library, e.g. <installdir>
 
   - Then execute the following commands
 
-           $ cd $BUILDDIR
+           $ cd <builddir>
           
-           $ cmake -DCMAKE_INSTALL_PREFIX=$INSTALLDIR $SRCDIR 
+           $ cmake -DCMAKE_INSTALL_PREFIX=<installdir> <srcdir>
 
            $ make install
+
+Note: the <dir> are placeholders for proper directory paths.
+
+If <installdir>/bin wasn't already in your PATH environment variable, 
+you should add it yourself. Likewise, MANPATH should be extended with
+<installdir>/share/man.
   
+For further OS specific hints, see the OS specific installation hints section.
 
 Compiling programs
 ------------------
@@ -68,7 +79,7 @@ Assuming you have a source file helloworld.c, you can compile it as follows
   
   $ bspcc helloworld.c -o helloworld
 
-Likewise, if you have C++ source file helloworld.cpp, you can do
+Likewise, if you have a C++ source file helloworld.cpp, you can do
 
   $ bspcxx helloworld.cpp -o helloworld
 
@@ -76,26 +87,65 @@ Likewise, if you have C++ source file helloworld.cpp, you can do
 Running programs
 ----------------
 
-Programs can be ran through the bsprun command, which is a simple replacement
-for mpirun
+Programs can be run through the bsprun command, which is a simple wrapper
+around mpirun/mpiexec
 
   $ bsprun -n 5 ./helloworld
 
 
+Installation customization
+==========================
 
-Linux distribution specific installation hints
+bspcc, bspcxx, and bsprun are simple bash scripts that wrap around mpicc,
+mpicxx, and mpirun/mpiexec and can be edited manually if necessary.
+
+For customization of bsprun there are also two CMake variables
+ 
+  - MPIRUN_EXECUTABLE  sets the MPI program launcher
+
+  - MPIRUN_NPROCS_PARAM  sets the parameter required to set the number of MPI
+    processes. For example, if the MPI launcher requires "-np 5" to launch 5
+    processes, this parameter should be set to "-np;". The semicolon here
+    denotes that the 5 must be a separate command line parameter. Leaving out
+    the semicolon allows use of a hypothetical mpirun parameter "--nprocs=5"
+    for which MPIRUN_NPROCS_PARAM has to be set to "--nprocs=".
+
+These variables can be set by running 
+
+  $ ccmake <builddir>
+
+
+Maintainers should set CMAKE_BUILD_TYPE to Debug to compile in assertions and
+debugging symbols.
+
+
+OS specific installation hints
 ==============================================
+
+Mac OS X / macOS / Darwin
+-------------------------
+The MacPorts collection provides easy access to Unix development tools, which
+are necessary to build, install, and use BSPonMPI. See https://macports.org
+MacPorts also needs Xcode to be installed, but that can be downloaded for free
+from the App Store. Once you have both installed, you can install the required
+dependencies through MacPorts: 
+
+ $ sudo port install cmake mpich-devel-default doxygen texlive-basic
+
+Doxygen and texlive-basic are only required to generate API reference
+documentation. The texlive-basic package is quite large and only required
+to generate a PDF. Without it, Doxygen will stil be able to  generate Unix man
+pages and HTML.
+
+See the previous installation section how to proceed installation.
+
 
 CentOS 7
 --------
 
 To install the necessary prerequisites do:
 
-  $ sudo yum install epel-release
- 
-then do
-
-  $ sudo yum install cmake3 mpich-devel
+  $ sudo yum install cmake mpich-3.0-devel doxygen-latex
 
 Then before you can run the cmake commands, you have to load MPI into your
 shell environment
@@ -104,10 +154,82 @@ shell environment
 
 
 
-Ubuntu 18.04 LTS (Bionic Beaver)
---------------------------------
+Ubuntu 18.04 LTS (Bionic Beaver)   and  Debian 9 (stretch)
+----------------------------------------------------------
 
 Make sure you have CMake, Doxygen, and an MPI installed. E.g. do
 
-  $ sudo apt install cmake doxygen mpich doxygen
+  $ sudo apt install cmake doxygen mpich doxygen-latex
+
+Then proceed as usual
+
+
+FreeBSD 12.0
+------------
+
+Use the FreeBSD package manager `pkg' to download and install
+the prerequisites. 
+
+Do as root
+  $ pkg install cmake mpich 
+  
+To generate the full documentation, also do 
+  $ pkg install doxygen texlive-full-20150521  
+
+Then proceed as usual.
+
+In case you get strange (runtime) linking errors, be prepared to reinstall mpich
+from source. In the version I tried (3.2.1_3) the clang 6 and gcc 8 toolchains
+got mixed up. 
+
+
+Windows 10
+----------
+
+This is tested with Microsoft MPI 10.0.0. There is also a Windows version from
+IBM.  You can get MS MPI from
+  https://docs.microsoft.com/en-us/message-passing-interface
+
+Get other development tools: Visual Studio & CMake. If you like to generate
+HTML documentation, then also download Doxygen, a Tex distribution (e.g.
+MikTex), and Ghostscript. Make sure the executables of these tools are in
+your PATH environment variable.
+  - Enable Desktop C++ development in VS (Tools->Get Tools and Features)
+  - Run CMake-gui. Select the source folder and the build directory, and
+    run configure and generate. This will generate a Visual Studio solution
+    for a 32-bit or 64-bit build in the build directory
+  - Open the VS solution
+  - Choose a configuration (Release, Debug)
+  - Build it (CTRL+SHIFT+B)
+    
+     Note: if you get lots of error messages "Object reference not set to an
+     instance of an object", update your Visual Studio to the latest version.
+
+  - If you had set CMAKE_INSTALL_PREFIX variable during CMake configuration,
+    you can then build the INSTALL project to copy the resulting files
+    to that directory.
+    The resulting DLLs will be in the \bin directory, the .LIB files are in the
+    \lib directory, and the bsp.h header will be in the \include directory.
+    Documentation will be in \share\doc\bsponmpi.
+
+    Without running the INSTALL project, the .LIB and .DLL files will be in 
+    either the Release or Debug subdirectory in the build directory.
+
+
+To use the library in your Visual Studio project 
+(see also https://blogs.technet.microsoft.com/windowshpc/2015/02/02/how-to-
+compile-and-run-a-simple-ms-mpi-program/)
+  - Create a new Windows Console application project with Visual C++
+  - Add include path in the project properties -> C/C++ -> General ->
+    Additional Include Directories
+  - Add the path to the bsponmpi_*.LIB files  to the "Additional Library
+    Directores" field in the project properties -> Linker -> General, and add
+    the .LIB file of one of the four built flavours: bsponmpi_msg.lib,
+    bsponmpi_rma.lib, bsponmpi_msg_prof.lib, or bsponmpi_rma_prof.lib. If
+    you're not sure, choose bsponmpi_rma.lib
+  - Build your program
+  - When you want to run the program, make sure the bsponmpi_*.dll is in the
+    same path as your executable. Then use the MPI launcher to run your program,
+    i.e.: Start a command prompt and run "mpiexec -n 5 helloworld.exe"
+
 

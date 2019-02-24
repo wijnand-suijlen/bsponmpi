@@ -5,8 +5,29 @@
 #endif
 
 #include <cstring>
+#include <algorithm>
 
 namespace bsplib {
+
+Rdma :: Rdma( MPI_Comm comm, size_t max_msg_size, size_t small_exch_size  )
+    : m_first_exchange( comm, max_msg_size, small_exch_size )
+    , m_second_exchange( comm, max_msg_size, small_exch_size )
+    , m_pid(m_first_exchange.pid())
+    , m_nprocs(m_first_exchange.nprocs())
+    , m_register()
+    , m_used_slots()
+    , m_free_slots()
+    , m_cached_slot( no_slot() )
+    , m_send_actions( m_nprocs )
+    , m_recv_actions( m_nprocs )
+    , m_unbuf( max_msg_size, comm )
+    , m_send_push_pop_comm_buf()
+    , m_recv_push_pop_comm_buf()
+#ifdef PROFILE
+    , m_tictoc( TicToc :: TOTAL )
+#endif
+{}
+
 
 void Rdma::push_reg( void * addr, size_t size )
 {
@@ -52,17 +73,15 @@ void Rdma::put( const void * src,
 #endif
 
     assert( ! (slot( m_pid, dst_slot ).status & Memblock::PUSHED) );
-    char * addr = static_cast<char *>( slot(dst_pid, dst_slot).addr );
-    char * null = NULL;
-    size_t dst_addr = addr - null + dst_offset;
 
     serial( m_second_exchange, dst_pid, size );
-    serial( m_second_exchange, dst_pid, dst_addr );
+    serial( m_second_exchange, dst_pid, dst_slot );
+    serial( m_second_exchange, dst_pid, dst_offset );
 
     m_second_exchange.send( dst_pid, src, size );
 #ifdef PROFILE
     size_t t_b = m_second_exchange.send_size(dst_pid);
-    t.addBytes(t_b-t_a);
+    t.add_bytes(t_b-t_a);
 #endif
 }
 
@@ -73,16 +92,14 @@ void Rdma::hpput( const void * src,
     TicToc t( TicToc::HPPUT );
 #endif
     assert( ! (slot( m_pid, dst_slot ).status & Memblock::PUSHED) );
-    char * addr = static_cast<char *>( slot(dst_pid, dst_slot).addr );
-    char * null = NULL;
-    size_t dst_addr = addr - null + dst_offset;
-
-    size_t src_addr = static_cast<const char *>(src) - null;
+    
+    Memslot src_slot = m_local_slots.size();
+    m_local_slots.push_back( const_cast<void *>(src) );
 
     int tag = m_unbuf.send( dst_pid, src, size );
 
     Action action = { Action::HPPUT, dst_pid, m_pid, dst_pid,
-                      tag, src_addr, dst_addr, size };
+                      tag, src_slot, dst_slot , dst_offset, size };
     m_send_actions.push_back( action );
 }
 
@@ -93,14 +110,12 @@ void Rdma::get( int src_pid, Memslot src_slot, size_t src_offset,
     TicToc t( TicToc::GET );
 #endif
     assert( !( slot( m_pid, src_slot ).status & Memblock::PUSHED) );
-    char * null = NULL;
-    size_t dst_addr = static_cast<char *>(dst) - null;
 
-    char * addr = static_cast<char *>( slot( src_pid, src_slot).addr );
-    size_t src_addr = addr - null + src_offset;
+    Memslot dst_slot = m_local_slots.size();
+    m_local_slots.push_back( dst );
 
     Action action = { Action::GET, src_pid, src_pid, m_pid, 
-                      0, src_addr, dst_addr, size  };
+                      0, src_slot, dst_slot, src_offset, size  };
     m_send_actions.push_back( action );
 }
 
@@ -111,15 +126,13 @@ void Rdma::hpget( int src_pid, Memslot src_slot, size_t src_offset,
     TicToc t( TicToc::HPGET );
 #endif
     assert( !( slot( m_pid, src_slot ).status & Memblock::PUSHED) );
-    char * null = NULL;
-    size_t dst_addr = static_cast<char *>(dst) - null;
-
-    char * addr = static_cast<char *>( slot( src_pid, src_slot ).addr );
-    size_t src_addr = addr - null + src_offset;
+    
+    Memslot dst_slot = m_local_slots.size();
+    m_local_slots.push_back( dst );
 
     int tag = m_unbuf.recv( src_pid, dst, size );
     Action action = { Action::HPGET, src_pid, src_pid, m_pid, 
-                      tag, src_addr, dst_addr, size  };
+                      tag, src_slot, dst_slot, src_offset, size };
     m_send_actions.push_back( action );
 
 }
@@ -133,19 +146,18 @@ void Rdma::write_gets()
         size_t start = m_recv_actions.m_get_buffer_offset[p];
         m_second_exchange.recv_pop( p, start );
         while ( m_second_exchange.recv_size( p ) > 0 ) {
-            size_t size, addr;
+            size_t size, slot;
             deserial( m_second_exchange, p, size );
-            deserial( m_second_exchange, p, addr );
+            deserial( m_second_exchange, p, slot);
            
-            char * dst_addr = NULL;
-            dst_addr += addr;
+            char * dst_addr = static_cast<char *>(m_local_slots[ slot ]);
 
             std::memcpy( dst_addr, m_second_exchange.recv_top(p), size );
             m_second_exchange.recv_pop(p, size );
         }
 #ifdef PROFILE
         size_t end = m_second_exchange.recv_pos(p);
-        t.addBytes( end - start );
+        t.add_bytes( end - start );
 #endif
    }
 }
@@ -160,18 +172,19 @@ void Rdma::write_puts()
         size_t end = m_recv_actions.m_get_buffer_offset[p];
         m_second_exchange.recv_rewind( p );
         while ( m_second_exchange.recv_pos( p ) < end ) {
-            size_t size, addr;
+            size_t size, dst_slot, dst_offset;
             deserial( m_second_exchange, p, size );
-            deserial( m_second_exchange, p, addr );
+            deserial( m_second_exchange, p, dst_slot);
+            deserial( m_second_exchange, p, dst_offset );
            
-            char * dst_addr = NULL;
-            dst_addr += addr;
-
+            char * dst_addr =
+               static_cast<char *>(slot( m_pid, dst_slot ).addr );
+            dst_addr += dst_offset;
             std::memcpy( dst_addr, m_second_exchange.recv_top(p), size );
             m_second_exchange.recv_pop(p, size );
         }
 #ifdef PROFILE
-        t.addBytes( end );
+        t.add_bytes( end );
 #endif
    }
 }
@@ -212,6 +225,7 @@ bool Rdma::sync(bool dummy_bsmp)
     m_recv_push_pop_comm_buf.clear();
     m_send_actions.clear();
     m_recv_actions.clear();
+    m_local_slots.clear();
     return all_dummy_bsmp;
 }
 
@@ -237,12 +251,13 @@ void Rdma::ActionBuf::serialize( A2A & a2a )
         serial( a2a, a.target_pid, a.src_pid );
         serial( a2a, a.target_pid, a.dst_pid );
         serial( a2a, a.target_pid, a.tag );
-        serial( a2a, a.target_pid, a.src_addr );
-        serial( a2a, a.target_pid, a.dst_addr );
+        serial( a2a, a.target_pid, a.src_slot );
+        serial( a2a, a.target_pid, a.dst_slot );
+        serial( a2a, a.target_pid, a.offset );
         serial( a2a, a.target_pid, a.size );
 #ifdef PROFILE
         size_t end = a2a.send_size(a.target_pid);
-        t.addBytes(end-start);
+        t.add_bytes(end-start);
 #endif
     }
 }
@@ -279,8 +294,9 @@ void Rdma::ActionBuf::deserialize( A2A & a2a )
             deserial( a2a, p, a.src_pid );
             deserial( a2a, p, a.dst_pid );
             deserial( a2a, p, a.tag );
-            deserial( a2a, p, a.src_addr );
-            deserial( a2a, p, a.dst_addr );
+            deserial( a2a, p, a.src_slot );
+            deserial( a2a, p, a.dst_slot );
+            deserial( a2a, p, a.offset );
             deserial( a2a, p, a.size );
         }
     }
@@ -289,6 +305,7 @@ void Rdma::ActionBuf::deserialize( A2A & a2a )
 
 void Rdma::ActionBuf::execute( Rdma & rdma )
 {
+    const int pid = rdma.m_pid;
     for (size_t i = 0; i < m_actions.size(); ++i ) 
     {
         Action a = m_actions[i];
@@ -302,32 +319,37 @@ void Rdma::ActionBuf::execute( Rdma & rdma )
 #ifdef PROFILE
                 size_t start=rdma.m_second_exchange.send_size(a.dst_pid);
 #endif
+                char * addr = static_cast< char *>( 
+                        rdma.slot( pid, a.src_slot ).addr );
+                addr += a.offset;
                 serial( rdma.m_second_exchange, a.dst_pid, a.size );
-                serial( rdma.m_second_exchange, a.dst_pid, a.dst_addr );
-                char * src = NULL;
-                src += a.src_addr;
-                rdma.m_second_exchange.send( a.dst_pid, src, a.size );
+                serial( rdma.m_second_exchange, a.dst_pid, a.dst_slot );
+                rdma.m_second_exchange.send( a.dst_pid, addr, a.size );
 #ifdef PROFILE
                 size_t end=rdma.m_second_exchange.send_size(a.dst_pid);
-                t.addBytes(end-start);
+                t.add_bytes(end-start);
 #endif
                 break;
             }
 
             case Action::HPPUT : {
-                char * null = NULL;
-                rdma.m_unbuf.recv( a.tag, a.src_pid, null+a.dst_addr, a.size );
+                char * addr = static_cast< char *>(
+                        rdma.slot( pid, a.dst_slot ).addr );
+                addr += a.offset;
+                rdma.m_unbuf.recv( a.tag, a.src_pid, addr, a.size );
 #ifdef PROFILE
-                t.addBytes(a.size);
+                t.add_bytes(a.size);
 #endif
                 break;
             }
 
             case Action::HPGET : {
-                char * null = NULL;
-                rdma.m_unbuf.send( a.tag, a.dst_pid, null + a.src_addr, a.size );
+                char * addr = static_cast< char *>(
+                        rdma.slot( pid, a.src_slot ).addr );
+                addr += a.offset;
+                rdma.m_unbuf.send( a.tag, a.dst_pid, addr, a.size );
 #ifdef PROFILE
-                t.addBytes(a.size);
+                t.add_bytes(a.size);
 #endif
                 break;
             }
