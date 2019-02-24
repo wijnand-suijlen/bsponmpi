@@ -514,7 +514,7 @@ void bsp_send( bsp_pid_t pid, const void * tag, const void * payload,
     if (!s_spmd || s_spmd->closed())
         bsp_abort("bsp_send: can only be called within SPMD section\n");
 
-    if (pid < 0 || pid > s_spmd->nprocs())
+    if (pid < 0 || pid >= s_spmd->nprocs())
         bsp_abort("bsp_send: The source process ID does not exist\n");
 
     if (payload_nbytes < 0 )

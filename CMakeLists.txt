@@ -275,12 +275,40 @@ add_mpi_test( set_tagsize_2 3 )
 add_mpi_test( set_tagsize_3 4 )
 add_mpi_test( set_tagsize_4 3 )
 add_mpi_test( set_tagsize_5 4 )
+add_mpi_test( set_tagsize_spmd 2 )
+add_mpi_test( set_tagsize_null 2 )
+add_mpi_test( set_tagsize_negative_size 2 )
+
+add_mpi_test( get_tag_spmd 2 )
+add_mpi_test( get_tag_status_null 2 )
+add_mpi_test( get_tag_tag_null 2 )
+
+add_mpi_test( send_spmd 2 )
+add_mpi_test( send_pid_negative 2 )
+add_mpi_test( send_pid_greater_nprocs 2 )
+add_mpi_test( send_size_negative 2 )
+#Test only relevant if bsp_size_t is un unassigned data type
+#and enough memory can be allocate
+#add_mpi_test( send_size_endtag 2 )
+
+add_mpi_test( qsize_spmd 2 )
+add_mpi_test( qsize_nmessages_null 2 )
+add_mpi_test( qsize_accum_nbytes_null 2 )
 
 add_mpi_test( default_tagsize_1 2 )
 
 add_mpi_test( send_various_tags_1 4 )
 
+add_mpi_test( hpmove_spmd 2 )
+add_mpi_test( hpmove_payloadptr_null 2 )
+add_mpi_test( hpmove_tagptr_null 2 )
+add_mpi_test( hpmove_queue_empty 2 )
+
 add_mpi_test( move_1 2 )
+add_mpi_test( move_spmd 2 )
+add_mpi_test( move_payload_null 2 )
+add_mpi_test( move_queue_empty 2 )
+add_mpi_test( move_nbytes_negative 2 )
 
 add_mpi_test( pid_1 3)
 add_mpi_test( pid_2 3)
