@@ -282,6 +282,12 @@ add_mpi_test( move_1 2 )
 add_mpi_test( pid_1 3)
 add_mpi_test( pid_2 3)
 
+option( ENABLE_LARGE_TESTS "Enable tests that require large amounts of memory and/or time" OFF)
+if (ENABLE_LARGE_TESTS)
+    message(STATUS "Tests that demand large amount of memory and/or time are enabled")
+    add_mpi_test( hpput_one_int_max_size_msg 2 )
+endif()
+
 # Documentation
 if (NOT COMMAND doxygen_add_docs)
    

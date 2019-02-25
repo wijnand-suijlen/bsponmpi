@@ -520,8 +520,12 @@ void bsp_send( bsp_pid_t pid, const void * tag, const void * payload,
     if (payload_nbytes < 0 )
         bsp_abort("bsp_send: Payload size may not be negative\n");
 
+    /* Note: this following check will never trigger, because it will already
+     * have triggered the previous check, since bsp_size_t is a signed integer.
+     * It is left in as a reminder in the event that someone changes bsp_size_t
+     * to an unsigned type in the future. */
     if (payload_nbytes == bsp_size_t(-1))
-        bsp_abort("bsp_send: Invalid payload size, becaues it is also "
+        bsp_abort("bsp_send: Invalid payload size, because it is also "
                  "used as end marker\n");
 
 #ifdef PROFILE
@@ -806,7 +810,7 @@ void mcbsp_send( mcbsp_pid_t pid, const void * tag,
         bsp_abort("bsp_send: The source process ID does not exist\n");
 
     if (size == mcbsp_size_t(-1))
-        bsp_abort("bsp_send: Invalid payload size, becaues it is also "
+        bsp_abort("bsp_send: Invalid payload size, because it is also "
                  "used as end marker\n");
 
 #ifdef PROFILE
