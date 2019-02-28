@@ -514,7 +514,7 @@ void bsp_send( bsp_pid_t pid, const void * tag, const void * payload,
     if (!s_spmd || s_spmd->closed())
         bsp_abort("bsp_send: can only be called within SPMD section\n");
 
-    if (pid < 0 || pid > s_spmd->nprocs())
+    if (pid < 0 || pid >= s_spmd->nprocs())
         bsp_abort("bsp_send: The source process ID does not exist\n");
 
     if (payload_nbytes < 0 )
@@ -614,7 +614,7 @@ bsp_size_t bsp_hpmove( void ** tag_ptr, void ** payload_ptr )
         bsp_abort("bsp_hpmove: can only be called within SPMD section\n");
 
 #ifdef PROFILE
-     TicToc t( TicToc::BSMP, s_bsmp->payload_size() );
+     TicToc t( TicToc::BSMP );
 #endif
 
      if ( tag_ptr == NULL || payload_ptr == NULL )
@@ -622,6 +622,10 @@ bsp_size_t bsp_hpmove( void ** tag_ptr, void ** payload_ptr )
 
      if ( s_bsmp->empty() )
          return bsp_size_t(-1);
+
+#ifdef PROFILE
+     t.add_bytes( s_bsmp->payload_size() );
+#endif
 
      *tag_ptr = s_bsmp->tag();
      *payload_ptr = s_bsmp->payload();

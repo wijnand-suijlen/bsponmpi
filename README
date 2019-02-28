@@ -247,12 +247,13 @@ Authors, contributors, and acknowledgements
 This software package is designed, written, and maintained by 
   - Wijnand Suijlen
 
+Contributors
+  - Pierre Leca - Extended API test suite
+
 The author would like to thank
   - Rob Bisseling for his encouragement to write the package in the first place, 
     for making available some compute time for testing on the Top500 listed
     computer Cartesius from SURFsara, and for testing on Cori from NERSC.
-
-  - Pierre Leca for some early testing
 
   - Hugo Cartwright for some early testing on Windows 10
 
