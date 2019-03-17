@@ -48,24 +48,17 @@ Like installation of any project from source-code, the installation breaks down
 in configuration, compilation, and installation. For the configuration step,
 this project uses CMake. The procedure for Windows is described in the OS
 specific installation hints below.  On Unix-like systems, like Linux and macOS,
-the the steps to be performed are
+do the following to install BSPonMPI in the default directories
 
-  - Unpack the source in some directory, e.g. <srcdir>
-  
-  - Make an empty build directory, e.g. <builddir>
+   $ ./configure 
+   $ sudo make install
 
-  - Think of a place to install the library, e.g. <installdir>
+To install in a different directory, do
 
-  - Then execute the following commands
+   $ ./configure --prefix=<installdir>
+   $ make install
 
-           $ cd <builddir>
-          
-           $ cmake -DCMAKE_INSTALL_PREFIX=<installdir> <srcdir>
-
-           $ make install
-
-Note: the <dir> are placeholders for proper directory paths.
-
+Here <installdir> should be replaced with the installation directory.
 If <installdir>/bin wasn't already in your PATH environment variable, 
 you should add it yourself. Likewise, MANPATH should be extended with
 <installdir>/share/man.
@@ -110,17 +103,40 @@ For customization of bsprun there are also two CMake variables
     the semicolon allows use of a hypothetical mpirun parameter "--nprocs=5"
     for which MPIRUN_NPROCS_PARAM has to be set to "--nprocs=".
 
-These variables can be set by running 
+CMake Variables can be set using the configure script
 
-  $ ccmake <builddir>
+  $ ./configure -D<var1>=<value1> -D<var2>=<value2> ...
+
+Alternatively, these can be changed using `ccmake' or, on Windows, with
+cmake-gui.
 
 
-Maintainers should set CMAKE_BUILD_TYPE to Debug to compile in assertions and
-debugging symbols.
+Build options for contributors
+==============================
+
+Although an in-source build is supported to simplify installations from source,
+it is encouraged to use out-of-source builds during development.  Simply make a
+new directory anywhere, change to it, and run configure from there. This script
+infers the source directory from its own parent directory and passes it on to
+CMake. Out-of-source builds protect against overwriting source files with
+generated files, easy and thorough cleaning because all generated file are in
+the build directory, and it is possible to maintain builds in different
+configurations.
+
+The CMAKE_BUILD_TYPE CMake variable can be set to Debug to enable assertions
+and include debugging symbols.
+
+An automated Unit test and regression test suite is available. Run 'make test'
+or 'ctest' to run all tests. The 'ctest' driver allows more precise control
+over which tests to run.
+
+On systems with rpmbuild or dpkg-deb available an .rpm or .deb package will be
+generated with 'make package'. A source tarball is generated with 'make
+package_source'.
 
 
 OS specific installation hints
-==============================================
+==============================
 
 Mac OS X / macOS / Darwin
 -------------------------
