@@ -367,11 +367,11 @@ void bsp_put( bsp_pid_t pid, const void * src, void * dst,
     TicToc t( TicToc::PUT, nbytes );
 #endif
 
-    if (nbytes == 0) // ignore any empty writes
-        return;
-
     if (!s_spmd || s_spmd->closed())
         bsp_abort("bsp_put: can only be called within SPMD section\n");
+
+    if (nbytes == 0) // ignore any empty writes
+        return;
 
     if (pid < 0 || pid > s_spmd->nprocs())
         bsp_abort("bsp_put: The destination process ID does not exist\n");
@@ -405,11 +405,11 @@ void bsp_hpput( bsp_pid_t pid, const void * src, void * dst,
     TicToc t( TicToc::HPPUT, nbytes );
 #endif
 
+    if (!s_spmd || s_spmd->closed())
+        bsp_abort("bsp_hpput: can only be called within SPMD section\n");
+
     if (nbytes == 0) // ignore any empty writes
         return;
-
-    if (!s_spmd || s_spmd->closed())
-        bsp_abort("bsp_put: can only be called within SPMD section\n");
 
     if (pid < 0 || pid > s_spmd->nprocs())
         bsp_abort("bsp_hpput: The destination process ID does not exist\n");
@@ -446,11 +446,11 @@ void bsp_get( bsp_pid_t pid, const void * src, bsp_size_t offset,
     TicToc t( TicToc::GET, nbytes );
 #endif
 
-    if (nbytes == 0) // ignore any empty reads
-        return;
-
     if (!s_spmd || s_spmd->closed())
         bsp_abort("bsp_get: can only be called within SPMD section\n");
+
+    if (nbytes == 0) // ignore any empty reads
+        return;
 
     if (pid < 0 || pid > s_spmd->nprocs())
         bsp_abort("bsp_get: The source process ID does not exist\n");
@@ -483,11 +483,11 @@ void bsp_hpget( bsp_pid_t pid, const void * src, bsp_size_t offset,
     TicToc t( TicToc::HPGET, nbytes );
 #endif
 
-    if (nbytes == 0) // ignore any empty reads
-        return;
-
     if (!s_spmd || s_spmd->closed())
         bsp_abort("bsp_hpget: can only be called within SPMD section\n");
+
+    if (nbytes == 0) // ignore any empty reads
+        return;
 
     if (pid < 0 || pid > s_spmd->nprocs())
         bsp_abort("bsp_hpget: The source process ID does not exist\n");
@@ -690,11 +690,11 @@ void mcbsp_put( mcbsp_pid_t pid, const void * src,
     TicToc t( TicToc::PUT, size );
 #endif
 
-    if (size == 0) // ignore any empty writes
-        return;
-
     if (!s_spmd || s_spmd->closed())
         bsp_abort("bsp_put: can only be called within SPMD section\n");
+
+    if (size == 0) // ignore any empty writes
+        return;
 
     if (pid > mcbsp_pid_t(s_spmd->nprocs()))
         bsp_abort("bsp_put: The destination process ID does not exist\n");
@@ -722,11 +722,11 @@ void mcbsp_hpput( mcbsp_pid_t pid, const void * src,
     TicToc t( TicToc::HPPUT, size );
 #endif
 
-    if (size == 0) // ignore any empty writes
-        return;
-
     if (!s_spmd || s_spmd->closed())
         bsp_abort("bsp_put: can only be called within SPMD section\n");
+
+    if (size == 0) // ignore any empty writes
+        return;
 
     if (pid > mcbsp_pid_t(s_spmd->nprocs()))
         bsp_abort("bsp_hpput: The destination process ID does not exist\n");
@@ -756,11 +756,11 @@ void mcbsp_get( mcbsp_pid_t pid, const void * src,
     TicToc t( TicToc::GET, size );
 #endif
 
-    if (size == 0) // ignore any empty reads
-        return;
-
     if (!s_spmd || s_spmd->closed())
         bsp_abort("bsp_get: can only be called within SPMD section\n");
+
+    if (size == 0) // ignore any empty reads
+        return;
 
     if (pid > mcbsp_pid_t(s_spmd->nprocs()))
         bsp_abort("bsp_get: The source process ID does not exist\n");
@@ -787,11 +787,11 @@ void mcbsp_hpget( mcbsp_pid_t pid, const void * src,
     TicToc t( TicToc::HPGET, size );
 #endif
 
-    if (size == 0) // ignore any empty reads
-        return;
-
     if (!s_spmd || s_spmd->closed())
         bsp_abort("bsp_hpget: can only be called within SPMD section\n");
+
+    if (size == 0) // ignore any empty reads
+        return;
 
     if (pid > mcbsp_pid_t(s_spmd->nprocs()))
         bsp_abort("bsp_hpget: The source process ID does not exist\n");

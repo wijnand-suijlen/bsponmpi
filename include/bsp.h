@@ -483,7 +483,7 @@ DLL_PUBLIC void bsp_pop_reg( const void * addr );
  * \param nbytes Number of bytes of data that should be copied. The call
  *               has no effect when this is zero.
  *
- * \throws bsp_abort When called outside SPMD section, unless \a nbytes is zero.
+ * \throws bsp_abort When called outside SPMD section.
  * \throws bsp_abort When \a pid is not valid, unless \a nbytes is zero
  * \throws bsp_abort When \a offset is negative, unless \a nbytes is zero
  * \throws bsp_abort When \a dst is \c NULL, unless \a nbytes is zero
@@ -522,7 +522,7 @@ DLL_PUBLIC void bsp_put( bsp_pid_t pid, const void * src, void * dst,
  * \param nbytes Number of bytes of data that should be copied. The call
  *               has no effect when this is zero.
  *
- * \throws bsp_abort When called outside SPMD section, unless \a nbytes is zero.
+ * \throws bsp_abort When called outside SPMD section.
  * \throws bsp_abort When \a pid is not valid, unless \a nbytes is zero
  * \throws bsp_abort When \a offset is negative, unless \a nbytes is zero
  * \throws bsp_abort When \a dst is \c NULL, unless \a nbytes is zero
@@ -552,14 +552,12 @@ DLL_PUBLIC void bsp_hpput( bsp_pid_t pid, const void * src, void * dst,
  * \param nbytes Number of bytes of data that should be copied. The call
  *               has no effect when this is zero.
  *
- * \throws bsp_abort When called outside SPMD section, unless \a nbytes is zero.
+ * \throws bsp_abort When called outside SPMD section.
  * \throws bsp_abort When \a pid is not valid, unless \a nbytes is zero
  * \throws bsp_abort When \a offset is negative, unless \a nbytes is zero
  * \throws bsp_abort When \a src is \c NULL, unless \a nbytes is zero
  * \throws bsp_abort When \a src has not been registered before, unless 
  *                   \a nbytes is zero.
- * \throws bsp_abort When \a src refers to memory that has been registered with
- *                   \c NULL on the remote process \a pid, unless \a nbytes is zero.
  * \throws bsp_abort When the remote read will be beyond the registered bounds,
  *                   unless \a nbytes is zero.
  */
@@ -591,14 +589,12 @@ DLL_PUBLIC void bsp_get( bsp_pid_t pid, const void * src, bsp_size_t offset,
  * \param nbytes Number of bytes of data that should be copied. The call
  *               has no effect when this is zero.
  *
- * \throws bsp_abort When called outside SPMD section, unless \a nbytes is zero.
+ * \throws bsp_abort When called outside SPMD section.
  * \throws bsp_abort When \a pid is not valid, unless \a nbytes is zero
  * \throws bsp_abort When \a offset is negative, unless \a nbytes is zero
  * \throws bsp_abort When \a src is \c NULL, unless \a nbytes is zero
  * \throws bsp_abort When \a src has not been registered before, unless 
  *                   \a nbytes is zero.
- * \throws bsp_abort When \a src refers to memory that has been registered with
- *                   \c NULL on the remote process \a pid, unless \a nbytes is zero.
  * \throws bsp_abort When the remote read will be beyond the registered bounds,
  *                   unless \a nbytes is zero.
  */
