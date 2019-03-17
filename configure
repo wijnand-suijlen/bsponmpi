@@ -1,0 +1,116 @@
+#!/bin/sh
+
+cwd=`pwd`
+srcdir=`dirname $0`
+cd "$srcdir"
+srcdir=`pwd`
+cd "$cwd"
+
+
+config=Release
+unset prefix
+cmake=cmake
+cmake_opts=()
+
+for arg
+do
+  case $arg in
+
+     --help|-help|-h)
+       cat <<EOF
+Usage: $0 [--prefix=<path>] [--release|--debug] [--cmake=<path>] ...
+Configures the current working directory to build BSPonMPI.
+
+OPTIONS
+   --prefix=<path>  Set <path> as the final installation path.
+                    By default the system default is chosen, which is, for
+                    example, /usr on Unix systems.
+
+   --release or --debug
+                    Set the compilation mode to either release or debug. 
+                    In debug mode BSPonMPI is compiled without compiler
+                    optimisations and including debugging symbols. It is 
+                    therefore only useful for debugging BSPonMPI itself.
+                    The default mode is release.
+
+   --cmake=<path>   Use the CMake executable defined by the given <path>.
+                    By default 'cmake' is used.
+
+   ...              Other options will be passed verbatim to CMake.
+
+EOF
+
+     ;;
+   
+     --prefix=*) 
+       prefix=${arg#--prefix=}
+     ;;
+
+     --release)
+       config=Release
+     ;;
+
+     --debug)
+       config=Debug
+     ;;
+
+     --cmake=*)
+       cmake=${arg#--cmake=}
+     ;;
+
+     *)
+       cmake_opts=( "${cmake_opts[@]}" "$arg" )
+     ;; 
+
+  esac
+done
+
+cat <<EOF
+The build directory will be configured with
+   Build mode   = ${config}
+   Prefix       = ${prefix:-<system default>}
+   CMake binary = ${cmake} 
+
+EOF
+
+cmake_prim_op=(-DCMAKE_BUILD_TYPE=${config} )
+if [ "x$prefix" != x ]; then
+  prefix="-DCMAKE_INSTALL_PREFIX=${prefix}" 
+  cmake_prim_op=( "${cmake_prim_op[@]}" "$prefix" )
+fi
+
+echo Removing old CMake cache files: CMakeFiles and CMakeCache
+rm -fr CMakeFiles
+rm -f CMakeCache.txt
+
+echo Executing: $cmake "${cmake_prim_op[@]}" "${cmake_opts[@]}" "$srcdir" 
+echo
+$cmake "${cmake_prim_op[@]}" "${cmake_opts[@]}" "$srcdir"
+rc=$?
+
+if [ $rc -ne 0 ]; then
+
+  which $cmake
+  which_cmake=$?
+
+  if [ $which_cmake -ne 0 ] ; then
+     echo
+     echo "Please rerun $0 again, but using --cmake=<path>"
+     echo "as parameter to point this configure script to the correct path"
+     echo "to cmake".
+     exit 1
+  fi
+
+  cat <<EOF
+
+Configuration has failed. Please check whether you have all the required 
+prerequisites installed. Possibly you have to manually change certain CMake
+variables. Use its 'ccmake' tool to inspect and change auto-detected 
+settings and to 'reconfigure' and 'generate' the build files again.
+EOF
+  exit 1
+
+fi
+
+echo 
+echo "Configuration was successful"

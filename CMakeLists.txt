@@ -226,7 +226,7 @@ install( PROGRAMS ${CMAKE_BINARY_DIR}/bspcc
                   ${CMAKE_BINARY_DIR}/bsprun
          DESTINATION bin
        )
-install( FILES man/bsprun.1 man/bspcc.1
+install( FILES man/man1/bsprun.1 man/man1/bspcc.1
          DESTINATION share/man/man1/ )
 
 else()
@@ -377,6 +377,11 @@ if (ENABLE_LARGE_TESTS)
 
     #Test only relevant if bsp_size_t is un unassigned data type
     #add_mpi_test( send_size_endtag 2 )
+endif()
+
+if (BASH)
+  configure_file( build_tests.sh.in build_tests.sh @ONLY)
+  add_test( NAME build_tests COMMAND ${BASH} build_tests.sh )
 endif()
 
 # Documentation

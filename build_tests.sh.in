@@ -1,0 +1,31 @@
+#!@BASH@
+
+# Quit if Unix Makefile generator was not used
+if [ ! -f Makefile ] ; then
+  exit 0
+fi
+
+# make all errrors fatal
+set -e
+
+echo
+echo Generating source package
+make package_source 
+echo
+echo Unpacking source package
+tar xzvf bsponmpi-@CPACK_PACKAGE_VERSION@-Source.tar.gz
+
+echo
+echo Performing insource build and installation
+cd bsponmpi-@CPACK_PACKAGE_VERSION@-Source
+./configure --prefix=`pwd`
+make 
+make install
+
+echo
+echo Cleaning up
+cd ..
+rm -r bsponmpi-@CPACK_PACKAGE_VERSION@-Source
+
+echo All OK
+
