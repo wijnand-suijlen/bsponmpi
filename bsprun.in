@@ -28,7 +28,7 @@ function show_help()
    echo "    --show    Instead of launching the command it shows what"
    echo "              command will be executed"
    echo 
-   echo "    -n <procs>  or --nprocs=<procs>"
+   echo "    -n <procs>, -npes <nprocs>,  or --nprocs=<procs>"
    echo "              Launches the program with at most <procs> parallel"
    echo "              processes"
    echo
@@ -76,7 +76,7 @@ do
         ;;
 
 
-     -n)
+     -n|-npes)
         state=nprocs
         ;;
 

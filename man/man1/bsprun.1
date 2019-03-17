@@ -13,8 +13,8 @@ Runs a BSPlib program that has been compiled with BSPonMPI's
 .B bspcc
 or
 .B bspcxx
-compiler frontend.
-It is essentally a wrapper around the
+compiler front end.
+It is essentially a wrapper around the
 .I mpirun
 from the MPI implementation that was used to build BSPonMPI.
 For directions on how to launch a program, it is, therefore, essential
@@ -41,11 +41,11 @@ option can be used to generate a template launch script.
 Only 
 .B bsprun
 specific options are listed here. 
-All unrecognized options are passed on to the
+All unrecognised options are passed on to the
 .I mpirun
 command.
 .TP
-.BI \-n\  nprocs ,\ \-\-nprocs= nprocs
+.BI \-n\  nprocs ,\ \-npes\  nprocs ,\ \-\-nprocs= nprocs
 Launches the program with at most \fInprocs\fR processes.
 .TP
 .BR \-\-help
@@ -60,7 +60,7 @@ Instead of launching the command it show what exactly will be executed.
 .BR \-\-max\-msg\-size=\fIbytes\fR
 Restricts the runtime to messages equal or less than \fIbytes\fR bytes.
 It may be necessary to change this value to improve speed or work 
-around MPI implementation specific stabilty issues.
+around MPI implementation specific stability issues.
 By default this value is equal to 
 .I INT_MAX.
 .TP
@@ -107,6 +107,31 @@ library the
 and
 .B LD_LIBRARY_PATH
 variables are extended to include the path to the library.
+.
+.SH BENCHMARKING
+Every 
+.I bsp_sync 
+data is exchanged between all processes. 
+The total-exchange algorithm is dynamically chosen depending on various
+parameters, such as the maximum volume between each pair of processes,
+in order to complete the exchange as fast as possible. 
+This does not violate the BSPlib performance contract, because,
+asymptotically, the time required to complete an arbitrary h-relation
+still depends only linearly on h.
+However, locally the behaviour may seem non-linear, which can make
+benchmark results hard to interpret.
+For that reason it is advised to set, during benchmarking,
+.B \-\-small\-exchange\-size
+to either zero or a very high value, higher than any exchange between
+two pairs of processes.
+.
+.PP
+Many MPI implementations also change communication algorithms at runtime
+depending on various criteria, including data volume, leading to 
+locally non-linear performance behaviour, even though BSPonMPI's use of MPI
+remains unchanged.
+The user is referred to the user documentation of the respective MPI on how
+to temporarily fix the algorithm choices.
 .
 .SH AUTHOR
 Written by Wijnand J. Suijlen
