@@ -8,7 +8,7 @@
 extern "C" {
 #endif
 
-/** \mainpage Bulk Synchronous Collectives 
+/** \defgroup BSC Bulk Synchronous Collectives 
  *
  * This library defines a collectives library for BSPlib. It differs from the
  * level-1 library from the Oxford Toolset in that it allows collective
@@ -97,6 +97,9 @@ extern "C" {
  *     synchronize without cooperation from processes that are in neither
  *     group. 
  *
+ *
+ * @{
+ *
  */
 
 
@@ -126,15 +129,19 @@ extern const bsc_step_t bsc_flush;
 extern const bsc_step_t bsc_start;
 
 /** A function pointer that points to an implementation of an associative
- * operator. It must perform the reduction on the array \a xs of \a size bytes
- * in total and store the result in \a accum. 
+ * operator \f$\oplus\f$. It must perform the reduction on the array \a xs of
+ * \a size bytes in total and store the result in \a a, either as a single value
+ * or a prefix calculation (scan).  The value pointer to by \a a0 is used as
+ * start value for \a a. The pointers \a a, \a a0, and \a xs may not refer to
+ * overlapping memory blocks.
  *
- * \param accum Pointer to memory where to store the result
+ * \param a     Pointer to memory where to store the result
+ * \param a0    Start value for \a a
  * \param xs    Pointer to the start of the array
  * \param size  Number of bytes that the array holds
  */
-typedef void (*bsc_reduce_t)(void * accum, const void * xs, 
-       bsc_size_t size );
+typedef void (*bsc_reduce_t)(void * a, const void * a0,
+        const void * xs, bsc_size_t size );
 
 /** Requests a bsp_put() to be executed in \a depends supersteps from now.
  *
@@ -171,16 +178,17 @@ bsc_step_t bsc_get( bsc_step_t depends, bsc_pid_t src_pid,
  * of the superstep of \a depends steps from now has been completed.
  *
  * \param depends The superstep number just before the step that executes this
- * \param reducer The reduction function to execute on the local array.
- * \param accum   Pointer to local memory where the result must be stored.
+ * \param reducer The reduction function to execute on the local array
+ * \param a       Pointer to local memory where the result must be stored
+ * \param a0      Pointer to local memory where start value for \a a is stored
  * \param xs      Pointer to local memory where the array is stored
  * \param size    Size in bytes of the local array.
  *
  * \returns  The superstep number when this reduction has completed
  */
 bsc_step_t bsc_exec_reduce( bsc_step_t depends, 
-        bsc_reduce_t reducer, void * accum, const void * xs, 
-        bsc_size_t size );
+        bsc_reduce_t reducer, void * a, const void * a0,
+        const void * xs, bsc_size_t size );
 
 /** The current superstep number. This is equal to zero before any 
  * call to bsc_sync() and after a call to bsc_sync() with #bsc_flush.
@@ -285,7 +293,7 @@ void bsc_group_destroy( bsc_group_t group );
  * \f[
  * \forall_{i \in \texttt{group}} \quad
  * \texttt{dst}_i[ 0 \ldots \texttt{size} ] 
- *      \leftarrow texttt{src}_\texttt{root}[ i \texttt{size} \ldots (i+1) \texttt{size} ]
+ *      \leftarrow \texttt{src}_\texttt{root}[ i \texttt{size} \ldots (i+1) \texttt{size} ]
  * \f]
  *
  * \param       depends <i>collective</i> The superstep number to schedule the
@@ -373,14 +381,14 @@ bsc_step_t bsc_bcast( bsc_step_t depends,
                       const void * src, void * dst, bsc_size_t size );
 
 
-/** Schedules a collective reduction operation and store the result on the 
+/** Schedules a collective reduction operation and stores the result on the 
  * \a root process. This is a collective call on each process in the given \a
  * group.
  *
  * \f[
  * \texttt{dst}_\texttt{root}
- *      \leftarrow \bigotimes_{s \in \texttt{group}} 
- *      \bigotimes_{k=1}^{\texttt{nmemb}_s}
+ *      \leftarrow \bigoplus_{s \in \texttt{group}} 
+ *      \bigoplus_{k=1}^{\texttt{nmemb}_s}
  *      \texttt{src}_{s,k-1} 
  * \f]
  *
@@ -390,12 +398,14 @@ bsc_step_t bsc_bcast( bsc_step_t depends,
  * \param group   <i>collective</i> The group to perform this collective
  * \param src     Pointer to locally stored array with \a nmemb objects 
  *                      of  \a size bytes size.
- * \param dst     Pointer to memory, local to the \a root process, where
- *                      the result should be stored.
+ * \param dst     Pointer to memory of \a size bytes, local to the \a root
+ *                process, where the result should be stored.
  * \param tmp_space Pointer to scratch space, local to the \a root
  *                      process, of  \f$p \cdot \texttt{size}\f$ bytes size.
  *                      This memory must be <i>registered</i>.
  * \param reducer <i>collective</i> The reduction function.
+ * \param zero    <i>collective</i> The zero for the reduction function.
+ *                It must hold that \f$ \texttt{zero} \oplus x = x, \ \forall x \f$.
  * \param nmemb   The number of elements in the local input array \a src
  *                      on this process
  * \param size    <i>collective</i> The size of each element in bytes.
@@ -405,16 +415,17 @@ bsc_step_t bsc_bcast( bsc_step_t depends,
 bsc_step_t bsc_reduce( bsc_step_t depends, 
         bsc_pid_t root, bsc_group_t group,
         const void * src, void * dst, void * tmp_space,
-        bsc_reduce_t reducer, bsc_size_t nmemb, bsc_size_t size );
+        bsc_reduce_t reducer, const void * zero, 
+        bsc_size_t nmemb, bsc_size_t size );
 
-/** Schedules a collective reduction operation and store the result on each
+/** Schedules a collective reduction operation and stores the result on each
  * process. This is a collective call on each process in the given \a group.
  *
  * \f[
  * \forall_{j \in \texttt{group}} \quad
  * \texttt{dst}_j
- *      \leftarrow \bigotimes_{s \in \texttt{group}} 
- *      \bigotimes_{k=1}^{\texttt{nmemb}_s}
+ *      \leftarrow \bigoplus_{s \in \texttt{group}} 
+ *      \bigoplus_{k=1}^{\texttt{nmemb}_s}
  *      \texttt{src}_{s,k-1} 
  * \f]
  *
@@ -423,11 +434,13 @@ bsc_step_t bsc_reduce( bsc_step_t depends,
  * \param group   <i>collective</i> The group to perform this collective
  * \param src     Pointer to locally stored array with \a nmemb objects 
  *                      of  \a size bytes size.
- * \param dst     Pointer to memory, local to the each process, where
- *                      the result should be stored.
+ * \param dst     Pointer to memory of \a size bytes, local to the each
+ *                process, where the result should be stored.
  * \param tmp_space Pointer to <i>registered</i> scratch space of
  *                      \f$p \cdot \texttt{size}\f$ bytes size.  
  * \param reducer <i>collective</i> The reduction function.
+ * \param zero    <i>collective</i> The zero for the reduction function.
+ *                It must hold that \f$ \texttt{zero} \oplus x = x, \ \forall x \f$.
  * \param nmemb   The number of elements in the local input array \a src
  *                      on this process
  * \param size    <i>collective</i> The size of each element in bytes.
@@ -436,11 +449,62 @@ bsc_step_t bsc_reduce( bsc_step_t depends,
  */
 bsc_step_t bsc_allreduce( bsc_step_t depends, bsc_group_t group,
         const void * src, void * dst, void * tmp_space,
-        bsc_reduce_t reducer, bsc_size_t nmemb, bsc_size_t size );
+        bsc_reduce_t reducer, const void * zero,
+        bsc_size_t nmemb, bsc_size_t size );
+
+/** Schedules a collective scan operation. This is a collective call on each
+ * process in the given \a group.
+ *
+ * \f[
+ * \forall_{j \in \texttt{group}} \quad \forall_i: 0 \leq i < \texttt{nmemb}_j \quad
+ * \texttt{dst}_{j, i}
+ *      \leftarrow \left[ \bigoplus_{s=0}^{j-1} 
+ *      \bigoplus_{k=1}^{\texttt{nmemb}_s} 
+ *      \texttt{src}_{s,k-1}  \right]
+ *      \
+ *      \oplus
+ *      \
+ *      \left[
+ *      \bigoplus_{k=0}^{i} 
+ *      \texttt{src}_{j,k} 
+ *      \right]
+ * \f]
+ *
+ * \param depends <i>collective</i>The superstep number to schedule the first
+ *                      communications
+ * \param group   <i>collective</i> The group to perform this collective
+ * \param src     Pointer to locally stored array with \a nmemb objects 
+ *                      of  \a size bytes size.
+ * \param dst     Pointer to memory of \a size bytes, local to the each
+ *                process, where the result should be stored.
+ * \param tmp_space1 Pointer to <i>registered</i> scratch space of
+ *                      \f$p \cdot \texttt{size}\f$ bytes size.  
+ * \param tmp_space2 Pointer to local scratch space of
+ *                      \f$p \cdot \texttt{size}\f$ bytes size.  
+ * \param reducer <i>collective</i> The reduction function that computes a scan.
+ * \param zero    <i>collective</i> The zero for the reduction function.
+ *                It must hold that \f$ \texttt{zero} \oplus x = x, \ \forall x \f$.
+ * \param nmemb   The number of elements in the local input array \a src
+ *                      on this process
+ * \param size    <i>collective</i> The size of each element in bytes.
+ *
+ * \returns The superstep number that this collective will have been completed.
+ */
+bsc_step_t bsc_scan( bsc_step_t depends, bsc_group_t group,
+        const void * src, void * dst, 
+        void * tmp_space1, void * tmp_space2,
+        bsc_reduce_t reducer, const void * zero,
+        bsc_size_t nmemb, bsc_size_t size );
+
 
 /**
  * @}
  */
+
+/**
+ * @}
+ */
+
 
 #ifdef __cplusplus
 }

@@ -154,7 +154,6 @@ set(BSPONMPI_SOURCES
         src/bsmp.cc src/tictoc.cc
    )
 
-# library using message passing
 function ( make_bsponmpi name )
     add_library( ${name} ${BSPONMPI_SOURCES})
     target_link_libraries( ${name} ${MPI_C_LIBRARIES})
@@ -174,6 +173,17 @@ make_bsponmpi( bsponmpi_rma_prof USE_ONESIDED PROFILE )
 # Installation
 install(FILES include/bsp.h 
          DESTINATION include )
+
+
+# Other libraries
+add_library( bsc src/bsc.c )
+install(TARGETS bsc
+            RUNTIME DESTINATION bin
+            LIBRARY DESTINATION lib
+            ARCHIVE DESTINATION lib
+       )
+install(FILES include/bsc.h 
+        DESTINATION include )
 
 # Compiler and bsprun frontends
 set(BSPONMPI_LIB_DIR "${CMAKE_INSTALL_PREFIX}/lib")
