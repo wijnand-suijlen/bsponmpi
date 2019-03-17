@@ -1,6 +1,6 @@
 .TH BSPCC 1 
 .SH NAME
-bspcc \- The BSPonMPI C compiler frontend
+bspcc \- The BSPonMPI C compiler front end
 .
 .SH SYNOPSIS
 .nf
@@ -12,10 +12,10 @@ bspcc \- The BSPonMPI C compiler frontend
 .
 .SH DESCRIPTION
 Compiles a C program that uses BSPlib program and links it with BSPonMPI.
-It is essentally a wrapper around the
+It is essentially a wrapper around the
 .I mpicc
 from the MPI implementation that was used to build BSPonMPI.
-All options that are not recognized by 
+All options that are not recognised by 
 .B bspcc
 are passed on verbatim to 
 .I mpicc\fR.
@@ -24,7 +24,7 @@ are passed on verbatim to
 Only 
 .B bspcc
 specific options are listed here. 
-All unrecognized options are passed on to the
+All unrecognised options are passed on to the
 .I mpicc
 command.
 .TP
@@ -62,12 +62,12 @@ option ).
 .TP
 .BR \-\-rma
 Link with the runtime based on MPI remote memory access (RDMA), which uses
-a protoccol based on
+a protocol based on
 .I MPI_Put
 (3) and
 .I
 MPI_Fence
-(3). Note that some MPI implemenations have poor RDMA performance, even
+(3). Note that some MPI implementations have poor RDMA performance, even
 when the fabric supports it.
 Also, RDMA might be buggy in some implementations. 
 However, when MPI knows how to handle RDMA correctly, its performance
