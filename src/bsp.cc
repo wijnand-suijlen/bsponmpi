@@ -329,7 +329,7 @@ static bsplib::Rdma::Memslot lookup_usable_reg( const void * addr, const char * 
                  " with a bsp_push_reg(%p), but it hasn't become effective yet, "
                 " because bsp_sync() hasn't been performed yet\n", func, addr);
         else
-          bsp_abort("%s: Remote address was not registered\n", func );
+          bsp_abort("%s: Remote address %p was not registered\n", func, addr );
     }
 
     assert( id != s_rdma->null_slot() );

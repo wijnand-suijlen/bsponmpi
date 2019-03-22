@@ -69,8 +69,8 @@ extern "C" {
  * alignment. The following example comes from BSPedupack's bsplu. 
  *
  * \code
-    bsc_group_t col_procs = bsc_group_create( t );
-    bsc_group_t row_procs = bsc_group_create( s );
+    bsc_group_t col_procs = bsc_group_create_partition( t );
+    bsc_group_t row_procs = bsc_group_create_partition( s );
     if (k%N==t){  
         ...
         bsc_step_t pivot_known = bsc_allreduce( bsc_start, col_procs, ...  );
@@ -258,16 +258,34 @@ extern const bsc_group_t bsc_all;
 
 /** A collective function that partitions all processes in disjoint groups.
  * All processes must collectively engage in the call to this function, while
- * chosing a \a color of their liking. Processes that chose the same color
+ * chosing a \a symbol of their liking. Processes that chose the same symbol
  * are put together in the same group. 
  *
  * \note This function synchronizes
  *
- * \param color The color identifying the subgroup to be partitioned in
+ * \param symbol The symbol identifying the subgroup to be partitioned in
  * 
  * \returns An object representing the group
  */
-bsc_group_t bsc_group_create( unsigned color );
+bsc_group_t bsc_group_create_partition( unsigned symbol );
+
+/** A collective function that groups all processes in neighbourhoods. 
+ * All processes must collectively engage in the call to this function, while
+ * chosing their neighbours. Only neighbours that acknowledge each other
+ * are put in the same group. The order in which the neighbours appear is significant,
+ * as it will be the same order used for bsc_scatter(), bsc_gather(), bsc_allgather(),
+ * an bsc_scan(). The neighbour list must include the calling process too.
+ * 
+ * \note This function synchronizes
+ *
+ * \param neighbours An array with the process IDs of the neighbours of this process
+ *                   and itself.
+ * \param size The number of neighbours.
+ * 
+ * \returns An object representing the group
+ */
+bsc_group_t bsc_group_create_neighbourhood( bsc_pid_t * neighbours, 
+        bsc_size_t size );
 
 /** Frees resources held to maintain bookkeeping for this group. 
  *
@@ -326,8 +344,8 @@ bsc_step_t bsc_scatter( bsc_step_t depends,
  * \param group   <i>collective</i> The group to perform this collective
  * \param root    <i>collective</i> The ID of the process on which all data is
  *                gathered.
- * \param src     Pointer to source memory, local to each process
- * \param dst     Pointer to the <i>registered</i> destination memory.
+ * \param src     Pointer to <i>registered</i> source memory.
+ * \param dst     Pointer to destinatinon memory, local to the \a root.
  * \param size    <i>collective</i> Size of each chunk to be gathered. 
  *
  * \returns The superstep number that this collective will have been completed.
@@ -355,6 +373,27 @@ bsc_step_t bsc_gather( bsc_step_t depends,
  * \returns The superstep number that this collective will have been completed.
  */
 bsc_step_t bsc_allgather( bsc_step_t depends, bsc_group_t group,
+                        const void * src, void * dst, bsc_size_t size );
+
+/** Schedules a collective total-exchange operation. This is a collective call
+ * on each process in the given \a group.
+ *
+ * \f[
+ * \forall_{i,j \in \texttt{group}} \quad
+ * \texttt{dst}_j[ i \texttt{size} \ldots (i+1) \texttt{size} ]
+ *      \leftarrow \texttt{src}_i[ j \texttt{size} \ldots (j+1) \texttt{size}] 
+ * \f]
+ *
+ * \param depends <i>collective</i> The superstep number to schedule the first
+ *                communications
+ * \param group   <i>collective</i> The group to perform this collective
+ * \param src     Pointer to source memory, local to each process.
+ * \param dst     Pointer to the <i>registered</i> destination memory.
+ * \param size    <i>collective</i> Size of each chunk to be gathered. 
+ *
+ * \returns The superstep number that this collective will have been completed.
+ */
+bsc_step_t bsc_alltoall( bsc_step_t depends, bsc_group_t group,
                         const void * src, void * dst, bsc_size_t size );
 
 /** Schedules a collective broadcast operation. This is a collective call
