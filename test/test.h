@@ -8,28 +8,28 @@
 
 #define EXPECT_EQ( format, actual, expected ) \
     do { if ( (actual) != (expected) ) { \
-        printf("TEST FAILED: Expected " #actual " to be equal to " #expected " = " \
+        printf("TEST FAILED: Expected %s to be equal to %s = " \
                 format " but got " format "\n"\
                 "   " __FILE__ ":%d\n", \
-               (expected), (actual), __LINE__ );  \
+               #actual, #expected, (expected), (actual), __LINE__ );  \
         abort(); } \
     } while(0)
 
 #define EXPECT_OP( format, a, op, b) \
     do { if ( !((a) op (b)) ) { \
-        printf("TEST FAILED: Expected " #a" " #op " "  #b" but " \
+        printf("TEST FAILED: Expected %s %s %s but " \
                 format " " #op " " format "\n"\
                 "   " __FILE__ ":%d\n", \
-               (a), (b),  __LINE__ );  \
+                #a, #op, #b, (a), (b),  __LINE__ );  \
         abort(); } \
     } while(0)
 
 #define EXPECT_IMPLIES( a, b) \
     do { if ( !(!(a) || (b)) ) { \
-        printf("TEST FAILED: Expected " #a" implies "  #b" but " \
-                 #a " = %d and " #b " = %d\n"\
+        printf("TEST FAILED: Expected %s implies %s but " \
+                 "%s = %d and %s = %d\n"\
                 "   " __FILE__ ":%d\n", \
-               (int) (a), (int) (b),  __LINE__ );  \
+                #a, #b, #a, (int) (a), #b, (int) (b),  __LINE__ );  \
         abort(); } \
     } while(0)
 

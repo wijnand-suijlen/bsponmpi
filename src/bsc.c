@@ -1,4 +1,5 @@
 #include "bsc.h"
+#include "util.h"
 #include <limits.h>
 #include <stdlib.h>
 #include <stdio.h>
@@ -7,18 +8,6 @@
 #include <math.h>
 #include <assert.h>
 
-#define MAX( a, b ) ( (a) < (b) ? (b) : (a) )
-#define MIN( a, b ) ( (a) > (b) ? (b) : (a) )
-
-static uint32_t log_2( uint32_t x )
-{
-   uint32_t a = (x & 0xffff0000)?16:0;
-   uint32_t b = (x & 0xff00ff00)?8:0;
-   uint32_t c = (x & 0xf0f0f0f0)?4:0;
-   uint32_t d = (x & 0xCCCCCCCC)?2:0;
-   uint32_t e = (x & 0xAAAAAAAA)?1:0;
-   return a + b + c + d + e;
-}
 
 const bsc_step_t bsc_flush = UINT_MAX;
 const bsc_step_t bsc_start = 0;
@@ -381,13 +370,13 @@ bsc_group_t bsc_group_create_neighbourhood( bsc_pid_t * neighbours,
     group_t * g = calloc( 1, sizeof(*g) );
     if (!incoming || !outgoing || !g)
         bsp_abort("bsc_group_create_neighbourhood: Insufficient memory");
-    bsp_push_reg( incoming, P );
+    bsp_push_reg( incoming, P*sizeof(incoming[0]) );
     bsp_sync();
 
     /* fill the communication matrix with a 1 for each connection */
     for ( i = 0 ; i < size ; ++i ) {
         bsc_size_t offset = i+1;
-        bsp_put( neighbours[i], &offset, incoming, s, sizeof(offset) );
+        bsp_put( neighbours[i], &offset, incoming, s*sizeof(offset), sizeof(offset) );
         outgoing[ neighbours[i] ] = i+1 ;
     }
     bsp_sync();
@@ -441,9 +430,9 @@ bsc_step_t bsc_scatter( bsc_step_t depends,
                        const void * src, void *dst, bsc_size_t size )
 {
     const group_t * g = group;
-    bsc_pid_t i, n = g?g->size:bsp_nprocs() ;
+    bsc_pid_t i, P = g?g->size:bsp_nprocs() ;
     if ( bsp_pid() == root ) {
-        for ( i = 0; i < n; ++i ) {
+        for ( i = 0; i < P; ++i ) {
             bsc_pid_t m = g?g->gid[i]:i;
             const char * src_bytes = src;
             bsc_put( depends, m, src_bytes + i * size, dst, 0, size );
@@ -457,9 +446,9 @@ bsc_step_t bsc_gather( bsc_step_t depends,
                        const void * src, void *dst, bsc_size_t size )
 {
     const group_t * g = group;
-    bsc_pid_t i, n = g?g->size:bsp_nprocs() ;
+    bsc_pid_t i, P = g?g->size:bsp_nprocs() ;
     if ( bsp_pid() == root ) {
-        for ( i = 0; i < n; ++i ) {
+        for ( i = 0; i < P; ++i ) {
             bsc_pid_t m = g?g->gid[i]:i;
             char * dst_bytes = dst;
             bsc_get( depends, m, src, 0, dst_bytes + i * size, size );
@@ -473,8 +462,8 @@ bsc_step_t bsc_allgather( bsc_step_t depends, bsc_group_t group,
                         const void * src, void * dst, bsc_size_t size )
 {
     const group_t * g = group;
-    bsc_pid_t i, n = g?g->size:bsp_nprocs() ;
-    for ( i = 0; i < n; ++i ) {
+    bsc_pid_t i, P = g?g->size:bsp_nprocs() ;
+    for ( i = 0; i < P; ++i ) {
         char * dst_bytes = dst;
         bsc_get( depends, g?g->gid[i]:i, src, 0, dst_bytes + i * size, size );
     }
@@ -485,9 +474,9 @@ bsc_step_t bsc_alltoall( bsc_step_t depends, bsc_group_t group,
                       const void * src, void * dst, bsc_size_t size )
 {
     const group_t * g = group;
-    bsp_pid_t i, n = g?g->size:bsp_nprocs() ;
+    bsp_pid_t i, P = g?g->size:bsp_nprocs() ;
     const char * src_bytes = (const char *) src;
-    for ( i = 0; i < n; ++i ) {
+    for ( i = 0; i < P; ++i ) {
         bsc_pid_t m = g?g->gid[i]:i;
         bsc_size_t doff = g?g->rof[i]:bsp_pid();
         bsc_put( depends, m, src_bytes + i * size, dst, doff * size, size );
@@ -495,14 +484,14 @@ bsc_step_t bsc_alltoall( bsc_step_t depends, bsc_group_t group,
     return depends + 1;
 }
 
-static bsc_step_t bcast_1phase( bsc_step_t depends,
+bsc_step_t bsc_bcast_1phase( bsc_step_t depends,
                       bsp_pid_t root, bsc_group_t group, 
                       const void * src, void * dst, bsc_size_t size )
 {
     const group_t * g = group;
-    bsc_pid_t i, n = g?g->size:bsp_nprocs() ;
+    bsc_pid_t i, P = g?g->size:bsp_nprocs() ;
     if ( bsp_pid() == root ) {
-        for ( i = 0 ; i < n; ++i) {
+        for ( i = 0 ; i < P; ++i) {
             bsc_put( depends, g?g->gid[i]:i, src, dst, 0, size );
         }
     }
@@ -510,25 +499,25 @@ static bsc_step_t bcast_1phase( bsc_step_t depends,
 }
 
 
-static bsc_step_t bcast_qtree( bsc_step_t depends,
+bsc_step_t bsc_bcast_qtree( bsc_step_t depends,
                       bsp_pid_t root, bsc_group_t group, 
                       const void * src, void * dst, bsc_size_t size,
                       bsc_pid_t q )
 {
     const group_t * g = group;
-    bsc_pid_t i, j, n = g?g->size:bsp_nprocs() ;
+    bsc_pid_t i, j, P = g?g->size:bsp_nprocs() ;
     bsc_pid_t range, r = g?g->lid[root]:root;
-    bsc_pid_t me = ((g?g->lid[ bsp_pid() ] : bsp_pid()) + n - r) %n;
+    bsc_pid_t me = ((g?g->lid[ bsp_pid() ] : bsp_pid()) + P - r) %P;
 
     if ( me == 0 ) 
         memcpy( dst, src, size ); 
 
-    for (range = 1; range < n; range *= q ) {
+    for (range = 1; range < P; range *= q ) {
         if ( me < range ) {
             for ( i = 1 ; i < q; ++i) {
                 j = i * range + me; 
-                if (j < n) {
-                    j = ( j + r ) % n;
+                if (j < P) {
+                    j = ( j + r ) % P;
                     bsc_put( depends, g?g->gid[j]:j, dst, dst, 0, size );
                 }
             }
@@ -538,15 +527,33 @@ static bsc_step_t bcast_qtree( bsc_step_t depends,
     return depends;
 }
 
-static bsc_step_t bcast_2phase( bsc_step_t depends,
+bsc_step_t bsc_bcast_2phase( bsc_step_t depends,
                       bsp_pid_t root, bsc_group_t group, 
                       const void * src, void * dst, bsc_size_t size )
 {
     const group_t * g = group;
-    bsc_pid_t n = g?g->size:bsp_nprocs() ;
-    depends = bsc_scatter( depends, root, group, src, dst, size / n );
-    depends = bsc_allgather( depends, group, dst, dst, size / n );
-    return depends;
+    bsc_pid_t i, P = g?g->size:bsp_nprocs() ;
+    bsc_pid_t s = g?g->lid[bsp_pid()]:bsp_pid();
+    bsc_size_t block = (size + P - 1)/P;
+    const char * src_bytes = src;
+    const char * dst_bytes = dst;
+    
+    if ( bsp_pid() == root ) {
+        for ( i = 0 ; i < P; ++i) {
+            bsc_size_t b = MIN( i*block, size);
+            bsc_size_t e = MIN( (i+1)*block, size);
+            bsc_put( depends, g?g->gid[i]:i, 
+                    src_bytes + b, dst, b, e - b);
+        }
+    }
+    depends += 1;
+    for ( i = 0; i < P; ++i ) {
+        bsc_size_t b = MIN( s*block, size);
+        bsc_size_t e = MIN( (s+1)*block, size);
+        bsc_put( depends, g?g->gid[i]:i, 
+                dst_bytes + b, dst, b, e - b);
+    }
+    return depends+1;
 }
 
 
@@ -556,17 +563,16 @@ bsc_step_t bsc_bcast( bsc_step_t depends,
 {
     const group_t * g = group;
     int i;
-    bsc_pid_t n = g?g->size:bsp_nprocs() ;
-    bsc_size_t rest = size % n;
-    bsc_pid_t root_n = ceil( sqrt( (double) n ) );
+    bsc_pid_t P = g?g->size:bsp_nprocs() ;
+    bsc_pid_t root_P = ceil( sqrt( (double) P ) );
     enum ALG { ONE_PHASE, TWO_PHASE, TWO_TREE, ROOT_TREE, N_ALGS } ;
     double costs[N_ALGS];
     enum ALG min_alg = ONE_PHASE ;
     double min_cost = HUGE_VAL;
-    costs[ ONE_PHASE] = n * size * bsc_g() + bsc_L();
-    costs[ TWO_PHASE] = (2*size + n * rest ) * bsc_g() + 2 * bsc_L();
-    costs[ TWO_TREE]  = ((log_2(n-1)+1) * ( size * bsc_g() +  bsc_L() ) );
-    costs[ ROOT_TREE] = 2*(root_n - 1) * size * bsc_g() + 2 * bsc_L();
+    costs[ ONE_PHASE] = P * size * bsc_g() + bsc_L();
+    costs[ TWO_PHASE] = (size + ((size+P-1)/P)*(P-2)) * bsc_g() + 2 * bsc_L();
+    costs[ TWO_TREE]  = ((int_log2(P-1)+1) * ( size * bsc_g() +  bsc_L() ) );
+    costs[ ROOT_TREE] = 2*(root_P - 1) * size * bsc_g() + 2 * bsc_L();
 
     for ( i = 0; i < N_ALGS; ++i )
         if ( costs[i] < min_cost ) { 
@@ -576,23 +582,16 @@ bsc_step_t bsc_bcast( bsc_step_t depends,
 
     switch (min_alg) {
         case ONE_PHASE:
-            return bcast_1phase( depends, root, group, src, dst, size );
+            return bsc_bcast_1phase( depends, root, group, src, dst, size );
 
-        case TWO_PHASE: {
-            const char * src_bytes = src;
-            char * dst_bytes = dst;
-            bsc_size_t rest_offset = size - rest;
-            bcast_1phase( depends, root, group, 
-                    src_bytes + rest_offset, dst_bytes + rest_offset, rest );
-            bcast_2phase( depends, root, group, src, dst, rest_offset );
-            return depends;
-        }
+        case TWO_PHASE:
+            return bsc_bcast_2phase( depends, root, group, src, dst, size);
 
         case TWO_TREE: 
-            return bcast_qtree( depends, root, group, src, dst, size, 2 );
+            return bsc_bcast_qtree( depends, root, group, src, dst, size, 2 );
 
         case ROOT_TREE:
-            return bcast_qtree( depends, root, group, src, dst, size, root_n);
+            return bsc_bcast_qtree( depends, root, group, src, dst, size, root_P);
 
         case N_ALGS:
             bsp_abort("bsc_bcast: missing algorithm\n");
@@ -601,7 +600,7 @@ bsc_step_t bsc_bcast( bsc_step_t depends,
     return depends;
 }
 
-static bsc_step_t reduce_1phase( bsc_step_t depends, 
+bsc_step_t bsc_reduce_1phase( bsc_step_t depends, 
         bsc_pid_t root, bsc_group_t group,
         const void * src, void * dst, void * tmp_space,
         bsc_reduce_t reducer, const void * zero,
@@ -617,35 +616,38 @@ static bsc_step_t reduce_1phase( bsc_step_t depends,
     return depends;
 }
 
-static bsc_step_t reduce_qtree( bsc_step_t depends, 
+bsc_step_t bsc_reduce_qtree( bsc_step_t depends, 
         bsc_pid_t root, bsc_group_t group,
         const void * src, void * dst, void * tmp_space,
         bsc_reduce_t reducer, const void * zero,
         bsc_size_t nmemb, bsc_size_t size, bsc_pid_t q )
 {
     const group_t * g = group;
-    bsc_pid_t i, j, n = g?g->size:bsp_nprocs() ;
+    bsc_pid_t i, j, k, P = g?g->size:bsp_nprocs() ;
     bsc_pid_t range, r = g?g->lid[root]:root;
-    bsc_pid_t me = ((g?g->lid[ bsp_pid() ] : bsp_pid()) + n - r) %n;
+    bsc_pid_t me = ((g?g->lid[ bsp_pid() ] : bsp_pid()) + P - r) %P;
     char * tmp_bytes = tmp_space;
 
     (*reducer)( dst, zero, src, size * nmemb );
-    for (range = 1; range < n; range *= q) {
-        /* search smallest power of q >= n */
-    }
-
-    for (range = range/q; range >= 1; range /= q ) {
+    if (P < 2)
+        return depends;
+    
+    for (range = int_pow( q, int_log( q, P-1));
+            range >= 1; range /= q ) {
         if ( me < range ) {
+            k = 1;
             for ( i = 1 ; i < q; ++i) {
                 j = i * range + me; 
-                if (j < n) {
-                    j = (j + r )% n;
-                    bsc_get( depends, g?g->gid[j]:j, dst, 0, tmp_bytes + i*size, size );
+                if (j < P) {
+                    j = (j + r )% P;
+                    bsc_get( depends, g?g->gid[j]:j, dst, 0, 
+                            tmp_bytes + k*size, size );
+                    k += 1;
                 }
             }
-            j = (me + r)%n;
-            bsc_get( depends, g?g->gid[j]:j, dst, 0, tmp_space, size );
-            bsc_exec_reduce( depends, reducer, dst, zero, tmp_space, size * q );
+            bsc_get( depends, bsp_pid(), dst, 0, tmp_space, size );
+            bsc_exec_reduce( depends, reducer, dst, zero, 
+                    tmp_space, size * k );
         }
         depends += 1;
     }
@@ -663,14 +665,14 @@ bsc_step_t bsc_reduce( bsc_step_t depends,
 {
     const group_t * g = group;
     int i;
-    bsc_pid_t n = g?g->size:bsp_nprocs() ;
-    bsc_pid_t root_n = ceil( sqrt( (double) n ) );
+    bsc_pid_t P = g?g->size:bsp_nprocs() ;
+    bsc_pid_t root_n = ceil( sqrt( (double) P ) );
     enum ALG { ONE_PHASE, TWO_TREE, ROOT_TREE, N_ALGS } ;
     double costs[N_ALGS];
     enum ALG min_alg = ONE_PHASE ;
     double min_cost = HUGE_VAL;
-    costs[ ONE_PHASE] = n * size * bsc_g() + bsc_L();
-    costs[ TWO_TREE]  = ((log_2(n-1)+1) * ( size * bsc_g() +  bsc_L() ) );
+    costs[ ONE_PHASE] = P * size * bsc_g() + bsc_L();
+    costs[ TWO_TREE]  = ((int_log2(P-1)+1) * ( size * bsc_g() +  bsc_L() ) );
     costs[ ROOT_TREE] = 2*(root_n - 1) * size * bsc_g() + 2 * bsc_L();
 
     for ( i = 0; i < N_ALGS; ++i )
@@ -681,15 +683,15 @@ bsc_step_t bsc_reduce( bsc_step_t depends,
 
     switch (min_alg) {
         case ONE_PHASE:
-            return reduce_1phase( depends, root, group, src, dst, tmp_space,
+            return bsc_reduce_1phase( depends, root, group, src, dst, tmp_space,
                       reducer, zero, nmemb, size );
 
         case TWO_TREE: 
-            return reduce_qtree( depends, root, group, src, dst, tmp_space,
+            return bsc_reduce_qtree( depends, root, group, src, dst, tmp_space,
                       reducer, zero, nmemb, size, 2 );
 
         case ROOT_TREE: 
-            return reduce_qtree( depends, root, group, src, dst, tmp_space,
+            return bsc_reduce_qtree( depends, root, group, src, dst, tmp_space,
                       reducer, zero, nmemb, size, root_n );
         case N_ALGS:
             bsp_abort("bsc_reduce: missing algorithm\n");
@@ -698,7 +700,7 @@ bsc_step_t bsc_reduce( bsc_step_t depends,
     return depends;
 }
 
-static bsc_step_t allreduce_1phase( bsc_step_t depends, bsc_group_t group,
+bsc_step_t bsc_allreduce_1phase( bsc_step_t depends, bsc_group_t group,
         const void * src, void * dst, void * tmp_space,
         bsc_reduce_t reducer, const void * zero,
         bsc_size_t nmemb, bsc_size_t size )
@@ -710,6 +712,37 @@ static bsc_step_t allreduce_1phase( bsc_step_t depends, bsc_group_t group,
                 size * (g?g->size:bsp_nprocs())  );
 }
 
+bsc_step_t bsc_allreduce_qtree( bsc_step_t depends, bsc_group_t group,
+        const void * src, void * dst, void * tmp_space,
+        bsc_reduce_t reducer, const void * zero,
+        bsc_size_t nmemb, bsc_size_t size, 
+        bsc_pid_t q )
+{
+    const group_t * g = group;
+    bsc_pid_t i, j, k, P = g?g->size:bsp_nprocs() ;
+    bsc_pid_t range, s = g?g->lid[bsp_pid()]:bsp_pid();
+    char * tmp_bytes = tmp_space;
+
+    (*reducer)( dst, zero, src, size * nmemb );
+
+    for (range = 1; range < P; range *= q ) {
+        k = 1;
+        for ( i = 1 ; i < q; ++i) {
+            if (i * range < P) {
+                j = i * range + s; 
+                bsc_get( depends, g?g->gid[j]:j, dst, 0,
+                        tmp_bytes + k * size, size);
+                k+=1;
+            }
+        }
+        bsc_get( depends, bsp_pid(), dst, 0, tmp_bytes, size );
+        bsc_exec_reduce( depends, reducer, dst, zero, tmp_space, size*k );
+        depends += 1;
+    }
+    return depends;
+}
+
+
 
 bsc_step_t bsc_allreduce( bsc_step_t depends, bsc_group_t group,
         const void * src, void * dst, void * tmp_space,
@@ -718,15 +751,15 @@ bsc_step_t bsc_allreduce( bsc_step_t depends, bsc_group_t group,
 {
     const group_t * g = group;
     int i;
-    bsc_pid_t n = g?g->size:bsp_nprocs(), root=0 ;
-    bsc_pid_t root_n = ceil( sqrt( (double) n ) );
+    bsc_pid_t P = g?g->size:bsp_nprocs();
+    bsc_pid_t root_n = ceil( sqrt( (double) P ) );
     enum ALG { ONE_PHASE, TWO_TREE, ROOT_TREE, N_ALGS } ;
     double costs[N_ALGS];
     enum ALG min_alg = ONE_PHASE ;
     double min_cost = HUGE_VAL;
-    costs[ ONE_PHASE] = n * size * bsc_g() + bsc_L();
-    costs[ TWO_TREE]  = 2*((log_2(n-1)+1) * ( size * bsc_g() +  bsc_L() ) );
-    costs[ ROOT_TREE] = 4*(root_n - 1) * size * bsc_g() + 4 * bsc_L();
+    costs[ ONE_PHASE] = P * size * bsc_g() + bsc_L();
+    costs[ TWO_TREE]  = (int_log2(P-1)+1) * (size * bsc_g() +  bsc_L());
+    costs[ ROOT_TREE] = 2*(root_n - 1) * size * bsc_g() + 2 * bsc_L();
 
     for ( i = 0; i < N_ALGS; ++i )
         if ( costs[i] < min_cost ) { 
@@ -736,19 +769,17 @@ bsc_step_t bsc_allreduce( bsc_step_t depends, bsc_group_t group,
 
     switch (min_alg) {
         case ONE_PHASE:
-            return allreduce_1phase( depends, group, src, dst, tmp_space,
+            return bsc_allreduce_1phase( depends, group, src, dst, tmp_space,
                       reducer, zero, nmemb, size );
 
         case TWO_TREE: 
-            depends = reduce_qtree( depends, root, group, src, dst, tmp_space,
+            return bsc_allreduce_qtree( depends, group, src, dst, tmp_space,
                       reducer, zero, nmemb, size, 2 );
-            return bcast_qtree( depends, root, group, dst, dst, size, 2 );
 
         case ROOT_TREE: 
-            depends = reduce_qtree( depends, root, group, src, dst, tmp_space,
+            return bsc_allreduce_qtree( depends, group, src, dst, tmp_space,
                       reducer, zero, nmemb, size, root_n );
-            return bcast_qtree( depends, root, group, dst, dst, size, root_n );
-        
+ 
         case N_ALGS:
             bsp_abort("bsc_allreduce: missing algorithm\n");
             return depends;
@@ -756,30 +787,93 @@ bsc_step_t bsc_allreduce( bsc_step_t depends, bsc_group_t group,
     return depends;
 }
 
+bsc_step_t bsc_scan_qtree( bsc_step_t depends, bsc_group_t group,
+        const void * src, void * dst, void * tmp_space, 
+        bsc_reduce_t reducer, const void * zero,
+        bsc_size_t nmemb, bsc_size_t size,
+        int q )
+{
+    const group_t * g = group;
+    bsc_pid_t i, j, k, P = g?g->size:bsp_nprocs() ;
+    bsc_pid_t range, s = g?g->lid[bsp_pid()]:bsp_pid();
+    char * tmp_bytes = tmp_space;
+    char * dst_bytes = dst;
+    const void * prefix;
+
+    (*reducer)( dst, zero, src, size * nmemb );
+
+    for (range = 1; range < P; range *= q ) {
+        const bsc_size_t shift = (range==1);
+        const bsc_size_t last = range == 1 ? (nmemb-1)*size : q*size;
+        for ( i = 1; i < q; ++i ) {
+            j = s + range * i + shift;
+            if ( j < P ) {
+                bsc_put( depends, g?g->gid[j]:j, dst_bytes + last,
+                        tmp_bytes , (q-i-1) * size, size);
+            }
+        }
+
+        k = (s >= shift);
+        for ( i = 1; i < q; ++i )
+            k += (s >= range*i + shift);
+
+        if (s < P - shift) {
+            j = g?g->gid[s+shift]:s+shift;
+            bsc_put(depends, j, dst_bytes + last, tmp_bytes, last, size);
+        }
+        bsc_exec_reduce( depends, reducer, dst, zero, tmp_space, size*k );
+        depends += 1;
+    }
+
+    prefix = k > 0 ? tmp_bytes + (k-1)*size : zero ;
+    bsc_exec_reduce( depends, reducer, dst, prefix, src, size*nmemb );
+    return depends;
+}
+
+
+
 bsc_step_t bsc_scan( bsc_step_t depends, bsc_group_t group,
-        const void * src, void * dst, 
-        void * tmp_space1, void * tmp_space2,
+        const void * src, void * dst, void * tmp_space,
         bsc_reduce_t reducer, const void * zero,
         bsc_size_t nmemb, bsc_size_t size )
 {
     const group_t * g = group;
-    bsp_pid_t n = g?g->size:bsp_nprocs() ;
-    bsc_size_t o = g->lid[bsp_pid()];
-    void * local_last = (char *) dst + (nmemb-1) * size;
-    const void * start = o == 0? zero : (const char * ) tmp_space2 + (o-1) * size;
+    int i;
+    bsc_pid_t P = g?g->size:bsp_nprocs();
+    bsc_pid_t root_P = ceil( sqrt( (double) P ) );
+    enum ALG { ONE_PHASE, TWO_TREE, ROOT_TREE, N_ALGS } ;
+    double costs[N_ALGS];
+    enum ALG min_alg = ONE_PHASE ;
+    double min_cost = HUGE_VAL;
 
-    /* compute local prefix sum */
-    (*reducer)( dst, zero, src, size * nmemb );
+    costs[ ONE_PHASE] = (P-1) * size * bsc_g() + bsc_L();
+    costs[ TWO_TREE]  = int_log2(P-1) * (size * bsc_g() +  bsc_L())
+                         + size * bsc_g();
+    costs[ ROOT_TREE] = (2*root_P - 1) * size * bsc_g() + 2 * bsc_L();
 
-    /* get all last elements of on all processes */
-    depends = bsc_allgather( depends, group, local_last, tmp_space1, size );
+    for ( i = 0; i < N_ALGS; ++i )
+        if ( costs[i] < min_cost ) { 
+            min_cost = costs[i];
+            min_alg = (enum ALG) i;
+        }
 
-    /* compute the prefix sum of all sums in tmp_space2 */
-    bsc_exec_reduce( depends-1, reducer, tmp_space2, zero, tmp_space1, size * n );
+    switch (min_alg) {
+        case ONE_PHASE:
+            return bsc_scan_qtree( depends, group, src, dst, tmp_space,
+                      reducer, zero, nmemb, size, P );
 
-    /* Compute the prefix sum of src and use tmp_space2[o-1] as start */
-    bsc_exec_reduce( depends-1, reducer, dst, start, src, size * nmemb );
+        case TWO_TREE: 
+            return bsc_scan_qtree( depends, group, src, dst, tmp_space,
+                      reducer, zero, nmemb, size, 2 );
 
+        case ROOT_TREE: 
+            return bsc_scan_qtree( depends, group, src, dst, tmp_space,
+                      reducer, zero, nmemb, size, root_P );
+
+        case N_ALGS:
+            bsp_abort("bsc_scan: missing algorithm\n");
+            return depends;
+    }
     return depends;
 }
 

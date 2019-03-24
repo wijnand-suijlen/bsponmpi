@@ -366,8 +366,8 @@ bsc_step_t bsc_gather( bsc_step_t depends,
  * \param depends <i>collective</i> The superstep number to schedule the first
  *                communications
  * \param group   <i>collective</i> The group to perform this collective
- * \param src     Pointer to source memory, local to each process.
- * \param dst     Pointer to the <i>registered</i> destination memory.
+ * \param src     Pointer to <i>registered</i> source memory.
+ * \param dst     Pointer to the destination memory.
  * \param size    <i>collective</i> Size of each chunk to be gathered. 
  *
  * \returns The superstep number that this collective will have been completed.
@@ -437,11 +437,9 @@ bsc_step_t bsc_bcast( bsc_step_t depends,
  * \param group   <i>collective</i> The group to perform this collective
  * \param src     Pointer to locally stored array with \a nmemb objects 
  *                      of  \a size bytes size.
- * \param dst     Pointer to memory of \a size bytes, local to the \a root
- *                process, where the result should be stored.
- * \param tmp_space Pointer to scratch space, local to the \a root
- *                      process, of  \f$p \cdot \texttt{size}\f$ bytes size.
- *                      This memory must be <i>registered</i>.
+ * \param dst     Pointer to <i>registered</i> memory of \a size bytes.
+ * \param tmp_space Pointer to <i>registered</i> scratch space 
+ *                of \f$p \cdot \texttt{size}\f$ bytes size.
  * \param reducer <i>collective</i> The reduction function.
  * \param zero    <i>collective</i> The zero for the reduction function.
  *                It must hold that \f$ \texttt{zero} \oplus x = x, \ \forall x \f$.
@@ -473,8 +471,8 @@ bsc_step_t bsc_reduce( bsc_step_t depends,
  * \param group   <i>collective</i> The group to perform this collective
  * \param src     Pointer to locally stored array with \a nmemb objects 
  *                      of  \a size bytes size.
- * \param dst     Pointer to memory of \a size bytes, local to the each
- *                process, where the result should be stored.
+ * \param dst     Pointer to <i>registered</i> memory of \a size bytes
+ *                where the result should be stored.
  * \param tmp_space Pointer to <i>registered</i> scratch space of
  *                      \f$p \cdot \texttt{size}\f$ bytes size.  
  * \param reducer <i>collective</i> The reduction function.
@@ -514,24 +512,21 @@ bsc_step_t bsc_allreduce( bsc_step_t depends, bsc_group_t group,
  * \param group   <i>collective</i> The group to perform this collective
  * \param src     Pointer to locally stored array with \a nmemb objects 
  *                      of  \a size bytes size.
- * \param dst     Pointer to memory of \a size bytes, local to the each
- *                process, where the result should be stored.
- * \param tmp_space1 Pointer to <i>registered</i> scratch space of
- *                      \f$p \cdot \texttt{size}\f$ bytes size.  
- * \param tmp_space2 Pointer to local scratch space of
+ * \param dst     Pointer to <i>registered</i> memory of array \a nmemb elements 
+ *                of \a size bytes, where the result should be stored.
+ * \param tmp_space Pointer to <i>registered</i> scratch space of
  *                      \f$p \cdot \texttt{size}\f$ bytes size.  
  * \param reducer <i>collective</i> The reduction function that computes a scan.
  * \param zero    <i>collective</i> The zero for the reduction function.
  *                It must hold that \f$ \texttt{zero} \oplus x = x, \ \forall x \f$.
- * \param nmemb   The number of elements in the local input array \a src
- *                      on this process
+ * \param nmemb   The number of elements in the input array \a src and output
+ *                array \a dst  on this process
  * \param size    <i>collective</i> The size of each element in bytes.
  *
  * \returns The superstep number that this collective will have been completed.
  */
 bsc_step_t bsc_scan( bsc_step_t depends, bsc_group_t group,
-        const void * src, void * dst, 
-        void * tmp_space1, void * tmp_space2,
+        const void * src, void * dst, void * tmp_space, 
         bsc_reduce_t reducer, const void * zero,
         bsc_size_t nmemb, bsc_size_t size );
 
