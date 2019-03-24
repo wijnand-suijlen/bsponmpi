@@ -125,6 +125,13 @@ function( add_unit_test NAME  )
     add_test( NAME "${testname}" COMMAND ${exe} )
 endfunction()
 
+function( add_unit_ctest NAME  )
+    set( exe "unit_test_${NAME}")
+    add_executable( ${exe} src/${NAME}.t.c ${ARGN} )
+    set( testname "unit_test_${NAME}" )
+    add_test( NAME "${testname}" COMMAND ${exe} )
+endfunction()
+
 function( add_mpi_unit_test NAME P )
     set( exe "unit_test_${NAME}")
     add_executable( ${exe} src/${NAME}.t.cc ${ARGN} )
@@ -145,6 +152,18 @@ function( add_mpi_test NAME P )
         add_test( NAME "${testname}" COMMAND ${MPIRUN_EXECUTABLE} ${MPIRUN_NPROCS_PARAM}${P} $<TARGET_FILE:${exe}> )
     endforeach()
 endfunction()
+
+function( add_bsc_test NAME P )
+    set( exe "test_${NAME}")
+    add_executable( ${exe} test/${NAME}.c )
+    set_target_properties( ${exe} PROPERTIES 
+            INCLUDE_DIRECTORIES 
+            "${PROJECT_SOURCE_DIR}/include;${PROJECT_SOURCE_DIR}/test;${PROJECT_SOURCE_DIR}/src;${MPI_INCLUDE_PATH}" )
+    target_link_libraries( ${exe} "bsponmpi_rma" "bsc" )
+    set( testname "${NAME}_${flavour}_p${P}" )
+    add_test( NAME "${testname}" COMMAND ${MPIRUN_EXECUTABLE} ${MPIRUN_NPROCS_PARAM}${P} $<TARGET_FILE:${exe}> )
+endfunction()
+
 
 # The library itself
 include_directories( ${MPI_INCLUDE_PATH} )
@@ -176,7 +195,7 @@ install(FILES include/bsp.h
 
 
 # Other libraries
-add_library( bsc src/bsc.c )
+add_library( bsc src/bsc.c src/util.c )
 install(TARGETS bsc
             RUNTIME DESTINATION bin
             LIBRARY DESTINATION lib
@@ -215,6 +234,7 @@ target_compile_definitions( unit_test_a2a_rma PRIVATE USE_ONESIDED)
 
 add_mpi_unit_test( unbuf 4 src/unbuf.cc )
 add_unit_test( uintserialize )
+add_unit_ctest( util src/util.c )
 
 # API tests
 add_mpi_test( abort_1 1 )
@@ -319,6 +339,17 @@ add_mpi_test( move_nbytes_negative 2 )
 
 add_mpi_test( pid_1 3)
 add_mpi_test( pid_2 3)
+
+add_bsc_test( bsc_scatter_partition 4)
+add_bsc_test( bsc_scatter_neighbour 6)
+add_bsc_test( bsc_gather_partition 5)
+add_bsc_test( bsc_gather_neighbour 6)
+add_bsc_test( bsc_allgather_neighbour 6)
+add_bsc_test( bsc_alltoall_neighbour 6)
+add_bsc_test( bsc_bcast_qtree_q3 10 )
+add_bsc_test( bsc_bcast_qtree_qp 6  )
+add_bsc_test( bsc_bcast_2phase 6 )
+
 
 option( ENABLE_LARGE_TESTS "Enable tests that require large amounts of memory and/or time" OFF)
 if (ENABLE_LARGE_TESTS)

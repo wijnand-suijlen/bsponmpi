@@ -1,7 +1,7 @@
 #include <bsp.h>
 #include "test.h"
 
-TEST( put_2, abort("bsp_put: Remote address was not registered") ) {
+TEST( put_2, abort("bsp_put: Remote address") ) {
     int x ;
     bsp_begin( bsp_nprocs() );
 
