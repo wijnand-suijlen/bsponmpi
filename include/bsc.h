@@ -102,13 +102,10 @@ extern "C" {
  *
  */
 
-
-/** \defgroup BSC_PRIM Primitives
- *
- * All collectives are built from only these primitives
+/** \defgroup BSC_TYPEDEFS Elementary types 
  *
  * @{
- *
+ * 
  */
 
 /** An unsigned integer that can hold the delay in supersteps */
@@ -119,6 +116,76 @@ typedef bsp_size_t bsc_size_t;
 
 /** An integer to hold process identifiers */
 typedef bsp_pid_t bsc_pid_t;
+
+/**
+ * @}
+ */
+
+/** \defgroup BSC_GROUP Process group management
+ *
+ * Process groups restrict a collective to a subset of processes
+ *
+ * @{
+ *
+ */
+
+/** An object representing a group of processes */
+typedef void * bsc_group_t;
+
+/** The group that holds all processes. */
+extern const bsc_group_t bsc_all;
+
+/** A collective function that partitions all processes in disjoint groups.
+ * All processes must collectively engage in the call to this function, while
+ * chosing a \a symbol of their liking. Processes that chose the same symbol
+ * are put together in the same group. 
+ *
+ * \note This function synchronizes
+ *
+ * \param symbol The symbol identifying the subgroup to be partitioned in
+ * 
+ * \returns An object representing the group
+ */
+bsc_group_t bsc_group_create_partition( unsigned symbol );
+
+/** A collective function that groups all processes in neighbourhoods. 
+ * All processes must collectively engage in the call to this function, while
+ * chosing their neighbours. Only neighbours that acknowledge each other
+ * are put in the same group. The order in which the neighbours appear is significant,
+ * as it will be the same order used for bsc_scatter(), bsc_gather(), bsc_allgather(),
+ * an bsc_scan(). The neighbour list must include the calling process too.
+ * 
+ * \note This function synchronizes
+ *
+ * \param neighbours An array with the process IDs of the neighbours of this process
+ *                   and itself.
+ * \param size The number of neighbours.
+ * 
+ * \returns An object representing the group
+ */
+bsc_group_t bsc_group_create_neighbourhood( bsc_pid_t * neighbours, 
+        bsc_size_t size );
+
+/** Frees resources held to maintain bookkeeping for this group. 
+ *
+ * \param group The group to be destroyed.
+ * 
+ */
+void bsc_group_destroy( bsc_group_t group );
+
+/**
+ * @}
+ */
+
+
+/** \defgroup BSC_PRIM Primitives
+ *
+ * All collectives are built from only these primitives
+ *
+ * @{
+ *
+ */
+
 
 /** The special delay value to use with bsc_sync() to proceed execution of all
  * outstanding requests and to perform a global barrier synchronisation */
@@ -190,6 +257,47 @@ bsc_step_t bsc_exec_reduce( bsc_step_t depends,
         bsc_reduce_t reducer, void * a, const void * a0,
         const void * xs, bsc_size_t size );
 
+typedef struct bsc_coll_params {
+    const void * src;
+    void * dst;
+    void * tmp;
+    bsc_reduce_t reducer;
+    const void * zero;
+    bsc_size_t nmemb, size;
+} bsc_coll_params_t;
+
+typedef bsc_step_t (*bsc_coll_alg_t)( bsc_step_t depends, 
+        bsc_pid_t root, bsc_group_t group, 
+        bsc_coll_params_t * set, bsc_size_t n );
+
+typedef double (*bsc_coll_cost_t)( bsc_group_t group,
+        bsc_coll_params_t * set, bsc_size_t n );
+
+typedef bsc_step_t (*bsc_coll_steps_t)(bsc_group_t group);
+
+#define BSC_MAX_COLL_ALGS 10
+typedef struct bsc_collective { 
+    bsc_coll_alg_t   algorithms[BSC_MAX_COLL_ALGS];
+    bsc_coll_cost_t  costfuncs[BSC_MAX_COLL_ALGS];
+    bsc_coll_steps_t maxsteps[BSC_MAX_COLL_ALGS];
+    bsc_size_t       n_algs;
+} bsc_collective_t;
+
+extern const bsc_collective_t * const bsc_coll_scatter;
+extern const bsc_collective_t * const bsc_coll_gather;
+extern const bsc_collective_t * const bsc_coll_allgather;
+extern const bsc_collective_t * const bsc_coll_alltoall;
+extern const bsc_collective_t * const bsc_coll_bcast;
+extern const bsc_collective_t * const bsc_coll_reduce;
+extern const bsc_collective_t * const bsc_coll_allreduce;
+extern const bsc_collective_t * const bsc_coll_scan;
+
+bsc_step_t bsc_collective( bsc_step_t depends, 
+       const bsc_collective_t * collective,
+       bsc_pid_t root, bsc_group_t group, 
+       bsc_coll_params_t params ) ;
+
+
 /** The current superstep number. This is equal to zero before any 
  * call to bsc_sync() and after a call to bsc_sync() with #bsc_flush.
  */
@@ -241,62 +349,6 @@ double bsc_L(void);
  * @}
  */
 
-
-/** \defgroup BSC_GROUP Process group management
- *
- * Process groups restrict a collective to a subset of processes
- *
- * @{
- *
- */
-
-/** An object representing a group of processes */
-typedef void * bsc_group_t;
-
-/** The group that holds all processes. */
-extern const bsc_group_t bsc_all;
-
-/** A collective function that partitions all processes in disjoint groups.
- * All processes must collectively engage in the call to this function, while
- * chosing a \a symbol of their liking. Processes that chose the same symbol
- * are put together in the same group. 
- *
- * \note This function synchronizes
- *
- * \param symbol The symbol identifying the subgroup to be partitioned in
- * 
- * \returns An object representing the group
- */
-bsc_group_t bsc_group_create_partition( unsigned symbol );
-
-/** A collective function that groups all processes in neighbourhoods. 
- * All processes must collectively engage in the call to this function, while
- * chosing their neighbours. Only neighbours that acknowledge each other
- * are put in the same group. The order in which the neighbours appear is significant,
- * as it will be the same order used for bsc_scatter(), bsc_gather(), bsc_allgather(),
- * an bsc_scan(). The neighbour list must include the calling process too.
- * 
- * \note This function synchronizes
- *
- * \param neighbours An array with the process IDs of the neighbours of this process
- *                   and itself.
- * \param size The number of neighbours.
- * 
- * \returns An object representing the group
- */
-bsc_group_t bsc_group_create_neighbourhood( bsc_pid_t * neighbours, 
-        bsc_size_t size );
-
-/** Frees resources held to maintain bookkeeping for this group. 
- *
- * \param group The group to be destroyed.
- * 
- */
-void bsc_group_destroy( bsc_group_t group );
-
-/**
- * @}
- */
 
 /** \defgroup BSC_COLLS Collectives 
  *
