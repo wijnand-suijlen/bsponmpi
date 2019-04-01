@@ -782,7 +782,7 @@ bsc_step_t bsc_allgather( bsc_step_t depends, bsc_group_t group,
     p.src = src;
     p.dst = dst;
     p.size = size;
-    return bsc_collective( depends, bsc_coll_gather, 0, group, p );
+    return bsc_collective( depends, bsc_coll_allgather, 0, group, p );
 }
 
 
@@ -964,7 +964,7 @@ bsc_step_t bsc_bcast_2phase( bsc_step_t depends,
                 next_b = 0;
             }
             src_bytes = params[j].src;
-            dst_bytes      = params[j].dst;
+            dst_bytes = params[j].dst;
             if (bsp_pid() == root ) 
                 bsc_put( depends, g?g->gid[i]:i, 
                         src_bytes + b, dst_bytes, b, e - b);
@@ -991,9 +991,9 @@ bsc_step_t bsc_bcast_2phase( bsc_step_t depends,
                 next_b = 0;
             }
             src_bytes = params[j].src;
-            dst_bytes      = params[j].dst;
+            dst_bytes = params[j].dst;
             bsc_put( depends, g?g->gid[i]:i, 
-                    src_bytes + b, dst_bytes, b, e - b);
+                    dst_bytes + b, dst_bytes, b, e - b);
             block_remaining -= (e-b);
             j = next_j;
             b = next_b;
