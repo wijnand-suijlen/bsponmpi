@@ -56,7 +56,7 @@ typedef struct state {
     unsigned   * n_requests;
     request_t  * queue;
     unsigned   total_n_outstanding_requests;
-    int        * flushed;
+    bsc_step_t * next_step;
 
     /* Collective coalescing table. The items are the
      * coll_request_t structs. Keys are made up of
@@ -340,16 +340,19 @@ bsc_step_t bsc_current(void)
 
 bsc_step_t bsc_sync( bsc_step_t until )
 {
-    unsigned i;
-    if ( !s_bsc.flushed ) {
+    unsigned i, P = bsp_nprocs(), sz=sizeof(s_bsc.next_step[0]);
+    if ( !s_bsc.next_step) {
         /* do some initialization */
-        s_bsc.flushed = calloc( bsp_nprocs(), sizeof(s_bsc.flushed[0]));
-        bsp_push_reg( s_bsc.flushed, 
-                bsp_nprocs() * sizeof(s_bsc.flushed[0]) );
+        s_bsc.next_step = calloc( bsp_nprocs(), sizeof(s_bsc.next_step[0]));
+        bsp_push_reg( s_bsc.next_step, 
+                bsp_nprocs() * sizeof(s_bsc.next_step[0]) );
         bsp_sync();
+
     }
 
     while ( s_bsc.current <= until || until == bsc_flush ) {
+        bsc_step_t common_step = until;
+
         if (s_bsc.horizon > 0) {
             /* expand all collectives */
             for ( i = 0; i < s_bsc.n_requests[s_bsc.queue_start]; ++i ) {
@@ -380,16 +383,32 @@ bsc_step_t bsc_sync( bsc_step_t until )
             }
             s_bsc.total_n_outstanding_requests 
                 -= s_bsc.n_requests[ s_bsc.queue_start ];
-        }
-        if (until == bsc_flush && s_bsc.total_n_outstanding_requests == 0)
-        {
-            unsigned P = bsp_nprocs(), sz = sizeof(s_bsc.flushed[0]);
-            for ( i = 0; i < P; ++i ) {
-                int flushed = 1;
-                bsp_put( i, &flushed, s_bsc.flushed, bsp_pid()*sz, sz );
+
+            /* search for the step this process can skip to */
+            common_step = 1 + s_bsc.current;
+            if ( 0 == s_bsc.total_n_outstanding_requests ) {
+                common_step = until;
+            } else {
+                for (common_step = 1; common_step < s_bsc.horizon ; common_step++){
+                    unsigned j = (s_bsc.queue_start + common_step) % s_bsc.horizon;
+                    if ( s_bsc.n_requests[j]  != 0 ) {
+                        break;
+                    }
+                } 
+                common_step += s_bsc.current;
             }
         }
+
+        for ( i = 0; i < P; ++i ) {
+            bsp_put( i, &common_step, s_bsc.next_step, bsp_pid()*sz, sz );
+        }
         bsp_sync();
+        common_step = until;
+        for ( i = 0; i < P; ++i ) {
+            if ( s_bsc.next_step[i] < common_step )
+                common_step = s_bsc.next_step[i];
+        }
+
         if (s_bsc.horizon > 0) {
             /* execute the delayed local reduce operations */
             for ( i = 0; i < s_bsc.n_requests[s_bsc.queue_start]; ++i ) {
@@ -407,23 +426,13 @@ bsc_step_t bsc_sync( bsc_step_t until )
             s_bsc.n_requests[ s_bsc.queue_start ] = 0;
             s_bsc.queue_start = (s_bsc.queue_start + 1) % s_bsc.horizon;
         }
-        s_bsc.current += 1;
-
-        if ( until == bsc_flush ) {
-            int flushed = 1;
-            unsigned P = bsp_nprocs();
-            for ( i = 0 ; i < P; ++i ) {
-                flushed = flushed && s_bsc.flushed[i];
-            }
-            if (flushed) { 
-                memset( s_bsc.flushed, 0, 
-                        sizeof(s_bsc.flushed[0]) * bsp_nprocs() );
-                break;
-            }
+        if ( common_step == bsc_flush ) {
+            assert( s_bsc.total_n_outstanding_requests == 0 );
+            s_bsc.current = 0;
+            break;
         }
+        s_bsc.current = common_step;
     }
-    if (s_bsc.total_n_outstanding_requests == 0 )
-        s_bsc.current = 0;
 
     return s_bsc.current;
 }
