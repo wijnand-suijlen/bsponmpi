@@ -596,6 +596,45 @@ void bsc_group_destroy( bsc_group_t group )
     free( g );
 }
 
+double bsc_costs_std_1phase( bsc_group_t group,
+         bsc_coll_params_t * set, bsc_size_t n )
+{
+    bsc_size_t i, total_size = 0;
+    group_t * g = group;
+    bsc_pid_t P = g?g->size:bsp_nprocs() ;
+    for ( i = 0; i < n ; ++i )
+        total_size += set[i].size;
+
+    return bsc_g() * P * total_size + bsc_L();
+}
+
+double bsc_costs_std_2tree(  bsc_group_t group,
+         bsc_coll_params_t * set, bsc_size_t n )
+{
+    bsc_size_t i, total_size = 0;
+    group_t * g = group;
+    bsc_pid_t P = g?g->size:bsp_nprocs() ;
+    for ( i = 0; i < n ; ++i )
+        total_size += set[i].size;
+
+    return (int_log2(P-1)+1) * (total_size * bsc_g() +  bsc_L() ) ;
+}
+
+double bsc_costs_std_root_p_tree(  bsc_group_t group,
+         bsc_coll_params_t * set, bsc_size_t n )
+{
+    bsc_size_t i, total_size = 0;
+    group_t * g = group;
+    bsc_pid_t P = g?g->size:bsp_nprocs() ;
+    bsc_pid_t root_P = ceil(sqrt(P));
+    for ( i = 0; i < n ; ++i )
+        total_size += set[i].size;
+
+    return 2*(root_P - 1) * total_size * bsc_g() + 2 * bsc_L();
+}
+
+
+
 bsc_step_t bsc_steps_1phase( bsc_group_t group )
 {
     (void) group;
@@ -643,22 +682,9 @@ bsc_step_t bsc_scatter_multiple( bsc_step_t depends,
     return depends + 1;
 }
 
-double bsc_scatter_costs( bsc_group_t group,
-                        bsc_coll_params_t * set, bsc_size_t n )
-{
-    double costs = 0.0;
-    bsc_size_t i;
-    group_t * g = group;
-    bsc_pid_t P = g?g->size:bsp_nprocs() ;
-    for ( i = 0; i < n ; ++i )
-        costs += set[i].size * P * bsc_g();
-    costs += bsc_L();
-    return costs;
-}
-
 const bsc_collective_t bsc_scatter_algs = {
     { bsc_scatter_multiple },
-    { bsc_scatter_costs },
+    { bsc_costs_std_1phase},
     { bsc_steps_1phase },
     1 
 };
@@ -705,22 +731,9 @@ bsc_step_t bsc_gather_multiple( bsc_step_t depends,
     return depends + 1;
 }
 
-double bsc_gather_costs( bsc_group_t group,
-                        bsc_coll_params_t * set, bsc_size_t n )
-{
-    double costs = 0.0;
-    bsc_size_t i;
-    group_t * g = group;
-    bsc_pid_t P = g?g->size:bsp_nprocs() ;
-    for ( i = 0; i < n ; ++i )
-        costs += set[i].size * P * bsc_g();
-    costs += bsc_L();
-    return costs;
-}
-
 const bsc_collective_t bsc_gather_algs = {
     { bsc_gather_multiple },
-    { bsc_gather_costs },
+    { bsc_costs_std_1phase },
     { bsc_steps_1phase },
     1 
 };
@@ -763,22 +776,9 @@ bsc_step_t bsc_allgather_multiple( bsc_step_t depends,
     return depends + 1;
 }
 
-double bsc_allgather_costs( bsc_group_t group,
-                        bsc_coll_params_t * set, bsc_size_t n )
-{
-    double costs = 0.0;
-    bsc_size_t i;
-    group_t * g = group;
-    bsc_pid_t P = g?g->size:bsp_nprocs() ;
-    for ( i = 0; i < n ; ++i )
-        costs += set[i].size * P * bsc_g();
-    costs += bsc_L();
-    return costs;
-}
-
 const bsc_collective_t bsc_allgather_algs = {
     { bsc_allgather_multiple },
-    { bsc_allgather_costs },
+    { bsc_costs_std_1phase},
     { bsc_steps_1phase },
     1 
 };
@@ -822,22 +822,9 @@ bsc_step_t bsc_alltoall_multiple( bsc_step_t depends,
     return depends + 1;
 }
 
-double bsc_alltoall_costs( bsc_group_t group,
-                        bsc_coll_params_t * set, bsc_size_t n )
-{
-    double costs = 0.0;
-    bsc_size_t i;
-    group_t * g = group;
-    bsc_pid_t P = g?g->size:bsp_nprocs() ;
-    for ( i = 0; i < n ; ++i )
-        costs += set[i].size * P * bsc_g();
-    costs += bsc_L();
-    return costs;
-}
-
 const bsc_collective_t bsc_alltoall_algs = {
     { bsc_alltoall_multiple },
-    { bsc_alltoall_costs },
+    { bsc_costs_std_1phase},
     { bsc_steps_1phase },
     1 
 };
@@ -1011,43 +998,6 @@ bsc_step_t bsc_bcast_2phase( bsc_step_t depends,
     return depends+1;
 }
 
-double bsc_bcast_1phase_costs( bsc_group_t group,
-         bsc_coll_params_t * set, bsc_size_t n )
-{
-    bsc_size_t i, total_size = 0;
-    group_t * g = group;
-    bsc_pid_t P = g?g->size:bsp_nprocs() ;
-    for ( i = 0; i < n ; ++i )
-        total_size += set[i].size;
-
-    return bsc_g() * P * total_size + bsc_L();
-}
-
-
-double bsc_bcast_2tree_costs(  bsc_group_t group,
-         bsc_coll_params_t * set, bsc_size_t n )
-{
-    bsc_size_t i, total_size = 0;
-    group_t * g = group;
-    bsc_pid_t P = g?g->size:bsp_nprocs() ;
-    for ( i = 0; i < n ; ++i )
-        total_size += set[i].size;
-
-    return (int_log2(P-1)+1) * (total_size * bsc_g() +  bsc_L() ) ;
-}
-
-double bsc_bcast_root_p_tree_costs(  bsc_group_t group,
-         bsc_coll_params_t * set, bsc_size_t n )
-{
-    bsc_size_t i, total_size = 0;
-    group_t * g = group;
-    bsc_pid_t P = g?g->size:bsp_nprocs() ;
-    bsc_pid_t root_P = ceil(sqrt(P));
-    for ( i = 0; i < n ; ++i )
-        total_size += set[i].size;
-
-    return 2*(root_P - 1) * total_size * bsc_g() + 2 * bsc_L();
-}
 
 double bsc_bcast_2phase_costs(  bsc_group_t group,
          bsc_coll_params_t * set, bsc_size_t n )
@@ -1067,9 +1017,9 @@ const bsc_collective_t bsc_bcast_algs = {
       bsc_bcast_2tree_multiple,
       bsc_bcast_root_p_tree_multiple,
       bsc_bcast_2phase },
-    { bsc_bcast_1phase_costs,
-      bsc_bcast_2tree_costs,
-      bsc_bcast_root_p_tree_costs,
+    { bsc_costs_std_1phase,
+      bsc_costs_std_2tree,
+      bsc_costs_std_root_p_tree,
       bsc_bcast_2phase_costs },
     { bsc_steps_1phase,
       bsc_steps_2tree ,
@@ -1182,52 +1132,14 @@ bsc_step_t bsc_reduce_root_p_tree_multiple( bsc_step_t depends,
     return finished;
 }
 
-double bsc_reduce_1phase_costs( bsc_group_t group,
-         bsc_coll_params_t * set, bsc_size_t n )
-{
-    bsc_size_t i, total_size = 0;
-    group_t * g = group;
-    bsc_pid_t P = g?g->size:bsp_nprocs() ;
-    for ( i = 0; i < n ; ++i )
-        total_size += set[i].size;
-
-    return bsc_g() * P * total_size + bsc_L();
-}
-
-double bsc_reduce_2tree_costs(  bsc_group_t group,
-         bsc_coll_params_t * set, bsc_size_t n )
-{
-    bsc_size_t i, total_size = 0;
-    group_t * g = group;
-    bsc_pid_t P = g?g->size:bsp_nprocs() ;
-    for ( i = 0; i < n ; ++i )
-        total_size += set[i].size;
-
-    return (int_log2(P-1)+1) * (total_size * bsc_g() +  bsc_L() ) ;
-}
-
-double bsc_reduce_root_p_tree_costs(  bsc_group_t group,
-         bsc_coll_params_t * set, bsc_size_t n )
-{
-    bsc_size_t i, total_size = 0;
-    group_t * g = group;
-    bsc_pid_t P = g?g->size:bsp_nprocs() ;
-    bsc_pid_t root_P = ceil(sqrt(P));
-    for ( i = 0; i < n ; ++i )
-        total_size += set[i].size;
-
-    return 2*(root_P - 1) * total_size * bsc_g() + 2 * bsc_L();
-}
-
-
 const bsc_collective_t bsc_reduce_algs = {
     { bsc_reduce_1phase_multiple, 
       bsc_reduce_2tree_multiple,
       bsc_reduce_root_p_tree_multiple,
     },      
-    { bsc_reduce_1phase_costs,
-      bsc_reduce_2tree_costs,
-      bsc_reduce_root_p_tree_costs,
+    { bsc_costs_std_1phase,
+      bsc_costs_std_2tree,
+      bsc_costs_std_root_p_tree,
     },
     { bsc_steps_1phase,
       bsc_steps_2tree ,
@@ -1255,19 +1167,8 @@ bsc_step_t bsc_reduce( bsc_step_t depends,
 }
 
 
-bsc_step_t bsc_allreduce_1phase( bsc_step_t depends, bsc_group_t group,
-        const void * src, void * dst, void * tmp_space,
-        bsc_reduce_t reducer, const void * zero,
-        bsc_size_t nmemb, bsc_size_t size )
-{
-    const group_t * g = group;
-    (*reducer)( dst, zero, src, size * nmemb );
-    depends = bsc_allgather( depends, group, dst, tmp_space, size );
-    return bsc_exec_reduce( depends-1, reducer, dst, zero, tmp_space, 
-                size * (g?g->size:bsp_nprocs())  );
-}
-
-bsc_step_t bsc_allreduce_qtree( bsc_step_t depends, bsc_group_t group,
+bsc_step_t bsc_allreduce_qtree_single( 
+        bsc_step_t depends, bsc_group_t group,
         const void * src, void * dst, void * tmp_space,
         bsc_reduce_t reducer, const void * zero,
         bsc_size_t nmemb, bsc_size_t size, 
@@ -1297,6 +1198,78 @@ bsc_step_t bsc_allreduce_qtree( bsc_step_t depends, bsc_group_t group,
     return depends;
 }
 
+bsc_step_t bsc_allreduce_1phase_multiple( bsc_step_t depends,
+                      bsc_pid_t root, bsc_group_t group, 
+                      bsc_coll_params_t * params, bsc_size_t n)
+{
+    group_t * g = group;
+    bsc_pid_t P = g?g->size:bsp_nprocs() ;
+    bsc_size_t i;
+    bsc_step_t finished = depends;
+    (void) root;
+    for ( i = 0; i < n ; ++i ) {
+        finished = bsc_allreduce_qtree_single( depends, group,
+                   params[i].src, params[i].dst, params[i].tmp,
+                   params[i].reducer, params[i].zero, 
+                   params[i].nmemb, params[i].size, P );
+    }
+
+    return finished;
+}
+
+bsc_step_t bsc_allreduce_2tree_multiple( bsc_step_t depends,
+                      bsc_pid_t root, bsc_group_t group, 
+                      bsc_coll_params_t * params, bsc_size_t n)
+{
+    bsc_size_t i;
+    bsc_step_t finished = depends;
+    (void) root;
+    for ( i = 0; i < n ; ++i ) {
+        finished = bsc_allreduce_qtree_single( depends, group,
+                   params[i].src, params[i].dst, params[i].tmp,
+                   params[i].reducer, params[i].zero, 
+                   params[i].nmemb, params[i].size, 2 );
+    }
+
+    return finished;
+}
+
+bsc_step_t bsc_allreduce_root_p_tree_multiple( bsc_step_t depends, 
+                      bsc_pid_t root, bsc_group_t group, 
+                      bsc_coll_params_t * params, bsc_size_t n)
+{
+    group_t * g = group;
+    bsc_pid_t P = g?g->size:bsp_nprocs(), root_P = ceil(sqrt(P)) ;
+    bsc_size_t i;
+    bsc_step_t finished = depends;
+    (void) root;
+    for ( i = 0; i < n ; ++i ) {
+        finished = bsc_allreduce_qtree_single( depends, group,
+                   params[i].src, params[i].dst, params[i].tmp,
+                   params[i].reducer, params[i].zero, 
+                   params[i].nmemb, params[i].size, root_P );
+    }
+
+    return finished;
+}
+
+const bsc_collective_t bsc_allreduce_algs = {
+    { bsc_allreduce_1phase_multiple, 
+      bsc_allreduce_2tree_multiple,
+      bsc_allreduce_root_p_tree_multiple,
+    },      
+    { bsc_costs_std_1phase,
+      bsc_costs_std_2tree,
+      bsc_costs_std_root_p_tree,
+    },
+    { bsc_steps_1phase,
+      bsc_steps_2tree ,
+      bsc_steps_2phase,
+    },
+    3 
+};
+const bsc_collective_t * const bsc_coll_allreduce = & bsc_allreduce_algs;
+
 
 
 bsc_step_t bsc_allreduce( bsc_step_t depends, bsc_group_t group,
@@ -1304,45 +1277,18 @@ bsc_step_t bsc_allreduce( bsc_step_t depends, bsc_group_t group,
         bsc_reduce_t reducer, const void * zero,
         bsc_size_t nmemb, bsc_size_t size )
 {
-    const group_t * g = group;
-    int i;
-    bsc_pid_t P = g?g->size:bsp_nprocs();
-    bsc_pid_t root_n = ceil( sqrt( (double) P ) );
-    enum ALG { ONE_PHASE, TWO_TREE, ROOT_TREE, N_ALGS } ;
-    double costs[N_ALGS];
-    enum ALG min_alg = ONE_PHASE ;
-    double min_cost = HUGE_VAL;
-    costs[ ONE_PHASE] = P * size * bsc_g() + bsc_L();
-    costs[ TWO_TREE]  = (int_log2(P-1)+1) * (size * bsc_g() +  bsc_L());
-    costs[ ROOT_TREE] = 2*(root_n - 1) * size * bsc_g() + 2 * bsc_L();
-
-    for ( i = 0; i < N_ALGS; ++i )
-        if ( costs[i] < min_cost ) { 
-            min_cost = costs[i];
-            min_alg = (enum ALG) i;
-        }
-
-    switch (min_alg) {
-        case ONE_PHASE:
-            return bsc_allreduce_1phase( depends, group, src, dst, tmp_space,
-                      reducer, zero, nmemb, size );
-
-        case TWO_TREE: 
-            return bsc_allreduce_qtree( depends, group, src, dst, tmp_space,
-                      reducer, zero, nmemb, size, 2 );
-
-        case ROOT_TREE: 
-            return bsc_allreduce_qtree( depends, group, src, dst, tmp_space,
-                      reducer, zero, nmemb, size, root_n );
- 
-        case N_ALGS:
-            bsp_abort("bsc_allreduce: missing algorithm\n");
-            return depends;
-    }
-    return depends;
+    bsc_coll_params_t p; memset(&p, 0, sizeof(p));
+    p.src = src;
+    p.dst = dst;
+    p.tmp = tmp_space;
+    p.reducer = reducer;
+    p.zero = zero;
+    p.nmemb = nmemb;
+    p.size = size;
+    return bsc_collective( depends, bsc_coll_allreduce, 0, group, p );
 }
 
-bsc_step_t bsc_scan_qtree( bsc_step_t depends, bsc_group_t group,
+bsc_step_t bsc_scan_qtree_single( bsc_step_t depends, bsc_group_t group,
         const void * src, void * dst, void * tmp_space, 
         bsc_reduce_t reducer, const void * zero,
         bsc_size_t nmemb, bsc_size_t size,
@@ -1385,6 +1331,78 @@ bsc_step_t bsc_scan_qtree( bsc_step_t depends, bsc_group_t group,
     return depends;
 }
 
+bsc_step_t bsc_scan_1phase_multiple( bsc_step_t depends,
+                      bsc_pid_t root, bsc_group_t group, 
+                      bsc_coll_params_t * params, bsc_size_t n)
+{
+    group_t * g = group;
+    bsc_pid_t P = g?g->size:bsp_nprocs() ;
+    bsc_size_t i;
+    bsc_step_t finished = depends;
+    (void) root;
+    for ( i = 0; i < n ; ++i ) {
+        finished = bsc_scan_qtree_single( depends, group,
+                   params[i].src, params[i].dst, params[i].tmp,
+                   params[i].reducer, params[i].zero, 
+                   params[i].nmemb, params[i].size, P );
+    }
+
+    return finished;
+}
+
+bsc_step_t bsc_scan_2tree_multiple( bsc_step_t depends,
+                      bsc_pid_t root, bsc_group_t group, 
+                      bsc_coll_params_t * params, bsc_size_t n)
+{
+    bsc_size_t i;
+    bsc_step_t finished = depends;
+    (void) root;
+    for ( i = 0; i < n ; ++i ) {
+        finished = bsc_scan_qtree_single( depends, group,
+                   params[i].src, params[i].dst, params[i].tmp,
+                   params[i].reducer, params[i].zero, 
+                   params[i].nmemb, params[i].size, 2 );
+    }
+
+    return finished;
+}
+
+bsc_step_t bsc_scan_root_p_tree_multiple( bsc_step_t depends,
+                      bsc_pid_t root, bsc_group_t group, 
+                      bsc_coll_params_t * params, bsc_size_t n)
+{
+    group_t * g = group;
+    bsc_pid_t P = g?g->size:bsp_nprocs(), root_P = ceil(sqrt(P)) ;
+    bsc_size_t i;
+    bsc_step_t finished = depends;
+    (void) root;
+    for ( i = 0; i < n ; ++i ) {
+        finished = bsc_scan_qtree_single( depends, group,
+                   params[i].src, params[i].dst, params[i].tmp,
+                   params[i].reducer, params[i].zero, 
+                   params[i].nmemb, params[i].size, root_P );
+    }
+
+    return finished;
+}
+
+const bsc_collective_t bsc_scan_algs = {
+    { bsc_scan_1phase_multiple, 
+      bsc_scan_2tree_multiple,
+      bsc_scan_root_p_tree_multiple,
+    },      
+    { bsc_costs_std_1phase,
+      bsc_costs_std_2tree,
+      bsc_costs_std_root_p_tree,
+    },
+    { bsc_steps_1phase,
+      bsc_steps_2tree ,
+      bsc_steps_2phase,
+    },
+    3 
+};
+const bsc_collective_t * const bsc_coll_scan = & bsc_scan_algs;
+
 
 
 bsc_step_t bsc_scan( bsc_step_t depends, bsc_group_t group,
@@ -1392,46 +1410,13 @@ bsc_step_t bsc_scan( bsc_step_t depends, bsc_group_t group,
         bsc_reduce_t reducer, const void * zero,
         bsc_size_t nmemb, bsc_size_t size )
 {
-    const group_t * g = group;
-    int i;
-    bsc_pid_t P = g?g->size:bsp_nprocs();
-    bsc_pid_t root_P = ceil( sqrt( (double) P ) );
-    enum ALG { ONE_PHASE, TWO_TREE, ROOT_TREE, N_ALGS } ;
-    double costs[N_ALGS];
-    enum ALG min_alg = ONE_PHASE ;
-    double min_cost = HUGE_VAL;
-
-    costs[ ONE_PHASE] = (P-1) * size * bsc_g() + bsc_L();
-    costs[ TWO_TREE]  = int_log2(P-1) * (size * bsc_g() +  bsc_L())
-                         + size * bsc_g();
-    costs[ ROOT_TREE] = (2*root_P - 1) * size * bsc_g() + 2 * bsc_L();
-
-    for ( i = 0; i < N_ALGS; ++i )
-        if ( costs[i] < min_cost ) { 
-            min_cost = costs[i];
-            min_alg = (enum ALG) i;
-        }
-
-    switch (min_alg) {
-        case ONE_PHASE:
-            return bsc_scan_qtree( depends, group, src, dst, tmp_space,
-                      reducer, zero, nmemb, size, P );
-
-        case TWO_TREE: 
-            return bsc_scan_qtree( depends, group, src, dst, tmp_space,
-                      reducer, zero, nmemb, size, 2 );
-
-        case ROOT_TREE: 
-            return bsc_scan_qtree( depends, group, src, dst, tmp_space,
-                      reducer, zero, nmemb, size, root_P );
-
-        case N_ALGS:
-            bsp_abort("bsc_scan: missing algorithm\n");
-            return depends;
-    }
-    return depends;
+    bsc_coll_params_t p; memset(&p, 0, sizeof(p));
+    p.src = src;
+    p.dst = dst;
+    p.tmp = tmp_space;
+    p.reducer = reducer;
+    p.zero = zero;
+    p.nmemb = nmemb;
+    p.size = size;
+    return bsc_collective( depends, bsc_coll_scan, 0, group, p );
 }
-
-
-
-
