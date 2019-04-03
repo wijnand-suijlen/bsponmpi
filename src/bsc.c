@@ -177,11 +177,13 @@ static request_t * new_request( bsc_step_t step )
 
     if ( step < s_bsc.current )
         bsp_abort("bsc: a flush sync is required before posting"
-                  " another request\n");
+                  " another request. Requested superstep %d comes before current step %d\n",
+                  step, s_bsc.current );
 
     delay = step - s_bsc.current;
     if ( delay >= s_bsc.horizon || 
-          s_bsc.n_requests[ delay ] >= s_bsc.max_requests_per_step ) {
+          s_bsc.n_requests[ (s_bsc.queue_start + delay) % s_bsc.horizon ] 
+            >= s_bsc.max_requests_per_step ) {
 
         /* new memory allocation is necessary */
         bsc_step_t new_horizon;
@@ -239,11 +241,11 @@ static request_t * new_request( bsc_step_t step )
         s_bsc.queue_start = 0;
     }
 
-    entry = s_bsc.queue + 
-        (delay + s_bsc.queue_start) % s_bsc.horizon * 
-        s_bsc.max_requests_per_step + s_bsc.n_requests[delay] ;
+    i = (delay + s_bsc.queue_start) % s_bsc.horizon;
+    entry = s_bsc.queue + i * 
+        s_bsc.max_requests_per_step + s_bsc.n_requests[i] ;
     
-    s_bsc.n_requests[delay] += 1;
+    s_bsc.n_requests[i] += 1;
     s_bsc.total_n_outstanding_requests += 1;
 
     return entry;
@@ -347,7 +349,6 @@ bsc_step_t bsc_sync( bsc_step_t until )
         bsp_push_reg( s_bsc.next_step, 
                 bsp_nprocs() * sizeof(s_bsc.next_step[0]) );
         bsp_sync();
-
     }
 
     while ( s_bsc.current <= until || until == bsc_flush ) {
@@ -385,12 +386,12 @@ bsc_step_t bsc_sync( bsc_step_t until )
                 -= s_bsc.n_requests[ s_bsc.queue_start ];
 
             /* search for the step this process can skip to */
-            common_step = 1 + s_bsc.current;
+            common_step = s_bsc.current;
             if ( 0 == s_bsc.total_n_outstanding_requests ) {
                 common_step = until;
             } else {
-                for (common_step = 1; common_step < s_bsc.horizon ; common_step++){
-                    unsigned j = (s_bsc.queue_start + common_step) % s_bsc.horizon;
+                for (common_step = 0; common_step < s_bsc.horizon-1 ; common_step++){
+                    unsigned j = (s_bsc.queue_start + common_step+1) % s_bsc.horizon;
                     if ( s_bsc.n_requests[j]  != 0 ) {
                         break;
                     }
@@ -424,14 +425,15 @@ bsc_step_t bsc_sync( bsc_step_t until )
                 }
             }
             s_bsc.n_requests[ s_bsc.queue_start ] = 0;
-            s_bsc.queue_start = (s_bsc.queue_start + 1) % s_bsc.horizon;
+            s_bsc.queue_start = (s_bsc.queue_start+common_step+1-s_bsc.current) % s_bsc.horizon;
         }
         if ( common_step == bsc_flush ) {
             assert( s_bsc.total_n_outstanding_requests == 0 );
             s_bsc.current = 0;
+            s_bsc.queue_start = 0;
             break;
         }
-        s_bsc.current = common_step;
+        s_bsc.current = common_step + 1;
     }
 
     return s_bsc.current;
@@ -1052,10 +1054,13 @@ bsc_step_t bsc_reduce_qtree_single( bsc_step_t depends,
     bsc_pid_t range, r = g?g->lid[root]:root;
     bsc_pid_t me = ((g?g->lid[ bsp_pid() ] : bsp_pid()) + P - r) %P;
     char * tmp_bytes = tmp_space;
+    void * accum = tmp_bytes;
+    char * gather = tmp_bytes + size;
 
-    (*reducer)( dst, zero, src, size * nmemb );
-    if (P < 2)
+    (*reducer)( P==1?dst:accum, zero, src, size * nmemb );
+    if (P == 1) {
         return depends;
+    }
     
     for (range = int_pow( q, int_log( q, P-1));
             range >= 1; range /= q ) {
@@ -1065,14 +1070,14 @@ bsc_step_t bsc_reduce_qtree_single( bsc_step_t depends,
                 j = i * range + me; 
                 if (j < P) {
                     j = (j + r )% P;
-                    bsc_get( depends, g?g->gid[j]:j, dst, 0, 
-                            tmp_bytes + k*size, size );
+                    bsc_get( depends, g?g->gid[j]:j, accum, 0, 
+                            &gather[k*size], size );
                     k += 1;
                 }
             }
-            bsc_get( depends, bsp_pid(), dst, 0, tmp_space, size );
-            bsc_exec_reduce( depends, reducer, dst, zero, 
-                    tmp_space, size * k );
+            bsc_get( depends, bsp_pid(), accum, 0, &gather[0], size );
+            bsc_exec_reduce( depends, reducer, 
+                    range==1?dst:accum, zero, gather, size * k );
         }
         depends += 1;
     }
@@ -1178,21 +1183,23 @@ bsc_step_t bsc_allreduce_qtree_single(
     bsc_pid_t i, j, k, P = g?g->size:bsp_nprocs() ;
     bsc_pid_t range, s = g?g->lid[bsp_pid()]:bsp_pid();
     char * tmp_bytes = tmp_space;
+    void * accum = tmp_bytes;
+    char * gather = tmp_bytes + size;
 
-    (*reducer)( dst, zero, src, size * nmemb );
+    (*reducer)( P==1?dst:accum, zero, src, size * nmemb );
 
     for (range = 1; range < P; range *= q ) {
         k = 1;
         for ( i = 1 ; i < q; ++i) {
             if (i * range < P) {
-                j = i * range + s; 
-                bsc_get( depends, g?g->gid[j]:j, dst, 0,
-                        tmp_bytes + k * size, size);
+                j = (i * range + s)%P; 
+                bsc_get( depends, g?g->gid[j]:j, accum, 0,
+                        &gather[k * size], size);
                 k+=1;
             }
         }
-        bsc_get( depends, bsp_pid(), dst, 0, tmp_bytes, size );
-        bsc_exec_reduce( depends, reducer, dst, zero, tmp_space, size*k );
+        bsc_get( depends, bsp_pid(), accum, 0, gather, size );
+        bsc_exec_reduce( depends, reducer, range*q>=P?dst:accum, zero, gather, size*k );
         depends += 1;
     }
     return depends;
@@ -1295,9 +1302,8 @@ bsc_step_t bsc_scan_qtree_single( bsc_step_t depends, bsc_group_t group,
         int q )
 {
     const group_t * g = group;
-    bsc_pid_t i, j, k, P = g?g->size:bsp_nprocs() ;
+    bsc_pid_t i, j, k=0, P = g?g->size:bsp_nprocs() ;
     bsc_pid_t range, s = g?g->lid[bsp_pid()]:bsp_pid();
-    char * tmp_bytes = tmp_space;
     char * dst_bytes = dst;
     const void * prefix;
 
@@ -1305,29 +1311,34 @@ bsc_step_t bsc_scan_qtree_single( bsc_step_t depends, bsc_group_t group,
 
     for (range = 1; range < P; range *= q ) {
         const bsc_size_t shift = (range==1);
-        const bsc_size_t last = range == 1 ? (nmemb-1)*size : q*size;
+        const void * last = NULL;
+        if (range == 1)
+            last = (nmemb==0 ? zero : &dst_bytes[(nmemb-1)*size]);
+        else
+            last = (k==0 ? zero : &dst_bytes[(k-1)*size]);
+
         for ( i = 1; i < q; ++i ) {
             j = s + range * i + shift;
             if ( j < P ) {
-                bsc_put( depends, g?g->gid[j]:j, dst_bytes + last,
-                        tmp_bytes , (q-i-1) * size, size);
+                bsc_put( depends, g?g->gid[j]:j, last, tmp_space , i * size, size);
             }
         }
-
-        k = (s >= shift);
-        for ( i = 1; i < q; ++i )
-            k += (s >= range*i + shift);
+    
+        /* k is number of received elements */
+        k = MIN( q, (range+s-shift)/range);
 
         if (s < P - shift) {
             j = g?g->gid[s+shift]:s+shift;
-            bsc_put(depends, j, dst_bytes + last, tmp_bytes, last, size);
+            bsc_put(depends, j, last, tmp_space, 0, size);
         }
         bsc_exec_reduce( depends, reducer, dst, zero, tmp_space, size*k );
         depends += 1;
     }
 
-    prefix = k > 0 ? tmp_bytes + (k-1)*size : zero ;
-    bsc_exec_reduce( depends, reducer, dst, prefix, src, size*nmemb );
+    prefix = k > 0 ? &dst_bytes[(k-1)*size] : zero ;
+    bsc_put(depends, bsp_pid(), prefix, tmp_space, 0, size);
+
+    bsc_exec_reduce( depends, reducer, dst, tmp_space, src, size*nmemb );
     return depends;
 }
 

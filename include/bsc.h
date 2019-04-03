@@ -191,7 +191,7 @@ void bsc_group_destroy( bsc_group_t group );
  * outstanding requests and to perform a global barrier synchronisation */
 extern const bsc_step_t bsc_flush;
 
-/** The special delay value that denotes the superstep value after a bsc_sync()
+/** The special delay value that denotes the first superstep after a bsc_sync()
  * with a #bsc_flush. This number is equal to zero. */
 extern const bsc_step_t bsc_start;
 
@@ -303,7 +303,7 @@ bsc_step_t bsc_collective( bsc_step_t depends,
  */
 bsc_step_t bsc_current(void);
 
-/** Completes requests until superstep \a until. If #bsc_flush is given, it
+/** Completes requests until superstep \a until is finished. If #bsc_flush is given, it
  * will complete all outstanding requests and wait for the other processes to
  * also call bsc_sync() with #bsc_flush, hence acting as a global barrier
  * synchronisation.
@@ -489,9 +489,9 @@ bsc_step_t bsc_bcast( bsc_step_t depends,
  * \param group   <i>collective</i> The group to perform this collective
  * \param src     Pointer to locally stored array with \a nmemb objects 
  *                      of  \a size bytes size.
- * \param dst     Pointer to <i>registered</i> memory of \a size bytes.
+ * \param dst     Pointer to memory of \a size bytes, local to root process.
  * \param tmp_space Pointer to <i>registered</i> scratch space 
- *                of \f$p \cdot \texttt{size}\f$ bytes size.
+ *                of \f$(p+1) \cdot \texttt{size}\f$ bytes size.
  * \param reducer <i>collective</i> The reduction function.
  * \param zero    <i>collective</i> The zero for the reduction function.
  *                It must hold that \f$ \texttt{zero} \oplus x = x, \ \forall x \f$.
@@ -523,10 +523,10 @@ bsc_step_t bsc_reduce( bsc_step_t depends,
  * \param group   <i>collective</i> The group to perform this collective
  * \param src     Pointer to locally stored array with \a nmemb objects 
  *                      of  \a size bytes size.
- * \param dst     Pointer to <i>registered</i> memory of \a size bytes
+ * \param dst     Pointer to memory of \a size bytes
  *                where the result should be stored.
  * \param tmp_space Pointer to <i>registered</i> scratch space of
- *                      \f$p \cdot \texttt{size}\f$ bytes size.  
+ *                      \f$(p + 1) \cdot \texttt{size}\f$ bytes size.  
  * \param reducer <i>collective</i> The reduction function.
  * \param zero    <i>collective</i> The zero for the reduction function.
  *                It must hold that \f$ \texttt{zero} \oplus x = x, \ \forall x \f$.
@@ -564,7 +564,7 @@ bsc_step_t bsc_allreduce( bsc_step_t depends, bsc_group_t group,
  * \param group   <i>collective</i> The group to perform this collective
  * \param src     Pointer to locally stored array with \a nmemb objects 
  *                      of  \a size bytes size.
- * \param dst     Pointer to <i>registered</i> memory of array \a nmemb elements 
+ * \param dst     Pointer to memory of array \a nmemb elements 
  *                of \a size bytes, where the result should be stored.
  * \param tmp_space Pointer to <i>registered</i> scratch space of
  *                      \f$p \cdot \texttt{size}\f$ bytes size.  
