@@ -208,6 +208,26 @@ void hash_table_destroy( hash_table_t * table )
     table->hash = NULL;
 }
 
+void hash_table_clear( hash_table_t * table )
+{
+    unsigned i;
+    /* return all blocks to the free list */
+    for ( i = 0; i < table->n_buckets; ++i ) {
+        hash_table_bucket_t *c, * b = table->buckets[i].next;
+        while (b) {
+           c = b->next;
+           b->next = table->free_buckets;
+           b->data = NULL;
+           table->free_buckets = b;
+           b = c; 
+        }
+        table->buckets[i].next = NULL;
+        table->buckets[i].data = NULL;
+    }
+    table->n_items = 0;
+}
+
+
 static void hash_table_increase_buckets( hash_table_t * table )
 {
     unsigned i, j, new_n_buckets ;
@@ -336,7 +356,7 @@ void * hash_table_get_item( const hash_table_t * table, void * key )
 {
     unsigned i = hash( table->ghash, (* table->hash )( key ) );
     const hash_table_bucket_t *b = table->buckets[i].next;
-    
+
     while (b) {
         if ( (*table->is_equal)(key, b->data) )
             return b->data;
@@ -350,13 +370,15 @@ void * hash_table_delete_item( hash_table_t * table, void * key )
 {
     unsigned i = hash( table->ghash, (* table->hash )( key ) );
     hash_table_bucket_t **b = & table->buckets[i].next;
-    
+   
     while (*b) {
         if ( (*table->is_equal)(key, (*b)->data) )
         {
             hash_table_bucket_t * c = *b;
             *b = (*b)->next;
             table->n_items -= 1;
+            c->next = table->free_buckets;
+            table->free_buckets = c;
             return c->data;
         }
         b = &(*b)->next;

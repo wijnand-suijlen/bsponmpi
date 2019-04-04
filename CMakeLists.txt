@@ -360,6 +360,7 @@ add_bsc_test( bsc_bcast_2phase 6 )
 add_bsc_test( bsc_reduce_qtree_q3 10 )
 add_bsc_test( bsc_allreduce_qtree_root_p 12 )
 add_bsc_test( bsc_scan_3tree 11)
+add_bsc_test( bsc_combis 5 )
 
 
 option( ENABLE_LARGE_TESTS "Enable tests that require large amounts of memory and/or time" OFF)

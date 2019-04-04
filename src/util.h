@@ -89,7 +89,7 @@ void hash_table_create( hash_table_t * table, unsigned initial_size,
        int (*is_equal)(const void * a, const void * b),
        size_t (*hash)(const void * x) ) ;
 void hash_table_destroy( hash_table_t * table );
-
+void hash_table_clear( hash_table_t * table );
 void * hash_table_new_item( hash_table_t * table, void * key );
 void * hash_table_get_item( const hash_table_t * table, void * key );
 void * hash_table_delete_item( hash_table_t * table, void * key );

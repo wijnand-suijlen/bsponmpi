@@ -47,6 +47,13 @@ typedef struct request {
     } payload;
 } request_t;
 
+typedef struct coll_header {
+    const bsc_collective_t * coll ;
+    group_t * group ;
+    bsc_pid_t root ;
+    bsc_size_t n_params;
+} coll_header_t;
+
 
 typedef struct state { 
     bsc_step_t current;
@@ -66,6 +73,7 @@ typedef struct state {
     coll_request_t **collcoa_set;
     bsc_size_t collcoa_set_reserved, collcoa_set_size;
     bsc_coll_params_t * collcoa_param_list;
+    coll_header_t *collcoa_headers;
     bsc_size_t collcoa_param_list_size;
 } state_t;
 
@@ -101,12 +109,18 @@ static void expand_coll( coll_request_t * c )
             MAX(1000, 2*s_bsc.collcoa_set_reserved) ;
         coll_request_t ** new_collcoa_set = calloc( 
                 new_collcoa_set_reserved, sizeof(coll_request_t*) );
-        if ( !new_collcoa_set )
+        coll_header_t * new_headers = calloc( 
+                new_collcoa_set_reserved, sizeof(coll_header_t) );
+        if ( !new_collcoa_set || ! new_headers )
             bsp_abort("bsc_sync: insufficient memory\n");
         memcpy( new_collcoa_set, s_bsc.collcoa_set, 
                 sizeof(coll_request_t*)*s_bsc.collcoa_set_size );
+        memcpy( new_headers, s_bsc.collcoa_headers,
+                sizeof(coll_header_t)*s_bsc.collcoa_set_size );
         free(s_bsc.collcoa_set);
+        free(s_bsc.collcoa_headers);
         s_bsc.collcoa_set = new_collcoa_set;
+        s_bsc.collcoa_headers = new_headers;
         s_bsc.collcoa_set_reserved = new_collcoa_set_reserved;
     }
                
@@ -123,41 +137,59 @@ static void expand_coll( coll_request_t * c )
 
 static void schedule_colls(void)
 {
-    bsc_size_t i, j;
-    for ( i = 0; i < s_bsc.collcoa_set_size; ++i ) {
+    bsc_size_t i, j, k;
+
+    /* first copy all parameter lists from the request queue 
+     * because replacing collectives with put, get requests
+     * will probably cause reallocation so that our 
+     * hash table structure gets invalidated */
+    for ( i = 0, k = 0; i < s_bsc.collcoa_set_size; ++i ) {
         coll_request_t * ptr = s_bsc.collcoa_set[i];
-        const bsc_collective_t * coll = ptr->coll;
-        group_t * group = ptr->group;
-        bsc_pid_t root = ptr->root;
         bsc_size_t n = 0;
-        double min_cost = HUGE_VAL;
-        bsc_size_t min_alg = 0;
+        
+        s_bsc.collcoa_headers[i].coll = ptr->coll;
+        s_bsc.collcoa_headers[i].group = ptr->group;
+        s_bsc.collcoa_headers[i].root = ptr->root;
 
         /* put all parameters in an array */
         while (ptr) {
-            if (s_bsc.collcoa_param_list_size <= n ) {
-                free( s_bsc.collcoa_param_list );
-                s_bsc.collcoa_param_list_size = MAX(100,
+            if (s_bsc.collcoa_param_list_size <= k+n ) {
+                bsc_size_t new_size = MAX(100,
                         s_bsc.collcoa_param_list_size*2 );
-                s_bsc.collcoa_param_list = calloc( 
-                        s_bsc.collcoa_param_list_size,
-                        sizeof(bsc_coll_params_t) );
-                if (!s_bsc.collcoa_param_list)
+                bsc_coll_params_t * new_params = calloc( 
+                        new_size, sizeof(bsc_coll_params_t) );
+
+                if (!new_params)
                     bsp_abort("bsc_sync: insufficient memory\n");
                 
-                /* start copying from scratch again */
-                ptr = s_bsc.collcoa_set[i];
-                n = 0;
+                memcpy( new_params, s_bsc.collcoa_param_list, 
+                  s_bsc.collcoa_param_list_size * sizeof(bsc_coll_params_t) ); 
+
+                free( s_bsc.collcoa_param_list );
+                s_bsc.collcoa_param_list_size = new_size;
+                s_bsc.collcoa_param_list = new_params;
             } else {
-                s_bsc.collcoa_param_list[n] = ptr->params;
+                s_bsc.collcoa_param_list[k+n] = ptr->params;
                 ptr = ptr->next;
                 n += 1;
             }
         }
+        s_bsc.collcoa_headers[i].n_params = n;
+        k += n;
+    }
 
+    for ( i = 0, k = 0 ; i < s_bsc.collcoa_set_size; ++i ) {
+        coll_header_t  hdr = s_bsc.collcoa_headers[i];
+        const bsc_collective_t * coll = hdr.coll;
+        group_t * group = hdr.group ;
+        bsc_pid_t root = hdr.root  ;
+        bsc_size_t n = hdr.n_params;
+
+        double min_cost = HUGE_VAL;
+        bsc_size_t min_alg = 0;
         /* compute cheapest algorithm */
         for ( j = 0; j < coll->n_algs; ++j ) {
-            double c = (*coll->costfuncs[j])(group, s_bsc.collcoa_param_list, n);
+            double c = (*coll->costfuncs[j])(group, s_bsc.collcoa_param_list + k, n);
             if (c < min_cost ) {
                 min_cost = c;
                 min_alg = j;
@@ -166,8 +198,14 @@ static void schedule_colls(void)
 
         /* execute cheapest algorithm */
         (*coll->algorithms[min_alg])( s_bsc.current, root, group,
-                s_bsc.collcoa_param_list, n );
+                s_bsc.collcoa_param_list + k, n );
+
+        k += n;
     }
+
+    /* clear hash table for next use */
+    hash_table_clear( &s_bsc.collcoa );
+    s_bsc.collcoa_set_size = 0;
 }
 
 static request_t * new_request( bsc_step_t step ) 
@@ -653,7 +691,7 @@ bsc_step_t bsc_steps_2tree( bsc_group_t group )
 {
     group_t * g = group;
     bsc_pid_t P = g?g->size:bsp_nprocs();
-    return int_log2(P-1)+1;
+    return P==1?1:int_log2(P-1)+1;
 }
 
 
@@ -853,7 +891,7 @@ bsc_step_t bsc_bcast_qtree_single( bsc_step_t depends,
     bsc_pid_t range, r = g?g->lid[root]:root;
     bsc_pid_t me = ((g?g->lid[ bsp_pid() ] : bsp_pid()) + P - r) %P;
 
-    if ( me == 0 ) 
+    if ( me == 0 && dst != src ) 
         memcpy( dst, src, size ); 
 
     for (range = 1; range < P; range *= q ) {
