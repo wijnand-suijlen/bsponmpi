@@ -670,7 +670,7 @@ double bsc_costs_std_root_p_tree(  bsc_group_t group,
     for ( i = 0; i < n ; ++i )
         total_size += set[i].size;
 
-    return 2*(root_P - 1) * total_size * bsc_g() + 2 * bsc_L();
+    return bsc_g() * 2*(root_P - 1) * total_size + 2 * bsc_L();
 }
 
 
