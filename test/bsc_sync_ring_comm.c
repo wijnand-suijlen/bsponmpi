@@ -12,7 +12,7 @@ TEST( bsc_sync_ring_comm, success())
     y = bsp_pid()?0:0xABCDEF;
 
     bsc_put( bsp_pid(), (bsp_pid() + 1)%bsp_nprocs(), &y, &y, 0, sizeof(int) );
-    bsc_sync( bsp_nprocs() - 1);
+    bsc_sync( bsp_nprocs() );
 
     EXPECT_EQ("%d", y, 0xABCDEF );
     EXPECT_EQ("%d", (int) bsc_current(), bsp_nprocs()  );

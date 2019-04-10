@@ -4,13 +4,10 @@
 
 TEST( bsc_sync_text_unaligned, success() )
 {
-    bsc_step_t d ;
     bsp_begin( bsp_nprocs() );
 
-    d = bsc_current();
-
     if ( bsp_pid() ) {
-        bsc_sync( d );
+        bsc_sync( 1 );
     }
 
     EXPECT_EQ("%d", bsc_current(), bsp_pid()?1:0 );

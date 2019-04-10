@@ -303,17 +303,19 @@ bsc_step_t bsc_collective( bsc_step_t depends,
  */
 bsc_step_t bsc_current(void);
 
-/** Completes requests until superstep \a until is finished. If #bsc_flush is given, it
+/** Completes requests until superstep \a until is started. If #bsc_flush is given, it
  * will complete all outstanding requests and wait for the other processes to
  * also call bsc_sync() with #bsc_flush, hence acting as a global barrier
- * synchronisation.
+ * synchronisation. Using bsc_current() as value, results in a no-op.  Any
+ * other value will proceed to that specific superstep. In that case also a
+ * P-relation is incurred as extra BSP cost.
  *
  * \param until The superstep number to proceed to. If #bsc_flush is given, it
  *              will proceed until no more requests remain in the queue and
  *              other processes also have called bsc_sync() with #bsc_flush.
  *
  * \returns The superstep number after the synchronisation. This will be equal
- *          to zero if \a until was equal to #bsc_flush.
+ *          to \a until unless #bsc_flush was used, in which case it is zero.
  */
 bsc_step_t bsc_sync( bsc_step_t until );
 

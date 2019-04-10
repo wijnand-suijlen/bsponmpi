@@ -14,7 +14,7 @@ TEST( bsc_sync_ring_comm_with_gaps, success())
     gap = 10;
 
     bsc_put( gap*bsp_pid(), (bsp_pid() + 1)%bsp_nprocs(), &y, &y, 0, sizeof(int) );
-    bsc_sync( gap*(bsp_nprocs() - 1));
+    bsc_sync( gap*(bsp_nprocs() - 1)+1);
 
     EXPECT_EQ("%d", (int) bsc_current(), gap*(bsp_nprocs()-1)+1  );
     EXPECT_EQ("%d", y, 0xABCDEF );

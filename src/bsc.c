@@ -389,8 +389,10 @@ bsc_step_t bsc_sync( bsc_step_t until )
         bsp_sync();
     }
 
-    while ( s_bsc.current <= until || until == bsc_flush ) {
+    while ( s_bsc.current < until || until == bsc_flush ) {
         bsc_step_t common_step = until;
+        for ( i = 0; i < P; ++i ) 
+            s_bsc.next_step[i] = bsc_flush;
 
         if (s_bsc.horizon > 0) {
             /* expand all collectives */
@@ -424,12 +426,11 @@ bsc_step_t bsc_sync( bsc_step_t until )
                 -= s_bsc.n_requests[ s_bsc.queue_start ];
 
             /* search for the step this process can skip to */
-            common_step = s_bsc.current;
             if ( 0 == s_bsc.total_n_outstanding_requests ) {
                 common_step = until;
             } else {
-                for (common_step = 0; common_step < s_bsc.horizon-1 ; common_step++){
-                    unsigned j = (s_bsc.queue_start + common_step+1) % s_bsc.horizon;
+                for (common_step = 1; common_step < s_bsc.horizon ; common_step++){
+                    unsigned j = (s_bsc.queue_start + common_step) % s_bsc.horizon;
                     if ( s_bsc.n_requests[j]  != 0 ) {
                         break;
                     }
@@ -438,8 +439,9 @@ bsc_step_t bsc_sync( bsc_step_t until )
             }
         }
 
-        for ( i = 0; i < P; ++i ) {
-            bsp_put( i, &common_step, s_bsc.next_step, bsp_pid()*sz, sz );
+        if ( common_step != bsc_flush ) {
+            for ( i = 0; i < P; ++i ) 
+                bsp_put( i, &common_step, s_bsc.next_step, bsp_pid()*sz, sz );
         }
         bsp_sync();
         common_step = until;
@@ -463,7 +465,7 @@ bsc_step_t bsc_sync( bsc_step_t until )
                 }
             }
             s_bsc.n_requests[ s_bsc.queue_start ] = 0;
-            s_bsc.queue_start = (s_bsc.queue_start+common_step+1-s_bsc.current) % s_bsc.horizon;
+            s_bsc.queue_start = (s_bsc.queue_start+common_step-s_bsc.current) % s_bsc.horizon;
         }
         if ( common_step == bsc_flush ) {
             assert( s_bsc.total_n_outstanding_requests == 0 );
@@ -471,7 +473,7 @@ bsc_step_t bsc_sync( bsc_step_t until )
             s_bsc.queue_start = 0;
             break;
         }
-        s_bsc.current = common_step + 1;
+        s_bsc.current = common_step ;
     }
 
     return s_bsc.current;
@@ -1377,7 +1379,7 @@ bsc_step_t bsc_scan_qtree_single( bsc_step_t depends, bsc_group_t group,
     bsc_put(depends, bsp_pid(), prefix, tmp_space, 0, size);
 
     bsc_exec_reduce( depends, reducer, dst, tmp_space, src, size*nmemb );
-    return depends;
+    return depends+1;
 }
 
 bsc_step_t bsc_scan_1phase_multiple( bsc_step_t depends,

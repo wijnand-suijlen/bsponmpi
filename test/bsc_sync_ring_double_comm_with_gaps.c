@@ -19,7 +19,7 @@ TEST( bsc_sync_ring_double_comm_with_gaps, success())
     /* and a ring backward */
     bsc_put( gap*(2*bsp_nprocs()-bsp_pid()-1),
             (bsp_pid() + bsp_nprocs() - 1)%bsp_nprocs(), &y, &z, 0, sizeof(int) );
-    bsc_sync( gap*(2*bsp_nprocs() - 1));
+    bsc_sync( gap*(2*bsp_nprocs() - 1)+1);
 
     EXPECT_EQ("%d", y, 0xABCDEF );
     EXPECT_EQ("%d", z, 0xABCDEF );
