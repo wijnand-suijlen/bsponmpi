@@ -37,6 +37,7 @@ set(CPACK_GENERATOR "${generators}" )
 
 include(CPack)
 include(CheckSymbolExists)
+include(CheckIncludeFile)
 
 string(TIMESTAMP BUILD_DATE)
 set(SOVERSION "${CPACK_PACKAGE_VERSION}")
@@ -100,6 +101,12 @@ check_symbol_exists( _dupenv_s "stdlib.h" HAS_DUPENV_S_WIN32)
 if (HAS_DUPENV_S_WIN32 AND WIN32)
     add_definitions(-DHAS_DUPENV_S_WIN32)
 endif()
+
+check_include_file( "unistd.h" HAS_UNISTD)
+if (HAS_UNISTD)
+    add_definitions(-DHAS_UNISTD)
+endif()
+
 
 if (CMAKE_COMPILER_IS_GNUCXX)
 set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -Wall -Wextra -g -pedantic")

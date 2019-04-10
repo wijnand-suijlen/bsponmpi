@@ -14,6 +14,10 @@
 
 #include <mpi.h>
 
+#ifdef HAS_UNISTD
+#include <unistd.h>
+#endif
+
 #ifdef PROFILE
 #include "tictoc.h"
 using bsplib::TicToc;
@@ -92,7 +96,15 @@ void bsp_abort_va( const char * format, va_list ap )
                 "  Expected: '%s...'\n"
                 "    Actual: '%s'\n", s_expect_abort_msg, buffer  );
     }
+    std::fflush(stdout);
+#if HAS_UNISTD
+    fsync(STDOUT_FILENO);
+#endif
     std::vfprintf(stderr, format, ap );
+    std::fflush(stderr);
+#if HAS_UNISTD
+    fsync(STDERR_FILENO);
+#endif
 
     if (mpi_init)
         MPI_Abort(MPI_COMM_WORLD, 6 );
