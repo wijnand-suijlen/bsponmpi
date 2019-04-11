@@ -177,7 +177,7 @@ include_directories( ${MPI_INCLUDE_PATH} )
 include_directories( include )
 set(BSPONMPI_SOURCES
         src/bsp.cc src/spmd.cc src/a2a.cc src/unbuf.cc src/rdma.cc
-        src/bsmp.cc src/tictoc.cc
+        src/bsmp.cc src/tictoc.cc src/util.c src/lincost.cc
    )
 
 function ( make_bsponmpi name )
@@ -235,8 +235,8 @@ endif()
 
 
 # Unit tests
-add_mpi_unit_test( a2a 3 src/a2a.cc )
-add_mpi_unit_test( a2a_rma 4 src/a2a.cc )
+add_mpi_unit_test( a2a 3 src/a2a.cc src/lincost.cc src/util.c )
+add_mpi_unit_test( a2a_rma 4 src/a2a.cc src/lincost.cc src/util.c)
 target_compile_definitions( unit_test_a2a_rma PRIVATE USE_ONESIDED)
 
 add_mpi_unit_test( unbuf 4 src/unbuf.cc )

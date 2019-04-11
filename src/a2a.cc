@@ -10,13 +10,15 @@
 
 namespace bsplib {
 
-A2A::A2A( MPI_Comm comm, std::size_t max_msg_size, std::size_t small_a2a_size_per_proc)
+A2A::A2A( MPI_Comm comm, std::size_t max_msg_size, std::size_t small_a2a_size_per_proc,
+        double alpha, double beta )
     : m_pid( )
     , m_nprocs( )
     , m_max_msg_size( max_msg_size )
     , m_small_a2a_size_per_proc( small_a2a_size_per_proc )
     , m_send_cap(0)
     , m_recv_cap(0)
+    , m_lincost( alpha, beta )
     , m_send_sizes()
     , m_send_pos()
     , m_send_bufs()
@@ -40,9 +42,9 @@ A2A::A2A( MPI_Comm comm, std::size_t max_msg_size, std::size_t small_a2a_size_pe
     m_small_a2a_size_per_proc = std::min<size_t>( m_small_a2a_size_per_proc,
             std::numeric_limits<int>::max()/m_nprocs );
 
-    m_send_sizes.resize( 3* m_nprocs );
+    m_send_sizes.resize( 4* m_nprocs );
     m_send_pos.resize( m_nprocs );
-    m_recv_sizes.resize( 3*m_nprocs );
+    m_recv_sizes.resize( 4*m_nprocs );
     m_recv_pos.resize( m_nprocs );
     m_small_send_buf.resize( small_a2a_size_per_proc * m_nprocs );
     m_small_recv_buf.resize( small_a2a_size_per_proc * m_nprocs );
@@ -104,31 +106,36 @@ void A2A :: clear()
 
 void A2A::exchange( )
 {
-    std::size_t max_recv = 0;
+    std::size_t max_recv = 0, max_bruck_vol = 0;
     std::size_t new_cap = m_send_cap;
     {   
 #ifdef PROFILE
-        TicToc t( TicToc::MPI_META_A2A, 3*sizeof(std::size_t)*m_nprocs );
+        TicToc t( TicToc::MPI_META_A2A, 4*sizeof(std::size_t)*m_nprocs );
 #endif
         // exchange data sizes. 
+        m_lincost.reset( m_nprocs );
+        for ( int i = 0; i < m_nprocs; ++i ) m_lincost.send( m_send_sizes[i]);
+        std::size_t pref_bruck_vol = m_lincost.get_bruck_vol();
         std::size_t max_send = *std::max_element( m_send_sizes.begin(),
                                m_send_sizes.begin() + m_nprocs );
         for (int p = m_nprocs; p > 0; --p ) {
-            m_send_sizes[3*p-1] = m_send_cap;
-            m_send_sizes[3*p-2] = max_send;
-            m_send_sizes[3*p-3] = m_send_sizes[p-1];
+            m_send_sizes[4*p-1] = m_send_cap;
+            m_send_sizes[4*p-2] = max_send;
+            m_send_sizes[4*p-3] = pref_bruck_vol;
+            m_send_sizes[4*p-4] = m_send_sizes[p-1];
         }
         // In normal cases, Bruck's algorithm will be used, 
         // so this will cost about O( log P )
-        MPI_Alltoall( m_send_sizes.data(), 3*sizeof(std::size_t), MPI_BYTE,
-                m_recv_sizes.data(), 3*sizeof(std::size_t), MPI_BYTE,
+        MPI_Alltoall( m_send_sizes.data(), 4*sizeof(std::size_t), MPI_BYTE,
+                m_recv_sizes.data(), 4*sizeof(std::size_t), MPI_BYTE,
                 m_comm );
 
         for (int p = 0; p < m_nprocs; ++p) {
-            new_cap  = std::max( new_cap, m_recv_sizes[3*p+2] );
-            max_recv = std::max( max_recv, m_recv_sizes[3*p+1] );
-            m_recv_sizes[p] = m_recv_sizes[3*p];
-            m_send_sizes[p] = m_send_sizes[3*p];
+            new_cap  = std::max( new_cap, m_recv_sizes[4*p+3] );
+            max_recv = std::max( max_recv, m_recv_sizes[4*p+2] );
+            max_bruck_vol = std::max( max_bruck_vol, m_recv_sizes[4*p+1] );
+            m_recv_sizes[p] = m_recv_sizes[4*p];
+            m_send_sizes[p] = m_send_sizes[4*p];
         }
     }
 
@@ -154,31 +161,35 @@ void A2A::exchange( )
         /* no need to do anything */
         clear();
     }
-    else if ( max_recv <= m_small_a2a_size_per_proc ) {
+    else  {
+        std::size_t sm = std::min( max_bruck_vol, m_small_a2a_size_per_proc ) ;
+        {
 #ifdef PROFILE
         TicToc t( TicToc::MPI_SMALL_A2A );
 #endif
         for (int p = 0; p < m_nprocs; ++p ) {
-            memcpy( m_small_send_buf.data() + p * max_recv,
+            std::size_t size = std::min( sm, m_send_sizes[p]);
+            memcpy( m_small_send_buf.data() + p * sm,
                     m_send_bufs.data() + p * m_send_cap,
-                    m_send_sizes[p] );
+                    size);
 #ifdef PROFILE
-            t.add_bytes( m_send_sizes[p] );
+            t.add_bytes( sm );
 #endif
         }
         // In small exchanges, Bruck's algorithm will be used again
-        MPI_Alltoall( m_small_send_buf.data(), max_recv, MPI_BYTE,
-                m_small_recv_buf.data(), max_recv, MPI_BYTE,
+        MPI_Alltoall( m_small_send_buf.data(), sm, MPI_BYTE,
+                m_small_recv_buf.data(), sm, MPI_BYTE,
                 m_comm );
 
         for (int p = 0; p < m_nprocs; ++p ) {
+            std::size_t size = std::min( sm, m_recv_sizes[p]);
             memcpy( m_recv_bufs.data() + p * m_recv_cap,
-                    m_small_recv_buf.data() + p * max_recv,
-                    m_recv_sizes[p] );
+                    m_small_recv_buf.data() + p * sm,
+                    size );
         }
-    }
+        } // end plain all-to-all
+        { // start normal message exchange
 #ifdef USE_ONESIDED
-    else { // we have a large exchange
 #ifdef PROFILE
         TicToc t( TicToc::MPI_PUT );
 #endif
@@ -188,9 +199,10 @@ void A2A::exchange( )
         MPI_Win_fence( 0, m_recv_win );
 
         for (int p = 0; p < m_nprocs; ++p ) {
-            std::size_t size = m_send_sizes[p];
-            std::size_t o1 = m_send_cap * p;
-            std::size_t o2 = m_recv_cap * m_pid;
+            std::size_t o = std::min( sm, m_send_sizes[p] );
+            std::size_t size = m_send_sizes[p] - o;
+            std::size_t o1 = m_send_cap * p + o;
+            std::size_t o2 = m_recv_cap * m_pid + o;
 #ifdef PROFILE
             t.add_bytes( size );
 #endif
@@ -206,17 +218,22 @@ void A2A::exchange( )
         }
 
         MPI_Win_fence( 0, m_recv_win );
-    }
 #else
-    else { // we have a large exchange
+
 #ifdef PROFILE
         TicToc tr( TicToc::MPI_LARGE_RECV );
         TicToc ts( TicToc::MPI_LARGE_SEND );
 #endif
 
         for ( int p = 0 ; p < m_nprocs; ++p ) {
-            m_send_pos[p] = p * m_send_cap;
-            m_recv_pos[p] = p * m_recv_cap;
+            std::size_t so = std::min( sm, m_send_sizes[p] );
+            std::size_t ro = std::min( sm, m_recv_sizes[p] );
+
+            m_send_sizes[p] -= so;
+            m_send_pos[p] = p * m_send_cap + so;
+
+            m_recv_sizes[p] -= ro;
+            m_recv_pos[p] = p * m_recv_cap + ro;
         }
 
         // Do a personalized exchange
@@ -282,8 +299,9 @@ void A2A::exchange( )
             assert( m_reqs[m_nprocs+p] == MPI_REQUEST_NULL );
             m_recv_sizes[p] = m_recv_pos[p] - p * m_recv_cap;
         }
-    } // end of MPI_Isend - Irecv - wait pattern 
 #endif
+    } // end of plain message exchange
+    } // end of else
 
     m_send_cap = m_recv_cap;
     m_send_bufs.resize( m_nprocs * m_send_cap );

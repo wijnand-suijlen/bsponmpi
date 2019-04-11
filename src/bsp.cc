@@ -190,8 +190,16 @@ void bsp_begin( bsp_pid_t maxprocs )
                         " was not an integer between 1 and %d \n",
                         max_small_exchange_size );
     }
+
+    double alpha = 1e+4, beta = 1.0;
+    if (bsplib::read_env( "BSPONMPI_P2P_LATENCY", alpha ) || alpha < 0.0) {
+        bsp_abort("bsp_begin: BSPONMPI_P2P_LATENCY was not a positive number\n");
+    }
+    if (bsplib::read_env( "BSPONMPI_P2P_MSGGAP", beta ) || beta < 0.0) {
+        bsp_abort("bsp_begin: BSPONMPI_P2P_MSGGAP was not a positive number\n");
+    }
     s_rdma = new bsplib::Rdma( s_spmd->comm(), max_msg_size, 
-                               small_exch_size);
+                               small_exch_size, alpha, beta);
     s_bsmp = new bsplib::Bsmp( s_spmd->comm(), max_msg_size,
                                small_exch_size);
 }

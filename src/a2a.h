@@ -11,6 +11,7 @@
 
 #include "uintserialize.h"
 #include "dllexport.h"
+#include "lincost.h"
 
 namespace bsplib {
  
@@ -19,7 +20,9 @@ class DLL_LOCAL A2A
 public:
     A2A( MPI_Comm comm,
             std::size_t max_msg_size = std::numeric_limits<int>::max(),
-            std::size_t small_a2a_size_per_proc = 1024 );
+            std::size_t small_a2a_size_per_proc = 1024,
+            double alpha = 1.0e+4,
+            double beta = 1.0 );
     ~A2A();
 
     int pid() const { return m_pid; }
@@ -68,6 +71,7 @@ private:
     const std::size_t m_max_msg_size;
     std::size_t m_small_a2a_size_per_proc;
     std::size_t m_send_cap, m_recv_cap;
+    LinCost m_lincost;
 
     std::vector< std::size_t > m_send_sizes, m_send_pos;
     std::vector< char > m_send_bufs;

@@ -9,9 +9,10 @@
 
 namespace bsplib {
 
-Rdma :: Rdma( MPI_Comm comm, size_t max_msg_size, size_t small_exch_size  )
-    : m_first_exchange( comm, max_msg_size, small_exch_size )
-    , m_second_exchange( comm, max_msg_size, small_exch_size )
+Rdma :: Rdma( MPI_Comm comm, size_t max_msg_size, size_t small_exch_size,
+      double alpha, double beta  )
+    : m_first_exchange( comm, max_msg_size, small_exch_size, alpha, beta )
+    , m_second_exchange( comm, max_msg_size, small_exch_size, alpha, beta )
     , m_pid(m_first_exchange.pid())
     , m_nprocs(m_first_exchange.nprocs())
     , m_register()

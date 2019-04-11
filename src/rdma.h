@@ -30,7 +30,8 @@ public:
     };
     typedef size_t Memslot;
 
-    Rdma( MPI_Comm comm , size_t max_msg_size, size_t small_exch_size );
+    Rdma( MPI_Comm comm , size_t max_msg_size, size_t small_exch_size,
+       double alpha, double beta );
     
     void push_reg( void * addr, size_t size );
     void pop_reg( Memslot slot );
