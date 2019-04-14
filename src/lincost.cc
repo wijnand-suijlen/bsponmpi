@@ -25,11 +25,6 @@ void LinCost::reset(int nprocs)
     m_sizes.push_back(0); // we insert 0 as an extra option
 }
 
-void LinCost::send( std::size_t size )
-{
-    m_sizes.push_back( size );
-}
-
 std::size_t LinCost::get_bruck_vol()
 {
     if ( m_nprocs == 1 ) return m_sizes.back();

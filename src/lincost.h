@@ -24,7 +24,10 @@ public:
     LinCost( double alpha, double beta );
 
     void reset( int nprocs );
-    void send( std::size_t size );
+
+    void send( std::size_t size )
+    { m_sizes.push_back( size ); }
+
     std::size_t get_bruck_vol() ;
 
 private:

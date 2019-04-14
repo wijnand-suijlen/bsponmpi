@@ -42,9 +42,9 @@ A2A::A2A( MPI_Comm comm, std::size_t max_msg_size, std::size_t small_a2a_size_pe
     m_small_a2a_size_per_proc = std::min<size_t>( m_small_a2a_size_per_proc,
             std::numeric_limits<int>::max()/m_nprocs );
 
-    m_send_sizes.resize( 4* m_nprocs );
+    m_send_sizes.resize( m_nprocs );
     m_send_pos.resize( m_nprocs );
-    m_recv_sizes.resize( 4*m_nprocs );
+    m_recv_sizes.resize( m_nprocs );
     m_recv_pos.resize( m_nprocs );
     m_small_send_buf.resize( small_a2a_size_per_proc * m_nprocs );
     m_small_recv_buf.resize( small_a2a_size_per_proc * m_nprocs );
@@ -112,31 +112,45 @@ void A2A::exchange( )
 #ifdef PROFILE
         TicToc t( TicToc::MPI_META_A2A, 4*sizeof(std::size_t)*m_nprocs );
 #endif
+
         // exchange data sizes. 
-        m_lincost.reset( m_nprocs );
-        for ( int i = 0; i < m_nprocs; ++i ) m_lincost.send( m_send_sizes[i]);
-        std::size_t pref_bruck_vol = m_lincost.get_bruck_vol();
-        std::size_t max_send = *std::max_element( m_send_sizes.begin(),
-                               m_send_sizes.begin() + m_nprocs );
-        for (int p = m_nprocs; p > 0; --p ) {
-            m_send_sizes[4*p-1] = m_send_cap;
-            m_send_sizes[4*p-2] = max_send;
-            m_send_sizes[4*p-3] = pref_bruck_vol;
-            m_send_sizes[4*p-4] = m_send_sizes[p-1];
-        }
-        // In normal cases, Bruck's algorithm will be used, 
-        // so this will cost about O( log P )
-        MPI_Alltoall( m_send_sizes.data(), 4*sizeof(std::size_t), MPI_BYTE,
-                m_recv_sizes.data(), 4*sizeof(std::size_t), MPI_BYTE,
+        MPI_Alltoall( m_send_sizes.data(), sizeof(std::size_t), MPI_BYTE,
+                m_recv_sizes.data(), sizeof(std::size_t), MPI_BYTE,
                 m_comm );
 
-        for (int p = 0; p < m_nprocs; ++p) {
-            new_cap  = std::max( new_cap, m_recv_sizes[4*p+3] );
-            max_recv = std::max( max_recv, m_recv_sizes[4*p+2] );
-            max_bruck_vol = std::max( max_bruck_vol, m_recv_sizes[4*p+1] );
-            m_recv_sizes[p] = m_recv_sizes[4*p];
-            m_send_sizes[p] = m_send_sizes[4*p];
-        }
+        // determine ideal nr of bytes to send over MPI_Alltoall
+        m_lincost.reset( m_nprocs );
+        for ( int i = 0; i < m_nprocs; ++i ) 
+            if ( m_send_sizes[i] > 0 )
+                m_lincost.send( m_send_sizes[i]);
+
+        std::size_t pref_bruck_vol = m_lincost.get_bruck_vol();
+
+        m_lincost.reset( m_nprocs );
+        for ( int i = 0; i < m_nprocs; ++i ) 
+            if ( m_recv_sizes[i] > 0 )
+                m_lincost.send( m_recv_sizes[i]);
+
+        // Determine max communication sizes
+        pref_bruck_vol = 
+            std::max( pref_bruck_vol, m_lincost.get_bruck_vol() );
+
+        std::size_t max_send = *std::max_element( m_send_sizes.begin(),
+                               m_send_sizes.begin() + m_nprocs );
+
+        assert( std::numeric_limits<std::size_t>::max() <=
+                std::numeric_limits<unsigned long>::max() );
+
+        unsigned long global_comm_send[3] = 
+            { m_send_cap, max_send, pref_bruck_vol };
+        unsigned long global_comm_recv[3];
+
+        MPI_Allreduce( global_comm_send, global_comm_recv,
+                3, MPI_UNSIGNED_LONG, MPI_MAX, m_comm );
+
+        new_cap       = global_comm_recv[0];
+        max_recv      = global_comm_recv[1];
+        max_bruck_vol = global_comm_recv[2];
     }
 
     // Ensure correct size memory of recv buffers
