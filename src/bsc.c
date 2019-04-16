@@ -481,12 +481,42 @@ bsc_step_t bsc_sync( bsc_step_t until )
 
 double bsc_g()
 {
-    return 1.0;
+    static double g = 0.0;
+    if ( g == 0.0 ) {
+        const double default_g = 1.0;
+        char * numend = NULL;
+        char * str = getenv("BSC_G");
+        double result = str?strtod( str, &numend ):default_g;
+        if ( numend == str || result == HUGE_VAL || result == -HUGE_VAL
+           || result < 1e-300 ) {
+            result = default_g;
+            fprintf(stderr, "bsc_g: BSC_G was not a finite positve "
+                            "floating point number."
+                            " Using default: %g\n", result );
+        }
+        g = result;
+    }
+    return g;
 }
 
 double bsc_L()
 {
-    return 1.0e+4;
+    static double L = 0.0;
+    if ( L == 0.0 ) {
+        const double default_L = 1e+4;
+        char * numend = NULL;
+        char * str = getenv("BSC_L");
+        double result = str?strtod( str, &numend ):default_L;
+        if ( numend == str || result == HUGE_VAL || result == -HUGE_VAL
+           || result < 1e-300 ) {
+            result = default_L;
+            fprintf(stderr, "bsc_L: BSC_L was not a finite positve "
+                            "floating point number."
+                            " Using default: %g\n", result );
+        }
+        L = result;
+    }
+    return L;
 }
 
 
@@ -659,7 +689,7 @@ double bsc_costs_std_2tree(  bsc_group_t group,
     for ( i = 0; i < n ; ++i )
         total_size += set[i].size;
 
-    return (int_log2(P-1)+1) * (total_size * bsc_g() +  bsc_L() ) ;
+    return P==1?0:(int_log2(P-1)+1) * (total_size * bsc_g() +  bsc_L() ) ;
 }
 
 double bsc_costs_std_root_p_tree(  bsc_group_t group,

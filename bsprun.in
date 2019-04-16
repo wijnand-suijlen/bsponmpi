@@ -32,7 +32,7 @@ function show_help()
    echo "              Launches the program with at most <procs> parallel"
    echo "              processes"
    echo
-   echo "    --max-msg-size=<bytes>  [default: $((2**31-1))]"
+   echo "    --max-msg-size=<bytes>             [default: $((2**31-1))]"
    echo "              Restricts the runtime to messages equal or less"
    echo "              than the prescribed amount. It may be necessary"
    echo "              to change this value to improve speed or work "
@@ -47,6 +47,18 @@ function show_help()
    echo "              optimal methods (MPI_Put when linked with --rma,"
    echo "              MPI_Irsend/MPI_Irecv when linked with --msg) are"
    echo "              used, but that have also higher latency L = O(p)."
+   echo
+   echo "    --assume-linear-cost-for-p2p=<alpha>[:<beta>]"
+   echo "                                       [default: 10000:1]"
+   echo "              Assumes a linear cost-model for sending point-"
+   echo "              to-point messages with MPI with start-up cost"
+   echo "              alpha and cost per byte beta. Both values accept" 
+   echo "              a floating point format."
+   echo 
+   echo "    --assume-bsp-parameters=<L>[:<g>]  [default: <P*alpha>:<beta>]"
+   echo "              Assumes the specified values for the BSP parameters"
+   echo "              L and g. This allows the collectives library to"
+   echo "              choose the best algorithm."
 }
 
 state=normal
@@ -54,11 +66,18 @@ rest=()
 show=
 max_msg_size=$((2**31 - 1))
 small_exchange_size=1024
+p2p_latency=10000
+p2p_msggap=1
+bsp_g=
+bsp_L=
+bsp_nprocs=
+
 for arg
 do
 
   case $state in
     nprocs)  
+       bsp_nprocs=${arg}
        rest=( "${rest[@]}"  @MPIRUN_NPROCS_PARAM_SCRIPT@${arg} )
        state=normal
        ;;
@@ -81,7 +100,8 @@ do
         ;;
 
     --nprocs=*)
-        rest=( "${rest[@]}"  @MPIRUN_NPROCS_PARAM_SCRIPT@${arg#--nprocs==} )
+        bsp_nprocs=${arg#--nprocs=}
+        rest=( "${rest[@]}"  @MPIRUN_NPROCS_PARAM_SCRIPT@${arg#--nprocs=} )
         ;;
 
     -version|--version) 
@@ -99,7 +119,27 @@ do
     --small-exchange-size=*)
          small_exchange_size=${arg#--small-exchange-size=}
          ;;
-        
+ 
+    --assume-linear-cost-for-p2p=*:*)
+         p2p_cost=${arg#--assume-linear-cost-for-p2p=}
+         p2p_latency=${p2p_cost%:*}
+         p2p_msggap=${p2p_cost#*:}
+         ;;
+ 
+    --assume-linear-cost-for-p2p=*)
+         p2p_latency=${arg#--assume-linear-cost-for-p2p=}
+         ;;
+         
+    --assume-bsp-parameters=*:*)
+         bsp_params=${arg#--assume-bsp-parameters=}
+         bsp_L=${bsp_params%:*}
+         bsp_g=${bsp_params#*:}
+         ;;
+ 
+    --assume-bsp-parameters=*)
+         bsp_L=${arg#--assume-bsp-parameters=}
+         ;;
+       
     *)   rest=( "${rest[@]}" "$arg" )
          ;;
   esac
@@ -107,10 +147,24 @@ do
   esac
 done
 
+if [ "x${bsp_L}" = x ]; then
+  if [ x${bsp_nprocs} = x ]; then
+    bsp_nprocs=1
+  fi
+  bsp_L=$(( bsp_nprocs * p2p_latency )) 
+fi
+
+if [ "x${bsp_g}" = x ]; then
+  bsp_g=${p2p_msggap}
+fi
 
 $show export DYLD_LIBRARY_PATH=@BSPONMPI_LIB_DIR@:$DYLD_LIBRARY_PATH
 $show export LD_LIBRARY_PATH=@BSPONMPI_LIB_DIR@:$LD_LIBRARY_PATH
 $show export BSPONMPI_MAX_MSG_SIZE=${max_msg_size}
 $show export BSPONMPI_SMALL_EXCHANGE_SIZE=${small_exchange_size}
+$show export BSPONMPI_P2P_LATENCY=${p2p_latency}
+$show export BSPONPMI_P2P_MSGGAP=${p2p_msggap}
+$show export BSC_L=${bsp_L}
+$show export BSC_G=${bsp_g}
 
 $show exec @MPIRUN_EXECUTABLE@ "${rest[@]}"

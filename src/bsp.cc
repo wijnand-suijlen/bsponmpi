@@ -193,10 +193,12 @@ void bsp_begin( bsp_pid_t maxprocs )
 
     double alpha = 1e+4, beta = 1.0;
     if (bsplib::read_env( "BSPONMPI_P2P_LATENCY", alpha ) || alpha < 0.0) {
-        bsp_abort("bsp_begin: BSPONMPI_P2P_LATENCY was not a positive number\n");
+        alpha = 1e+4;
+        fprintf(stderr, "bsp_begin: BSPONMPI_P2P_LATENCY was not a positive number. Using default: %g\n", alpha);
     }
     if (bsplib::read_env( "BSPONMPI_P2P_MSGGAP", beta ) || beta < 0.0) {
-        bsp_abort("bsp_begin: BSPONMPI_P2P_MSGGAP was not a positive number\n");
+        beta = 1.0;
+        fprintf(stderr, "bsp_begin: BSPONMPI_P2P_MSGGAP was not a positive number. Using default: %g\n", beta);
     }
     s_rdma = new bsplib::Rdma( s_spmd->comm(), max_msg_size, 
                                small_exch_size, alpha, beta);

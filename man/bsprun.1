@@ -84,6 +84,20 @@ Hence, the general advice is to increase this value if your application
 is sensitive to synchronisation latency.
 By default a communication of 1024 bytes per process or less is a small
 exchange.
+.TP
+.BR \-\-assume\-linear\-cost\-for\-p2p=\fIalpha\fR:\fIbeta\fR
+In order to determine how much data is communicated through the
+latency optimal method and how much through the throughput optimal method,
+the system requires an estimate of the ratio between a the startup
+time and the reciprocal throughput of a point-to-point message.
+By default this is assumed to be \fIalpha\fR:\fIbeta\fR = 10000:1.
+.TP
+.BR \-\-assume\-bsp\-parameters=\fIL\fR:\fIg\fR
+The included collectives library requires estimates of the BSP
+machine parameters L and g in order to choose the best algorithm
+for each call.
+By default these values are assumed to be \fIL\fR = P*\fIalpha\fR, where
+P is the number of processes, and \fIg\fR = \fIbeta\fR.
 .
 .SH ENVIRONMENT
 .B bsprun
@@ -92,13 +106,39 @@ is essentially a wrapper around
 (1) but sets an additional set of environment variables:
 .TP
 .B BSPONMPI_MAX_MSG_SIZE
-Sets the maximum message size. See the description of 
+Sets the maximum message size. 
+See the description of 
 .B \-\-max-msg-size
 above.
 .TP
 .B BSPONMPI_SMALL_EXCHANGE_SIZE
-Sets the maximum for small exchanges. See the description of
+Sets the maximum for small exchanges.
+See the description of
 .B \-\-small\-exchange\-size
+above.
+.TP
+.B BSPONMPI_P2P_LATENCY
+Sets the startup cost for point-to-point messages.
+See the description of
+.B \-\-assume\-linear\-cost\-for\-p2p
+above.
+.TP
+.B BSPONMPI_P2P_MSGGAP
+Sets the reciprocal throughput for point-to-point messages.
+See the description of 
+.B \-\-assume\-linear\-cost\-for\-p2p
+above.
+.TP
+.B BSC_L
+Sets the BSP parameter \fIL\fR.
+See the description of 
+.B \-\-assume\-bsp\-parameters
+above.
+.TP
+.B BSC_G
+Sets the BSP parameter \fIg\fR.
+See the description of 
+.B \-\-assume\-bsp\-parameters
 above.
 .P
 In order for the dynamic linker to find the BSPonMPI dynamic
