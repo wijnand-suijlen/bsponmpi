@@ -569,7 +569,7 @@ bsc_step_t bsc_allreduce( bsc_step_t depends, bsc_group_t group,
  * \param dst     Pointer to memory of array \a nmemb elements 
  *                of \a size bytes, where the result should be stored.
  * \param tmp_space Pointer to <i>registered</i> scratch space of
- *                      \f$p \cdot \texttt{size}\f$ bytes size.  
+ *                      \f$2*p \cdot \texttt{size}\f$ bytes size.  
  * \param reducer <i>collective</i> The reduction function that computes a scan.
  * \param zero    <i>collective</i> The zero for the reduction function.
  *                It must hold that \f$ \texttt{zero} \oplus x = x, \ \forall x \f$.

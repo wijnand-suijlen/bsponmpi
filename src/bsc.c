@@ -487,8 +487,8 @@ double bsc_g()
         char * numend = NULL;
         char * str = getenv("BSC_G");
         double result = str?strtod( str, &numend ):default_g;
-        if ( numend == str || result == HUGE_VAL || result == -HUGE_VAL
-           || result < 1e-300 ) {
+        if ( (str && numend == str) || result == HUGE_VAL 
+                || result == -HUGE_VAL || result < 1e-300 ) {
             result = default_g;
             fprintf(stderr, "bsc_g: BSC_G was not a finite positve "
                             "floating point number."
@@ -507,8 +507,8 @@ double bsc_L()
         char * numend = NULL;
         char * str = getenv("BSC_L");
         double result = str?strtod( str, &numend ):default_L;
-        if ( numend == str || result == HUGE_VAL || result == -HUGE_VAL
-           || result < 1e-300 ) {
+        if ( (str && numend == str) || result == HUGE_VAL 
+                || result == -HUGE_VAL || result < 1e-300 ) {
             result = default_L;
             fprintf(stderr, "bsc_L: BSC_L was not a finite positve "
                             "floating point number."
@@ -1375,6 +1375,8 @@ bsc_step_t bsc_scan_qtree_single( bsc_step_t depends, bsc_group_t group,
     bsc_pid_t i, j, k=0, P = g?g->size:bsp_nprocs() ;
     bsc_pid_t range, s = g?g->lid[bsp_pid()]:bsp_pid();
     char * dst_bytes = dst;
+    char * tmp1 = tmp_space;
+    char * tmp2 = tmp1 + P * size;
     const void * prefix;
 
     (*reducer)( dst, zero, src, size * nmemb );
@@ -1385,12 +1387,12 @@ bsc_step_t bsc_scan_qtree_single( bsc_step_t depends, bsc_group_t group,
         if (range == 1)
             last = (nmemb==0 ? zero : &dst_bytes[(nmemb-1)*size]);
         else
-            last = (k==0 ? zero : &dst_bytes[(k-1)*size]);
+            last = (k==0 ? zero : &tmp2[(k-1)*size]);
 
         for ( i = 1; i < q; ++i ) {
             j = s + range * i + shift;
             if ( j < P ) {
-                bsc_put( depends, g?g->gid[j]:j, last, tmp_space , i * size, size);
+                bsc_put( depends, g?g->gid[j]:j, last, tmp1, i * size, size);
             }
         }
     
@@ -1399,16 +1401,16 @@ bsc_step_t bsc_scan_qtree_single( bsc_step_t depends, bsc_group_t group,
 
         if (s < P - shift) {
             j = g?g->gid[s+shift]:s+shift;
-            bsc_put(depends, j, last, tmp_space, 0, size);
+            bsc_put(depends, j, last, tmp1, 0, size);
         }
-        bsc_exec_reduce( depends, reducer, dst, zero, tmp_space, size*k );
+        bsc_exec_reduce( depends, reducer, tmp2, zero, tmp1, size*k );
         depends += 1;
     }
 
-    prefix = k > 0 ? &dst_bytes[(k-1)*size] : zero ;
-    bsc_put(depends, bsp_pid(), prefix, tmp_space, 0, size);
+    prefix = k > 0 ? &tmp2[(k-1)*size] : zero ;
+    bsc_put(depends, bsp_pid(), prefix, tmp1, 0, size);
 
-    bsc_exec_reduce( depends, reducer, dst, tmp_space, src, size*nmemb );
+    bsc_exec_reduce( depends, reducer, dst, tmp1, src, size*nmemb );
     return depends+1;
 }
 

@@ -26,13 +26,14 @@ bsc_step_t bsc_scan_qtree_single( bsc_step_t depends, bsc_group_t group,
 
 TEST( bsc_scan_3tree, success() )
 {
-    int i, n1 = 4, n2 = 5, n3 = 6;
+    int i, n1 = 4, n2 = 5, n3 = 6, n4=7;
     int x[6];
     int y1[4] = { 9999, 9999, 9999, 9999};
     int y2[5] = { 9999, 9999, 9999, 9999, 9999};
     int y3[6] = { 9999, 9999, 9999, 9999, 9999, 9999};
+    int y4[7] = { 9999, 9999, 9999, 9999, 9999, 9999, 9999};
 
-    int tmp[20] ; 
+    int tmp[40] ; 
     int zero = 0;
     bsc_step_t ready = bsc_start;
     bsp_begin( bsp_nprocs() );
@@ -93,6 +94,24 @@ TEST( bsc_scan_3tree, success() )
     for ( i = 0; i < n3; ++i ) {
         int j = n3*bsp_pid()+i;
         EXPECT_EQ( "%d", y3[i], j*(j+1)/2 );
+    }
+
+    for ( i = 0; i < n4; ++i ) {
+        x[i] = n4*bsp_pid()+i;
+        y4[i] = 9999;
+    }
+    for ( i = 0; (unsigned) i < sizeof(tmp)/sizeof(tmp[0]); ++i)
+        tmp[i] = 9999999;
+ 
+    ready = bsc_scan_qtree_single( ready, bsc_all, 
+            &x, &y4, &tmp, prefix_sum, &zero, n4, sizeof(x[0]), 
+            bsp_nprocs() );
+
+    bsc_sync( ready );
+
+    for ( i = 0; i < n4; ++i ) {
+        int j = n4*bsp_pid()+i;
+        EXPECT_EQ( "%d", y4[i], j*(j+1)/2 );
     }
 
 
