@@ -80,23 +80,6 @@ extern "C" {
     bsc_sync( bsc_flush ); 
  * \endcode
  *
- * Benefits over other collectives libraries
- *   - It works inside the BSP cost-model
- *   - Highly portable because no subset synchronisation is required.
- *   - Enables encapsulation
- *
- * Limitations
- *   - Only data-oblivious algorithms can be expressed
- *
- * Unexplored wizardry
- *   - Through static analysis it schedules can be analyzed to determine whether
- *     it makes sense to delay some requests further in order to achieve better
- *     communication balance. 
- *   - Superstep values, which are used to track request dependenices, are mere
- *     integers and may thus be communicated. This could allow two subgroups to
- *     synchronize without cooperation from processes that are in neither
- *     group. 
- *
  *
  * @{
  *
@@ -177,8 +160,34 @@ void bsc_group_destroy( bsc_group_t group );
  * @}
  */
 
+/** \defgroup BSC_INTROSP  BSP machine performance parameters
+ *
+ * These functions can be used by collectives implementations to decide which
+ * BSP algorithm to use
+ *
+ * @{
+ *
+ */
 
-/** \defgroup BSC_PRIM Primitives
+
+/** BSP cost parameter \f$g\f$, denoting the message gap or reciprocal
+ * throughput. This can be used to choose the best algorithm, depending
+ * on the input data size. The value is relative to bsp_L().
+ */
+double bsc_g(void);
+
+/** BSP cost parameter \f$\ell\f$, denoting the synchronisation latency.
+ * This can be used to choose the best algorithm, depending
+ * on the input data size. The value is relative to bsp_g().
+ */
+double bsc_L(void);
+
+/**
+ * @}
+ */
+
+
+/** \defgroup BSC_PRIM Delayed one-sided communication primitives
  *
  * All collectives are built from only these primitives
  *
@@ -188,27 +197,36 @@ void bsc_group_destroy( bsc_group_t group );
 
 
 /** The special delay value to use with bsc_sync() to proceed execution of all
- * outstanding requests and to perform a global barrier synchronisation */
+ * outstanding requests and to perform a global barrier synchronisation. This
+ * ends the current epoch and starts a new one. */
 extern const bsc_step_t bsc_flush;
 
-/** The special delay value that denotes the first superstep after a bsc_sync()
- * with a #bsc_flush. This number is equal to zero. */
+/** The special delay value that denotes the first superstep of an epoch.
+ * This number is equal to zero.
+ *
+ * \see #bsc_flush */
 extern const bsc_step_t bsc_start;
 
-/** A function pointer that points to an implementation of an associative
- * operator \f$\oplus\f$. It must perform the reduction on the array \a xs of
- * \a size bytes in total and store the result in \a a, either as a single value
- * or a prefix calculation (scan).  The value pointer to by \a a0 is used as
- * start value for \a a. The pointers \a a, \a a0, and \a xs may not refer to
- * overlapping memory blocks.
- *
- * \param a     Pointer to memory where to store the result
- * \param a0    Start value for \a a
- * \param xs    Pointer to the start of the array
- * \param size  Number of bytes that the array holds
+/** The current superstep number. This is equal to zero at the start of an epoch.
  */
-typedef void (*bsc_reduce_t)(void * a, const void * a0,
-        const void * xs, bsc_size_t size );
+bsc_step_t bsc_current(void);
+
+/** Completes requests until superstep \a until is started. If #bsc_flush is given,
+ * it ends an epoch and starts a new one by completing all outstanding requests
+ * and waiting for the other processes to also call bsc_sync() with #bsc_flush,
+ * hence acting as a global barrier synchronisation. Using bsc_current() as
+ * value, results in a no-op.  Any other value will proceed to that specific
+ * superstep. In that case also a P-relation is incurred as extra BSP cost.
+ *
+ * \param until The superstep number to proceed to. If #bsc_flush is given, it
+ *              will proceed until no more requests remain in the queue and
+ *              other processes also have called bsc_sync() with #bsc_flush.
+ *
+ * \returns The superstep number after the synchronisation. This will be equal
+ *          to \a until unless #bsc_flush was used, in which case it is zero.
+ */
+bsc_step_t bsc_sync( bsc_step_t until );
+
 
 /** Requests a bsp_put() to be executed in \a depends supersteps from now.
  *
@@ -241,6 +259,21 @@ bsc_step_t bsc_put( bsc_step_t depends, bsc_pid_t dst_pid,
 bsc_step_t bsc_get( bsc_step_t depends, bsc_pid_t src_pid, 
         const void * src, bsc_size_t offset, void * dst, bsc_size_t size);
 
+/** A function pointer that points to an implementation of an associative
+ * operator \f$\oplus\f$. It must perform the reduction on the array \a xs of
+ * \a size bytes in total and store the result in \a a, either as a single value
+ * or a prefix calculation (scan).  The value pointer to by \a a0 is used as
+ * start value for \a a. The pointers \a a, \a a0, and \a xs may not refer to
+ * overlapping memory blocks.
+ *
+ * \param a     Pointer to memory where to store the result
+ * \param a0    Start value for \a a
+ * \param xs    Pointer to the start of the array
+ * \param size  Number of bytes that the array holds
+ */
+typedef void (*bsc_reduce_t)(void * a, const void * a0,
+        const void * xs, bsc_size_t size );
+
 /** Requests execution of a \a bsp_reduce_t function after all communication 
  * of the superstep of \a depends steps from now has been completed.
  *
@@ -257,99 +290,95 @@ bsc_step_t bsc_exec_reduce( bsc_step_t depends,
         bsc_reduce_t reducer, void * a, const void * a0,
         const void * xs, bsc_size_t size );
 
+/** Stores the data and operation to be executed by the collective.  This is
+ * used to define collectives whose operation can be coalesced.
+ */
 typedef struct bsc_coll_params {
-    const void * src;
-    void * dst;
-    void * tmp;
-    bsc_reduce_t reducer;
-    const void * zero;
-    bsc_size_t nmemb, size;
+    const void * src; /**< pointer to source data */
+    void * dst;       /**< pointer to destination data */
+    void * tmp;       /**< pointer to temporary memory */
+    bsc_reduce_t reducer; /**< function computing reduction or prefix */
+    const void * zero; /**< the neutral element for a reduction */
+    bsc_size_t nmemb; /**< number of elements */
+    bsc_size_t size; /**< size of each element */
 } bsc_coll_params_t;
 
+/** A parallel collective algorithm for coalesced collective operations.
+ *
+ * \param depends Collective is executed at the end of this superstep
+ * \param root    A root process, if relevant
+ * \param group   The process group
+ * \param set     A pointer to an array with the coalesced set of calls
+ * \param n       The number of elements in \a set.
+ *
+ * \returns The superstep of completion
+ *
+ */
 typedef bsc_step_t (*bsc_coll_alg_t)( bsc_step_t depends, 
         bsc_pid_t root, bsc_group_t group, 
         bsc_coll_params_t * set, bsc_size_t n );
 
+/** The cost function for a parallel, coalesced collective algorithm.
+ *
+ * \param group The process group
+ * \param set   A pointer to an array with the coalesced set of calls
+ * \param n     The number of elements in \a set.
+ *
+ * \returns The cost of this algorithm
+ */
 typedef double (*bsc_coll_cost_t)( bsc_group_t group,
         bsc_coll_params_t * set, bsc_size_t n );
 
+/** The number of supersteps required by a parallel, coalesced collective
+ * algorithm
+ *
+ * \param group The process group
+ *
+ * \return The number of supersteps required
+ */
 typedef bsc_step_t (*bsc_coll_steps_t)(bsc_group_t group);
 
+/** The maximum number of algorithms allowed for each collective */
 #define BSC_MAX_COLL_ALGS 10
+
+/** Defines a collective */
 typedef struct bsc_collective { 
+    
+    /** Each collective algorithm */
     bsc_coll_alg_t   algorithms[BSC_MAX_COLL_ALGS];
+
+    /** The cost function of each algorithm */
     bsc_coll_cost_t  costfuncs[BSC_MAX_COLL_ALGS];
+
+    /** The number of supersteps required by each algorithm */
     bsc_coll_steps_t maxsteps[BSC_MAX_COLL_ALGS];
+
+    /** The number of algorithms */
     bsc_size_t       n_algs;
 } bsc_collective_t;
 
-extern const bsc_collective_t * const bsc_coll_scatter;
-extern const bsc_collective_t * const bsc_coll_gather;
-extern const bsc_collective_t * const bsc_coll_allgather;
-extern const bsc_collective_t * const bsc_coll_alltoall;
-extern const bsc_collective_t * const bsc_coll_bcast;
-extern const bsc_collective_t * const bsc_coll_reduce;
-extern const bsc_collective_t * const bsc_coll_allreduce;
-extern const bsc_collective_t * const bsc_coll_scan;
-
+/** Schedules \a collective operation for superstep \a depends. This call
+ * can be coalesced with other calls that have the same \a root, \a group, 
+ * and \a depends.
+ *
+ * \param  depends The collective operation is schedules at the end of
+ *                 superstep \a depends.
+ * \param  collective The collective operation that is scheduled
+ * \param  root    The root process of the collective operation, if applicable
+ * \param  group   The process group 
+ * \param  params  The collective operation parameters
+ */
 bsc_step_t bsc_collective( bsc_step_t depends, 
        const bsc_collective_t * collective,
        bsc_pid_t root, bsc_group_t group, 
        bsc_coll_params_t params ) ;
 
 
-/** The current superstep number. This is equal to zero before any 
- * call to bsc_sync() and after a call to bsc_sync() with #bsc_flush.
- */
-bsc_step_t bsc_current(void);
-
-/** Completes requests until superstep \a until is started. If #bsc_flush is given, it
- * will complete all outstanding requests and wait for the other processes to
- * also call bsc_sync() with #bsc_flush, hence acting as a global barrier
- * synchronisation. Using bsc_current() as value, results in a no-op.  Any
- * other value will proceed to that specific superstep. In that case also a
- * P-relation is incurred as extra BSP cost.
- *
- * \param until The superstep number to proceed to. If #bsc_flush is given, it
- *              will proceed until no more requests remain in the queue and
- *              other processes also have called bsc_sync() with #bsc_flush.
- *
- * \returns The superstep number after the synchronisation. This will be equal
- *          to \a until unless #bsc_flush was used, in which case it is zero.
- */
-bsc_step_t bsc_sync( bsc_step_t until );
-
 /**
  * @}
  *
  */
 
-
-/** \defgroup BSC_INTROSP  BSP machine performance parameters
- *
- * These functions can be used by collectives implementations to decide which
- * BSP algorithm to use
- *
- * @{
- *
- */
-
-
-/** BSP cost parameter \f$g\f$, denoting the message gap or reciprocal
- * throughput. This can be used to choose the best algorithm, depending
- * on the input data size. The value is relative to bsp_L().
- */
-double bsc_g(void);
-
-/** BSP cost parameter \f$\ell\f$, denoting the synchronisation latency.
- * This can be used to choose the best algorithm, depending
- * on the input data size. The value is relative to bsp_g().
- */
-double bsc_L(void);
-
-/**
- * @}
- */
 
 
 /** \defgroup BSC_COLLS Collectives 
@@ -358,6 +387,7 @@ double bsc_L(void);
  *
  * @{
  */
+
 
 /** Schedules a collective scatter operation. This is a collective call
  * on each process in the given \a group.
@@ -588,6 +618,46 @@ bsc_step_t bsc_scan( bsc_step_t depends, bsc_group_t group,
 /**
  * @}
  */
+
+
+/** \defgroup BSC_COLLS_BLOCKS Parallel collective operation algorithms 
+ *
+ * The algorithms used to implement the collective operations
+ *
+ * @{
+ */
+
+
+
+/** Definition for bsc_scatter() */
+extern const bsc_collective_t * const bsc_coll_scatter;
+
+/** Definition for bsc_gather() */
+extern const bsc_collective_t * const bsc_coll_gather;
+
+/** Definition for bsc_allgather() */
+extern const bsc_collective_t * const bsc_coll_allgather;
+
+/** Definition for bsc_alltoall() */
+extern const bsc_collective_t * const bsc_coll_alltoall;
+
+/** Definition for bsc_bcast */
+extern const bsc_collective_t * const bsc_coll_bcast;
+
+/** Definition for bsc_reduce */
+extern const bsc_collective_t * const bsc_coll_reduce;
+
+/** Definition for bsc_allreduce */
+extern const bsc_collective_t * const bsc_coll_allreduce;
+
+/** Definition for bsc_scan */
+extern const bsc_collective_t * const bsc_coll_scan;
+
+
+/**
+ * @}
+ */
+
 
 /**
  * @}

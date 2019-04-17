@@ -37,7 +37,10 @@ extern "C" {
  *
  * Additionally a \ref MCBSP "MulticoreBSP for C compatibility" layer is
  * provided. Use the --mcbsp parameter using the \c bspcc frontend or
- * define the macro \c BSPONMPI_MCBSP_COMPAT to enable this.
+ * define the macro \c BSPONMPI_MCBSP_COMPAT to enable this. 
+ *
+ * Also, check out the \ref BSC "collectives" library for a versatile library
+ * of parallel collective operations.
  *
  * \section Example Hello World
  * This example is shamelessly copied from [1].
