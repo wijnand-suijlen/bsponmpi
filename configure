@@ -39,6 +39,7 @@ OPTIONS
    ...              Other options will be passed verbatim to CMake.
 
 EOF
+     exit 0
 
      ;;
    
