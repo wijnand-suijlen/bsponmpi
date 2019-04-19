@@ -429,7 +429,7 @@ void Rdma::PushPopCommBuf::deserialize( A2A & a2a )
     }
 
     // read popped slots
-    size_t n_popped_slots;
+    size_t n_popped_slots = size_t(-1);
     for (int p = 0; p < a2a.nprocs(); ++p) {
         size_t n;
         deserial( a2a, p, n );
