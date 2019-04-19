@@ -200,8 +200,20 @@ void bsp_begin( bsp_pid_t maxprocs )
         beta = 1.0;
         fprintf(stderr, "bsp_begin: BSPONMPI_P2P_MSGGAP was not a positive number. Using default: %g\n", beta);
     }
+    
+    std::string method = "rma";
+    if (bsplib::read_env( "BSPONMPI_A2A_METHOD", method ) 
+            || ( method != "rma" && method != "msg" ) ) {
+        method = "rma";
+        fprintf(stderr, "bsp_begin: BSPONMPI_A2A_METHOD was set to "
+                "neither 'msg' nor 'rma'. Using default '%s'\n",
+                method.c_str() );
+    }
+
     s_rdma = new bsplib::Rdma( s_spmd->comm(), max_msg_size, 
-                               small_exch_size, alpha, beta);
+                               small_exch_size, alpha, beta, 
+                               method == "rma" ? bsplib::A2A::RMA 
+                                               : bsplib::A2A::MSG );
     s_bsmp = new bsplib::Bsmp( s_spmd->comm(), max_msg_size,
                                small_exch_size);
 }

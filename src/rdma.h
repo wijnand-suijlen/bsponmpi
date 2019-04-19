@@ -31,7 +31,7 @@ public:
     typedef size_t Memslot;
 
     Rdma( MPI_Comm comm , size_t max_msg_size, size_t small_exch_size,
-       double alpha, double beta );
+       double alpha, double beta, A2A::Method method );
     
     void push_reg( void * addr, size_t size );
     void pop_reg( Memslot slot );

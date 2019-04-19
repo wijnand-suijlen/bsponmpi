@@ -150,15 +150,22 @@ function( add_mpi_unit_test NAME P )
 endfunction()
  
 function( add_mpi_test NAME P )
-    foreach ( flavour msg rma rma_prof )
-        set( exe "test_${NAME}_${flavour}")
+    set(modes ";;_prof")
+    set(methods "rma;msg;rma")
+    foreach ( i 0 1 2 )
+        list( GET modes   ${i} mode)
+        list( GET methods ${i} method)
+        set( exe "test_${NAME}_${method}${mode}")
         add_executable( ${exe} test/${NAME}.c )
         set_target_properties( ${exe} PROPERTIES 
                 INCLUDE_DIRECTORIES 
                 "${PROJECT_SOURCE_DIR}/include;${PROJECT_SOURCE_DIR}/test;${PROJECT_SOURCE_DIR}/src;${MPI_INCLUDE_PATH}" )
-        target_link_libraries( ${exe} "bsponmpi_${flavour}" )
-        set( testname "${NAME}_${flavour}_p${P}" )
+        target_link_libraries( ${exe} "bsponmpi${mode}" )
+        
+        set( testname "${NAME}${mode}_${method}_p${P}" )
         add_test( NAME "${testname}" COMMAND ${MPIRUN_EXECUTABLE} ${MPIRUN_NPROCS_PARAM}${P} $<TARGET_FILE:${exe}> )
+        set_tests_properties( "${testname}" PROPERTIES
+                ENVIRONMENT "BSPONMPI_A2A_METHOD=${method}" )
     endforeach()
 endfunction()
 
@@ -168,7 +175,7 @@ function( add_bsc_test NAME P )
     set_target_properties( ${exe} PROPERTIES 
             INCLUDE_DIRECTORIES 
             "${PROJECT_SOURCE_DIR}/include;${PROJECT_SOURCE_DIR}/test;${PROJECT_SOURCE_DIR}/src;${MPI_INCLUDE_PATH}" )
-    target_link_libraries( ${exe} "bsponmpi_rma" "bsc" )
+    target_link_libraries( ${exe} "bsponmpi" "bsc" )
     set( testname "${NAME}_${flavour}_p${P}" )
     add_test( NAME "${testname}" COMMAND ${MPIRUN_EXECUTABLE} ${MPIRUN_NPROCS_PARAM}${P} $<TARGET_FILE:${exe}> )
 endfunction()
@@ -193,10 +200,8 @@ function ( make_bsponmpi name )
            )
 endfunction()
 
-make_bsponmpi( bsponmpi_msg )
-make_bsponmpi( bsponmpi_rma USE_ONESIDED )
-make_bsponmpi( bsponmpi_msg_prof PROFILE )
-make_bsponmpi( bsponmpi_rma_prof USE_ONESIDED PROFILE )
+make_bsponmpi( bsponmpi )
+make_bsponmpi( bsponmpi_prof PROFILE )
 
 # Installation
 install(FILES include/bsp.h 
@@ -251,8 +256,6 @@ endif()
 
 # Unit tests
 add_mpi_unit_test( a2a 3 src/a2a.cc src/lincost.cc src/util.c )
-add_mpi_unit_test( a2a_rma 4 src/a2a.cc src/lincost.cc src/util.c)
-target_compile_definitions( unit_test_a2a_rma PRIVATE USE_ONESIDED)
 
 add_mpi_unit_test( unbuf 4 src/unbuf.cc )
 add_unit_test( uintserialize )

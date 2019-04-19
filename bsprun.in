@@ -15,7 +15,8 @@ function show_help()
    echo
    echo "SYNOPSIS"
    echo "    $0 [--help [--version] [--show] [--max-msg-size=<bytes>]"
-   echo "       [-n <nprocs>] [--small-exchange-size=<bytes>] <command>"
+   echo "       [-n <nprocs>] [--msg|--rma] [--small-exchange-size=<bytes>]"
+   echo "       <command>"
    echo
    echo "    Only $0 specific options are listed here. See the manual"
    echo "    of @MPIRUN_EXECUTABLE@ for more specific options"
@@ -32,6 +33,19 @@ function show_help()
    echo "              Launches the program with at most <procs> parallel"
    echo "              processes"
    echo
+   echo "    --msg     Use MPI message passing for buffered communications:"
+   echo "              MPI_Irsend/MPI_Isend - MPI_Irecv - MPI_Waitsome"
+   echo "              Note: Not all MPI implementations are suitable"  
+   echo "              to guarantee BSP cost semantics. If performance"
+   echo "              is unsatisfactory, try the --rma option."
+   echo 
+   echo "    --rma     USe MPI remote memory access for buffered"
+   echo "              communications: MPI_Fence - MPI_Put"
+   echo "              Note: 1) Not all MPI implementations are stable, "
+   echo "              but when they are, it is usually faster. "
+   echo "              2) If performance is bad, try the --msg option."
+   echo "              3) This communication method is the default"
+   echo 
    echo "    --max-msg-size=<bytes>             [default: $((2**31-1))]"
    echo "              Restricts the runtime to messages equal or less"
    echo "              than the prescribed amount. It may be necessary"
@@ -71,6 +85,7 @@ p2p_msggap=1
 bsp_g=
 bsp_L=
 bsp_nprocs=
+a2amethod=rma
 
 for arg
 do
@@ -111,6 +126,12 @@ do
 
     -show|--show) show=echo
         ;;
+
+    --msg) a2amethod=msg
+         ;;
+
+    --rma) a2amethod=rma
+         ;;
 
     --max-msg-size=*) 
          max_msg_size=${arg#--max-msg-size=}
@@ -164,6 +185,7 @@ $show export BSPONMPI_MAX_MSG_SIZE=${max_msg_size}
 $show export BSPONMPI_SMALL_EXCHANGE_SIZE=${small_exchange_size}
 $show export BSPONMPI_P2P_LATENCY=${p2p_latency}
 $show export BSPONPMI_P2P_MSGGAP=${p2p_msggap}
+$show export BSPONMPI_A2A_METHOD=${a2amethod}
 $show export BSC_L=${bsp_L}
 $show export BSC_G=${bsp_g}
 

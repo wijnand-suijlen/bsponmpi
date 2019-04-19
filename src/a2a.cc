@@ -10,9 +10,12 @@
 
 namespace bsplib {
 
-A2A::A2A( MPI_Comm comm, std::size_t max_msg_size, std::size_t small_a2a_size_per_proc,
-        double alpha, double beta )
-    : m_pid( )
+A2A::A2A( MPI_Comm comm,
+        std::size_t max_msg_size, std::size_t small_a2a_size_per_proc,
+        double alpha, double beta,
+        Method method )
+    : m_method( method )
+    , m_pid( )
     , m_nprocs( )
     , m_max_msg_size( max_msg_size )
     , m_small_a2a_size_per_proc( small_a2a_size_per_proc )
@@ -28,12 +31,9 @@ A2A::A2A( MPI_Comm comm, std::size_t max_msg_size, std::size_t small_a2a_size_pe
     , m_small_send_buf()
     , m_small_recv_buf()
     , m_comm( MPI_COMM_NULL )
-#ifdef USE_ONESIDED
     , m_recv_win(MPI_WIN_NULL)
-#else
     , m_reqs()
     , m_ready()
-#endif
 { 
     MPI_Comm_dup( comm, &m_comm );
     MPI_Comm_rank(m_comm, &m_pid );
@@ -49,18 +49,17 @@ A2A::A2A( MPI_Comm comm, std::size_t max_msg_size, std::size_t small_a2a_size_pe
     m_small_send_buf.resize( small_a2a_size_per_proc * m_nprocs );
     m_small_recv_buf.resize( small_a2a_size_per_proc * m_nprocs );
 
-#if ! defined USE_ONESIDED
-    m_reqs.resize( 2*m_nprocs, MPI_REQUEST_NULL );
-    m_ready.resize( 2*m_nprocs );
-#endif
+    if (m_method == MSG) {
+        m_reqs.resize( 2*m_nprocs, MPI_REQUEST_NULL );
+        m_ready.resize( 2*m_nprocs );
+    }
 }
 
 A2A::~A2A()
 {
-#ifdef USE_ONESIDED
     if ( m_recv_win != MPI_WIN_NULL )
         MPI_Win_free( &m_recv_win );
-#endif
+
     MPI_Comm_free( &m_comm );
     m_comm = MPI_COMM_NULL;
 }
@@ -154,19 +153,17 @@ void A2A::exchange( )
     }
 
     // Ensure correct size memory of recv buffers
-#ifdef USE_ONESIDED
-    if ( new_cap != m_recv_cap && m_recv_win != MPI_WIN_NULL )
+    if ( m_method == RMA && 
+            new_cap != m_recv_cap && m_recv_win != MPI_WIN_NULL )
         MPI_Win_free( &m_recv_win );
-#endif
+
     m_recv_bufs.resize( new_cap * m_nprocs );
 
-#ifdef USE_ONESIDED
-    if ( new_cap != m_recv_cap ) {
+    if ( m_method == RMA && new_cap != m_recv_cap ) {
         MPI_Win_create( m_recv_bufs.data(), 
                 new_cap * m_nprocs, 1, 
                 MPI_INFO_NULL, m_comm, &m_recv_win );
     }
-#endif
     m_recv_cap = new_cap;
 
     assert( m_recv_cap >= max_recv );
@@ -202,8 +199,8 @@ void A2A::exchange( )
                     size );
         }
         } // end plain all-to-all
-        { // start normal message exchange
-#ifdef USE_ONESIDED
+        // start normal message exchange
+        if ( m_method == RMA) { 
 #ifdef PROFILE
         TicToc t( TicToc::MPI_PUT );
 #endif
@@ -232,7 +229,7 @@ void A2A::exchange( )
         }
 
         MPI_Win_fence( 0, m_recv_win );
-#else
+        } else if ( m_method == MSG ) {
 
 #ifdef PROFILE
         TicToc tr( TicToc::MPI_LARGE_RECV );
@@ -313,7 +310,6 @@ void A2A::exchange( )
             assert( m_reqs[m_nprocs+p] == MPI_REQUEST_NULL );
             m_recv_sizes[p] = m_recv_pos[p] - p * m_recv_cap;
         }
-#endif
     } // end of plain message exchange
     } // end of else
 

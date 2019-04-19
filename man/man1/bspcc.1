@@ -5,8 +5,7 @@ bspcc \- The BSPonMPI C compiler front end
 .SH SYNOPSIS
 .nf
 .HP 6 
-\fBbspcc\fR [\fB\-\-help\fR] [\fB\-\-version\fR] [\fB\-\-show\fR] 
-[\fB\-\-mcbsp\fR] [\fB\-\-msg\fR] [\fB\-\-rma\fR]
+\fBbspcc\fR [\fB\-\-help\fR] [\fB\-\-version\fR] [\fB\-\-show\fR] [\fB\-\-mcbsp\fR] 
 .IR sources ...
 .fi
 .
@@ -41,38 +40,6 @@ Do not do anything but show what exactly will be executed.
 Use the MulticoreBSP for C compatible headers. 
 By default the header that is compatible with the original BSPlib
 paper by Hill et al., is loaded.
-.TP
-.BR \-\-msg
-Link with the runtime based on MPI message-passing, which uses a protocol
-based on 
-.I MPI_Irsend
-(3)/
-.I MPI_Isend
-(3) - 
-.I MPI_Irecv
-(3) -
-.I MPI_Waitsome\fR.
-The effectiveness of this protocol depends on the MPI implementation and
-the fabric. 
-Its performance might not conform the BSP cost model, in which case
-the remote memory access protocol should be used (use the
-.BR
-\-\-rma
-option ).
-.TP
-.BR \-\-rma
-Link with the runtime based on MPI remote memory access (RDMA), which uses
-a protocol based on
-.I MPI_Put
-(3) and
-.I
-MPI_Fence
-(3). Note that some MPI implementations have poor RDMA performance, even
-when the fabric supports it.
-Also, RDMA might be buggy in some implementations. 
-However, when MPI knows how to handle RDMA correctly, its performance
-is unparalleled.
-For that reason, this protocol is chosen by default.
 .
 .SS Experimental
 .TP

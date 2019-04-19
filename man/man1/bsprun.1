@@ -57,6 +57,38 @@ Shows version information.
 .BR \-\-show
 Instead of launching the command it show what exactly will be executed.
 .TP
+.BR \-\-msg
+Use MPI message-passing for buffered commuications.
+This uses a protocol based on 
+.I MPI_Irsend
+(3)/
+.I MPI_Isend
+(3) - 
+.I MPI_Irecv
+(3) -
+.I MPI_Waitsome\fR.
+The effectiveness of this protocol depends on the MPI implementation and
+the fabric. 
+Its performance might not conform the BSP cost model, in which case
+the remote memory access protocol should be used (use the
+.BR
+\-\-rma
+option ).
+.TP
+.BR \-\-rma
+Use MPI remote memory access (RDMA) for buffered communications.
+This uses a protocol based on
+.I MPI_Put
+(3) and
+.I
+MPI_Fence
+(3). Note that some MPI implementations have poor RDMA performance, even
+when the fabric supports it.
+Also, RDMA might be buggy in some implementations. 
+However, when MPI knows how to handle RDMA correctly, its performance
+is unparalleled.
+For that reason, this protocol is chosen by default.
+.TP
 .BR \-\-max\-msg\-size=\fIbytes\fR
 Restricts the runtime to messages equal or less than \fIbytes\fR bytes.
 It may be necessary to change this value to improve speed or work 
@@ -128,6 +160,15 @@ Sets the reciprocal throughput for point-to-point messages.
 See the description of 
 .B \-\-assume\-linear\-cost\-for\-p2p
 above.
+.TP
+.B BSPONMPI_A2A_METHOD
+Sets the all-to-all method for high volume buffered communications.
+Legal values are 'msg' and 'rma'. 
+See the description of 
+.B \-\-msg
+and
+.B \-\-rma
+above for more information.
 .TP
 .B BSC_L
 Sets the BSP parameter \fIL\fR.

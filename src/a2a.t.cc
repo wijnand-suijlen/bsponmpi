@@ -8,9 +8,10 @@
 
 using namespace bsplib;
 
-void test_1( MPI_Comm comm, int pid, int nprocs, int small_buf_size )
+void test_1( MPI_Comm comm, int pid, int nprocs, int small_buf_size,
+       double latency, A2A::Method method )
 {
-    A2A a2a( comm, 10, small_buf_size );
+    A2A a2a( comm, 10, small_buf_size, latency, 1.0, method );
 
     char msg1[] = "Hi, dit is een test";
     char msg2[] = "Boe";
@@ -71,9 +72,15 @@ int main( int argc, char ** argv )
     MPI_Comm_size( comm, & nprocs );
 
 
-    test_1( comm, pid, nprocs, 1024 );
-    test_1( comm, pid, nprocs, 2 );
+    test_1( comm, pid, nprocs, 1024, 1e+4, A2A::RMA );
+    test_1( comm, pid, nprocs, 2, 1e+4, A2A::RMA );
+    test_1( comm, pid, nprocs, 1024, 1.0, A2A::RMA );
+    test_1( comm, pid, nprocs, 2, 1.0, A2A::RMA );
 
+    test_1( comm, pid, nprocs, 1024, 1e+4, A2A::MSG );
+    test_1( comm, pid, nprocs, 2, 1e+4, A2A::MSG );
+    test_1( comm, pid, nprocs, 1024, 1.0, A2A::MSG );
+    test_1( comm, pid, nprocs, 2, 1.0, A2A::MSG );
 
     MPI_Finalize( );
     return 0;

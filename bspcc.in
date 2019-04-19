@@ -6,7 +6,7 @@ else
   cc=@MPI_C_COMPILER@
 fi
 cxx=@MPI_CXX_COMPILER@
-bsponmpi=( "-L@BSPONMPI_LIB_DIR@" -lbsponmpi_rma )
+bsponmpi=( "-L@BSPONMPI_LIB_DIR@" -lbsponmpi )
 cflags="-I@BSPONMPI_INCLUDE@"
 
 linking=yes
@@ -67,8 +67,7 @@ function show_help()
    echo "The BSPonMPI compiler frontend - @CPACK_PACKAGE_VERSION@"
    echo
    echo "SYNOPSIS"
-   echo "    $0 [--help] [--version] [--show] [--mcbsp] "
-   echo "       [--msg|--rma] ..."
+   echo "    $0 [--help] [--version] [--show] [--mcbsp] ... "
    echo
    echo "    Only $0 specific options are listed here. See the manual"
    echo "    of $cc for more specific options"
@@ -85,22 +84,7 @@ function show_help()
    echo "              By default the header that is compatible with the"
    echo "              publication of Hill et al. 1998 is loaded."
    echo
-   echo "    --msg     Link with runtime based on MPI message passing:"
-   echo "              MPI_Irsend/MPI_Isend - MPI_Irecv - MPI_Waitsome"
-   echo "              Note: Not all MPI implementations are suitable"  
-   echo "              to guarantee BSP cost semantics. If performance"
-   echo "              is unsatisfactory, try the -rma option."
-   echo 
-   echo "    --rma     Link with runtime based on MPI remote memory access:"
-   echo "              MPI_Fence - MPI_Put"
-   echo "              Note: 1) Not all MPI implementations are stable, "
-   echo "              but when they are, it is usually faster. "
-   echo "              2) If performance is bad, try the -msg option."
-   echo "              3) By default this runtime is used"
-   echo 
-   echo "    --msg-prof or --rma-prof"
-   echo "              Tracks time spent across BSPlib and MPI routines"
-   echo "              using either the message-passing or RDMA backend."
+   echo "    --prof    Tracks time spent across BSPlib and MPI routines"
    echo
 }
 
@@ -130,20 +114,8 @@ do
         add_compile_flag "-DBSPONMPI_MCBSP_COMPAT=1"
         ;;
 
-    -rma|--rma)
-        bsponmpi=( "-L@BSPONMPI_LIB_DIR@" -lbsponmpi_rma )
-        ;;
-
-    -rma-prof|--rma-prof)
-        bsponmpi=( "-L@BSPONMPI_LIB_DIR@" -lbsponmpi_rma_prof )
-        ;;
-
-    -msg|--msg)
-        bsponmpi=( "-L@BSPONMPI_LIB_DIR@" -lbsponmpi_msg )
-        ;;
-
-    -msg-prof|--msg-prof)
-        bsponmpi=( "-L@BSPONMPI_LIB_DIR@" -lbsponmpi_msg_prof )
+    -prof|--prof)
+        bsponmpi=( "-L@BSPONMPI_LIB_DIR@" -lbsponmpi_prof )
         ;;
 
     -c) linking=no
