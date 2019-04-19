@@ -1,0 +1,41 @@
+Release Checklist
+=================
+
+Main package
+
+- Check version number (CMakeLists.txt)
+
+- Check authors, contributors, acknowlodgements (README)
+
+- On CentOS 7, Ubuntu 18.04
+  - ./configure --prefix=`pwd` && make -j4 install && ctest
+     - Check compiler flags
+  - ./configure && make package
+  - Check package contents
+  - Copy resulting package to be released
+  - Install package
+    - compile and run "Hello BSP" example, 
+    - open man page
+
+- On FreeBSD 12.0, macOS
+  - Test ./configure --prefix=`pwd` && make -j4 install && ctest
+    - Check compiler flags
+  - Compile and run "Hello BSP" example
+  - Open man page
+
+- On Windows 10
+  - Build with Visual Studio; 
+  - Run tests with Visual Studio
+  - Bundle Release DLLs, LIBs, .H, .PDF, and HTML 
+  - Compile and run "Hello BSP" 
+
+Bulk synchronous collectives
+
+- On Linux
+  - Get and build MulticoreBSP for C 
+  - Compile using tools/bspcc -DPTHREADSAFE=1 
+       src/bsc.c src/util.c  (headers: include/bsc.h src/util.c src/bsc.c) 
+    and link with a BSC test program
+  - Run it
+
+ 
