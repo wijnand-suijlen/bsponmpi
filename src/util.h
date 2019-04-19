@@ -5,6 +5,8 @@
 #include <stddef.h>
 #include <limits.h>
 
+#include "dllexport.h"
+
 #define MAX( a, b ) ( (a) < (b) ? (b) : (a) )
 #define MIN( a, b ) ( (a) > (b) ? (b) : (a) )
 
@@ -13,9 +15,9 @@ extern "C" {
 #endif
 
 #ifdef UINT64_MAX
-int uint64_log2( uint64_t x );
+DLL_LOCAL int uint64_log2( uint64_t x );
 #endif    
-int uint32_log2( uint32_t x );
+DLL_LOCAL int uint32_log2( uint32_t x );
 
 #ifdef UINT64_MAX
   #if UINT_MAX == UINT64_MAX
@@ -34,16 +36,16 @@ int uint32_log2( uint32_t x );
   #define long_log2(x) uint32_log2( x )
 #endif
 
-unsigned int_log( unsigned base, unsigned x );
+DLL_LOCAL unsigned int_log( unsigned base, unsigned x );
 
-unsigned int_pow( unsigned base, unsigned n );
+DLL_LOCAL unsigned int_pow( unsigned base, unsigned n );
 
 
 #ifdef UINT64_MAX
-double rand_next_uint64( uint64_t * next );
+DLL_LOCAL double rand_next_uint64( uint64_t * next );
 #endif
 
-double rand_next_uint32( uint32_t * next );
+DLL_LOCAL double rand_next_uint32( uint32_t * next );
 
 #ifdef UINT64_MAX
   #if SIZE_MAX == UINT64_MAX
@@ -61,13 +63,9 @@ typedef struct universal_hash_function {
     int log2_buckets;
 } universal_hash_function_t;
 
-universal_hash_function_t new_universal_hash_function( size_t * seed,
+DLL_LOCAL universal_hash_function_t new_universal_hash_function( size_t * seed,
        unsigned buckets );
 
-#define hash( universal_hash_function, integer ) \
-    ( ( (size_t) universal_hash_function.mult * (integer) + \
-        universal_hash_function.add ) >> ( CHAR_BIT * sizeof(size_t) \
-            - universal_hash_function.log2_buckets ) )
 
 typedef struct hash_table_bucket hash_table_bucket_t;
 typedef struct hash_table {
@@ -85,15 +83,15 @@ typedef struct hash_table {
     unsigned max_collisions;
 } hash_table_t ;
 
-void hash_table_create( hash_table_t * table, unsigned initial_size,
+DLL_LOCAL void hash_table_create( hash_table_t * table, unsigned initial_size,
        int (*is_equal)(const void * a, const void * b),
        size_t (*hash)(const void * x) ) ;
-void hash_table_destroy( hash_table_t * table );
-void hash_table_clear( hash_table_t * table );
-void * hash_table_new_item( hash_table_t * table, void * key );
-void * hash_table_get_item( const hash_table_t * table, void * key );
-void * hash_table_delete_item( hash_table_t * table, void * key );
-unsigned hash_table_get_size( const hash_table_t * table );
+DLL_LOCAL void hash_table_destroy( hash_table_t * table );
+DLL_LOCAL void hash_table_clear( hash_table_t * table );
+DLL_LOCAL void * hash_table_new_item( hash_table_t * table, void * key );
+DLL_LOCAL void * hash_table_get_item( const hash_table_t * table, void * key );
+DLL_LOCAL void * hash_table_delete_item( hash_table_t * table, void * key );
+DLL_LOCAL unsigned hash_table_get_size( const hash_table_t * table );
 
 
 

@@ -135,6 +135,10 @@ double rand_next_uint32( uint32_t * next )
     return (x & m )/ (1.0 + m);
 }
 
+#define hash( universal_hash_function, integer ) \
+    ( ( (size_t) universal_hash_function.mult * (integer) + \
+        universal_hash_function.add ) >> ( CHAR_BIT * sizeof(size_t) \
+            - universal_hash_function.log2_buckets ) )
 
 universal_hash_function_t new_universal_hash_function( size_t * seed,
        unsigned buckets )
