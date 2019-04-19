@@ -77,7 +77,133 @@ typedef struct state {
     bsc_size_t collcoa_param_list_size;
 } state_t;
 
-static state_t s_bsc;
+static double load_param_g(void) 
+{
+    const double default_g = 1.0;
+    char * numend = NULL;
+    char * str = getenv("BSC_G");
+    double result = str?strtod( str, &numend ):default_g;
+    if ( (str && numend == str) || result == HUGE_VAL 
+            || result == -HUGE_VAL || result < 1e-300 ) {
+        result = default_g;
+        fprintf(stderr, "bsc_g: BSC_G was not a finite positve "
+                        "floating point number."
+                        " Using default: %g\n", result );
+    }
+    return result;
+}
+
+static double load_param_L(void)
+{
+    const double default_L = 1e+4;
+    char * numend = NULL;
+    char * str = getenv("BSC_L");
+    double result = str?strtod( str, &numend ):default_L;
+    if ( (str && numend == str) || result == HUGE_VAL 
+            || result == -HUGE_VAL || result < 1e-300 ) {
+        result = default_L;
+        fprintf(stderr, "bsc_L: BSC_L was not a finite positve "
+                        "floating point number."
+                        " Using default: %g\n", result );
+    }
+    return result;
+}
+
+
+#ifdef PTHREADSAFE
+#include <pthread.h>
+static pthread_key_t s_tls;
+static pthread_once_t s_tls_init = PTHREAD_ONCE_INIT;
+
+static state_t * state_create( void ) {
+    return calloc( 1, sizeof(state_t) );
+}
+
+static void state_destroy( void * s ) {
+    state_t * state = s;
+    free(state->n_requests );
+    free(state->queue );
+    free(state->next_step );
+
+    hash_table_destroy( &state->collcoa );
+    free(state->collcoa_set);
+    free(state->collcoa_headers);
+    free(state->collcoa_param_list );
+    memset( state, 0, sizeof(state_t) );
+    free(state);
+}
+
+static void init_tls(void) {
+    if ( pthread_key_create( &s_tls, state_destroy ) ) {
+        fprintf(stderr, "FATAL ERROR: Cannot initalize thread local storage\n");
+        exit(EXIT_FAILURE);
+    }
+}
+
+static state_t * bsc()  {
+    void * data = NULL;
+    (void) pthread_once( &s_tls_init, init_tls );
+    data = pthread_getspecific( s_tls );
+    if ( NULL == data ) {
+        data = state_create();
+        if (!data || pthread_setspecific( s_tls, data )) {
+            fprintf(stderr, "FATAL ERROR: Cannot initialize thread local storage\n");
+            exit(EXIT_FAILURE);
+        }
+    }
+    return data;
+}
+
+static double s_g, s_L;
+
+void load_param_g_once(void)
+{
+    s_g = load_param_g();
+}
+
+void load_param_L_once(void) {
+    s_L = load_param_L();
+}
+
+double bsc_g()
+{
+    static pthread_once_t once = PTHREAD_ONCE_INIT;
+    (void) pthread_once( &once, load_param_g_once );
+    return s_g;
+}
+
+double bsc_L()
+{
+    static pthread_once_t once = PTHREAD_ONCE_INIT;
+    (void) pthread_once( &once, load_param_L_once );
+    return s_L;
+}
+
+#else
+
+static state_t * bsc(void) {
+    static state_t s_bsc;
+    return & s_bsc; 
+}
+
+double bsc_g()
+{
+    static double g = 0.0;
+    if ( g == 0.0 ) {
+        g = load_param_g();
+    }
+    return g;
+}
+
+double bsc_L()
+{
+    static double L = 0.0;
+    if ( L == 0.0 ) {
+        L = load_param_L();
+    }
+    return L;
+}
+#endif
 
 int collcoa_is_equal( const void * a, const void * b )
 {
@@ -98,88 +224,90 @@ size_t collcoa_hash( const void * a )
 static void expand_coll( coll_request_t * c )
 {
     coll_request_t * item; 
-    if ( s_bsc.collcoa.n_buckets == 0 ) {
-        hash_table_create( & s_bsc.collcoa, 1000,
+    state_t * const sbsc = bsc();
+    if ( sbsc->collcoa.n_buckets == 0 ) {
+        hash_table_create( & sbsc->collcoa, 1000,
                 collcoa_is_equal, collcoa_hash );
     }
     
-    if ( s_bsc.collcoa_set_size == s_bsc.collcoa_set_reserved )
+    if ( sbsc->collcoa_set_size == sbsc->collcoa_set_reserved )
     {
         bsc_size_t new_collcoa_set_reserved =
-            MAX(1000, 2*s_bsc.collcoa_set_reserved) ;
+            MAX(1000, 2*sbsc->collcoa_set_reserved) ;
         coll_request_t ** new_collcoa_set = calloc( 
                 new_collcoa_set_reserved, sizeof(coll_request_t*) );
         coll_header_t * new_headers = calloc( 
                 new_collcoa_set_reserved, sizeof(coll_header_t) );
         if ( !new_collcoa_set || ! new_headers )
             bsp_abort("bsc_sync: insufficient memory\n");
-        memcpy( new_collcoa_set, s_bsc.collcoa_set, 
-                sizeof(coll_request_t*)*s_bsc.collcoa_set_size );
-        memcpy( new_headers, s_bsc.collcoa_headers,
-                sizeof(coll_header_t)*s_bsc.collcoa_set_size );
-        free(s_bsc.collcoa_set);
-        free(s_bsc.collcoa_headers);
-        s_bsc.collcoa_set = new_collcoa_set;
-        s_bsc.collcoa_headers = new_headers;
-        s_bsc.collcoa_set_reserved = new_collcoa_set_reserved;
+        memcpy( new_collcoa_set, sbsc->collcoa_set, 
+                sizeof(coll_request_t*)*sbsc->collcoa_set_size );
+        memcpy( new_headers, sbsc->collcoa_headers,
+                sizeof(coll_header_t)*sbsc->collcoa_set_size );
+        free(sbsc->collcoa_set);
+        free(sbsc->collcoa_headers);
+        sbsc->collcoa_set = new_collcoa_set;
+        sbsc->collcoa_headers = new_headers;
+        sbsc->collcoa_set_reserved = new_collcoa_set_reserved;
     }
                
-    item = hash_table_new_item( &s_bsc.collcoa, c );
+    item = hash_table_new_item( &sbsc->collcoa, c );
     if (item != c) {
         c->next = item->next;
         item->next = c;
     }
     else {
-        assert( s_bsc.collcoa_set_size < s_bsc.collcoa_set_reserved );
-        s_bsc.collcoa_set[ s_bsc.collcoa_set_size++ ] = item;
+        assert( sbsc->collcoa_set_size < sbsc->collcoa_set_reserved );
+        sbsc->collcoa_set[ sbsc->collcoa_set_size++ ] = item;
     }
 }
 
 static void schedule_colls(void)
 {
     bsc_size_t i, j, k;
+    state_t * const sbsc = bsc();
 
     /* first copy all parameter lists from the request queue 
      * because replacing collectives with put, get requests
      * will probably cause reallocation so that our 
      * hash table structure gets invalidated */
-    for ( i = 0, k = 0; i < s_bsc.collcoa_set_size; ++i ) {
-        coll_request_t * ptr = s_bsc.collcoa_set[i];
+    for ( i = 0, k = 0; i < sbsc->collcoa_set_size; ++i ) {
+        coll_request_t * ptr = sbsc->collcoa_set[i];
         bsc_size_t n = 0;
         
-        s_bsc.collcoa_headers[i].coll = ptr->coll;
-        s_bsc.collcoa_headers[i].group = ptr->group;
-        s_bsc.collcoa_headers[i].root = ptr->root;
+        sbsc->collcoa_headers[i].coll = ptr->coll;
+        sbsc->collcoa_headers[i].group = ptr->group;
+        sbsc->collcoa_headers[i].root = ptr->root;
 
         /* put all parameters in an array */
         while (ptr) {
-            if (s_bsc.collcoa_param_list_size <= k+n ) {
+            if (sbsc->collcoa_param_list_size <= k+n ) {
                 bsc_size_t new_size = MAX(100,
-                        s_bsc.collcoa_param_list_size*2 );
+                        sbsc->collcoa_param_list_size*2 );
                 bsc_coll_params_t * new_params = calloc( 
                         new_size, sizeof(bsc_coll_params_t) );
 
                 if (!new_params)
                     bsp_abort("bsc_sync: insufficient memory\n");
                 
-                memcpy( new_params, s_bsc.collcoa_param_list, 
-                  s_bsc.collcoa_param_list_size * sizeof(bsc_coll_params_t) ); 
+                memcpy( new_params, sbsc->collcoa_param_list, 
+                  sbsc->collcoa_param_list_size * sizeof(bsc_coll_params_t) ); 
 
-                free( s_bsc.collcoa_param_list );
-                s_bsc.collcoa_param_list_size = new_size;
-                s_bsc.collcoa_param_list = new_params;
+                free( sbsc->collcoa_param_list );
+                sbsc->collcoa_param_list_size = new_size;
+                sbsc->collcoa_param_list = new_params;
             } else {
-                s_bsc.collcoa_param_list[k+n] = ptr->params;
+                sbsc->collcoa_param_list[k+n] = ptr->params;
                 ptr = ptr->next;
                 n += 1;
             }
         }
-        s_bsc.collcoa_headers[i].n_params = n;
+        sbsc->collcoa_headers[i].n_params = n;
         k += n;
     }
 
-    for ( i = 0, k = 0 ; i < s_bsc.collcoa_set_size; ++i ) {
-        coll_header_t  hdr = s_bsc.collcoa_headers[i];
+    for ( i = 0, k = 0 ; i < sbsc->collcoa_set_size; ++i ) {
+        coll_header_t  hdr = sbsc->collcoa_headers[i];
         const bsc_collective_t * coll = hdr.coll;
         group_t * group = hdr.group ;
         bsc_pid_t root = hdr.root  ;
@@ -189,7 +317,7 @@ static void schedule_colls(void)
         bsc_size_t min_alg = 0;
         /* compute cheapest algorithm */
         for ( j = 0; j < coll->n_algs; ++j ) {
-            double c = (*coll->costfuncs[j])(group, s_bsc.collcoa_param_list + k, n);
+            double c = (*coll->costfuncs[j])(group, sbsc->collcoa_param_list + k, n);
             if (c < min_cost ) {
                 min_cost = c;
                 min_alg = j;
@@ -197,31 +325,32 @@ static void schedule_colls(void)
         }
 
         /* execute cheapest algorithm */
-        (*coll->algorithms[min_alg])( s_bsc.current, root, group,
-                s_bsc.collcoa_param_list + k, n );
+        (*coll->algorithms[min_alg])( sbsc->current, root, group,
+                sbsc->collcoa_param_list + k, n );
 
         k += n;
     }
 
     /* clear hash table for next use */
-    hash_table_clear( &s_bsc.collcoa );
-    s_bsc.collcoa_set_size = 0;
+    hash_table_clear( &sbsc->collcoa );
+    sbsc->collcoa_set_size = 0;
 }
 
 static request_t * new_request( bsc_step_t step ) 
 {
     unsigned i, j, delay;
     request_t * entry;
+    state_t * const sbsc = bsc();
 
-    if ( step < s_bsc.current )
+    if ( step < sbsc->current )
         bsp_abort("bsc: a flush sync is required before posting"
                   " another request. Requested superstep %d comes before current step %d\n",
-                  step, s_bsc.current );
+                  step, sbsc->current );
 
-    delay = step - s_bsc.current;
-    if ( delay >= s_bsc.horizon || 
-          s_bsc.n_requests[ (s_bsc.queue_start + delay) % s_bsc.horizon ] 
-            >= s_bsc.max_requests_per_step ) {
+    delay = step - sbsc->current;
+    if ( delay >= sbsc->horizon || 
+          sbsc->n_requests[ (sbsc->queue_start + delay) % sbsc->horizon ] 
+            >= sbsc->max_requests_per_step ) {
 
         /* new memory allocation is necessary */
         bsc_step_t new_horizon;
@@ -229,9 +358,9 @@ static request_t * new_request( bsc_step_t step )
         unsigned new_max_requests;
         request_t * new_queue;
 
-        new_horizon = s_bsc.horizon;
-        if (delay >= s_bsc.horizon) {
-            new_horizon = MAX( 2*s_bsc.horizon, delay + 1);
+        new_horizon = sbsc->horizon;
+        if (delay >= sbsc->horizon) {
+            new_horizon = MAX( 2*sbsc->horizon, delay + 1);
         }
 
         if ( new_horizon <= delay )
@@ -244,14 +373,14 @@ static request_t * new_request( bsc_step_t step )
                       "cannot allocate %u x %u bytes\n",
                 new_horizon, (unsigned) sizeof(unsigned) );
 
-        for ( i = 0; i < s_bsc.horizon; ++i ) {
-            j = (s_bsc.queue_start + i) % s_bsc.horizon;
-            new_n_requests[ i ] = s_bsc.n_requests[j];
+        for ( i = 0; i < sbsc->horizon; ++i ) {
+            j = (sbsc->queue_start + i) % sbsc->horizon;
+            new_n_requests[ i ] = sbsc->n_requests[j];
         }
 
-        new_max_requests = s_bsc.max_requests_per_step; 
+        new_max_requests = sbsc->max_requests_per_step; 
         if (new_max_requests <= new_n_requests[delay]) 
-            new_max_requests = MAX( 2 * s_bsc.max_requests_per_step, 
+            new_max_requests = MAX( 2 * sbsc->max_requests_per_step, 
                     new_n_requests[delay] + 1  );
 
         if ( new_max_requests <= new_n_requests[delay] )
@@ -261,30 +390,30 @@ static request_t * new_request( bsc_step_t step )
         new_queue = calloc( (size_t) new_horizon * new_max_requests, 
                             sizeof(request_t) );
 
-        for ( i = 0; i < s_bsc.horizon; ++i ) {
-            for ( j = 0; j < s_bsc.max_requests_per_step; ++j ){
+        for ( i = 0; i < sbsc->horizon; ++i ) {
+            for ( j = 0; j < sbsc->max_requests_per_step; ++j ){
                 unsigned a = i * new_max_requests + j;
-                unsigned b = (i + s_bsc.queue_start) % s_bsc.horizon 
-                              * s_bsc.max_requests_per_step + j;
-                new_queue[ a ] = s_bsc.queue[ b ];
+                unsigned b = (i + sbsc->queue_start) % sbsc->horizon 
+                              * sbsc->max_requests_per_step + j;
+                new_queue[ a ] = sbsc->queue[ b ];
             }
         }
 
-        free( s_bsc.n_requests );
-        free( s_bsc.queue );
-        s_bsc.n_requests = new_n_requests;
-        s_bsc.queue = new_queue;
-        s_bsc.horizon = new_horizon;
-        s_bsc.max_requests_per_step = new_max_requests;
-        s_bsc.queue_start = 0;
+        free( sbsc->n_requests );
+        free( sbsc->queue );
+        sbsc->n_requests = new_n_requests;
+        sbsc->queue = new_queue;
+        sbsc->horizon = new_horizon;
+        sbsc->max_requests_per_step = new_max_requests;
+        sbsc->queue_start = 0;
     }
 
-    i = (delay + s_bsc.queue_start) % s_bsc.horizon;
-    entry = s_bsc.queue + i * 
-        s_bsc.max_requests_per_step + s_bsc.n_requests[i] ;
+    i = (delay + sbsc->queue_start) % sbsc->horizon;
+    entry = sbsc->queue + i * 
+        sbsc->max_requests_per_step + sbsc->n_requests[i] ;
     
-    s_bsc.n_requests[i] += 1;
-    s_bsc.total_n_outstanding_requests += 1;
+    sbsc->n_requests[i] += 1;
+    sbsc->total_n_outstanding_requests += 1;
 
     return entry;
 }
@@ -375,30 +504,31 @@ bsc_step_t bsc_collective( bsc_step_t depends,
 
 bsc_step_t bsc_current(void)
 {
-    return s_bsc.current;
+    return bsc()->current;
 }
 
 bsc_step_t bsc_sync( bsc_step_t until )
 {
-    unsigned i, P = bsp_nprocs(), sz=sizeof(s_bsc.next_step[0]);
-    if ( !s_bsc.next_step) {
+    state_t * const sbsc = bsc();
+    unsigned i, P = bsp_nprocs(), sz=sizeof(sbsc->next_step[0]);
+    if ( !sbsc->next_step) {
         /* do some initialization */
-        s_bsc.next_step = calloc( bsp_nprocs(), sizeof(s_bsc.next_step[0]));
-        bsp_push_reg( s_bsc.next_step, 
-                bsp_nprocs() * sizeof(s_bsc.next_step[0]) );
+        sbsc->next_step = calloc( bsp_nprocs(), sizeof(sbsc->next_step[0]));
+        bsp_push_reg( sbsc->next_step, 
+                bsp_nprocs() * sizeof(sbsc->next_step[0]) );
         bsp_sync();
     }
 
-    while ( s_bsc.current < until || until == bsc_flush ) {
+    while ( sbsc->current < until || until == bsc_flush ) {
         bsc_step_t common_step = until;
         for ( i = 0; i < P; ++i ) 
-            s_bsc.next_step[i] = bsc_flush;
+            sbsc->next_step[i] = bsc_flush;
 
-        if (s_bsc.horizon > 0) {
+        if (sbsc->horizon > 0) {
             /* expand all collectives */
-            for ( i = 0; i < s_bsc.n_requests[s_bsc.queue_start]; ++i ) {
-                 request_t * r = s_bsc.queue + 
-                    s_bsc.queue_start * s_bsc.max_requests_per_step + i ;
+            for ( i = 0; i < sbsc->n_requests[sbsc->queue_start]; ++i ) {
+                 request_t * r = sbsc->queue + 
+                    sbsc->queue_start * sbsc->max_requests_per_step + i ;
                  if ( r->kind == COLL ) {
                      expand_coll( & r->payload.coll );
                  }
@@ -407,9 +537,9 @@ bsc_step_t bsc_sync( bsc_step_t until )
             schedule_colls();
 
             /* execute the delayed puts and gets */
-            for ( i = 0; i < s_bsc.n_requests[s_bsc.queue_start]; ++i ) {
-                 request_t * r = s_bsc.queue + 
-                    s_bsc.queue_start * s_bsc.max_requests_per_step + i ;
+            for ( i = 0; i < sbsc->n_requests[sbsc->queue_start]; ++i ) {
+                 request_t * r = sbsc->queue + 
+                    sbsc->queue_start * sbsc->max_requests_per_step + i ;
                  if ( r->kind == PUT ) {
                     assert( r->payload.put.src_pid == bsp_pid() ) ;
                     bsp_put( r->payload.put.dst_pid, 
@@ -422,39 +552,39 @@ bsc_step_t bsc_sync( bsc_step_t until )
                             r->payload.get.size );
                  }
             }
-            s_bsc.total_n_outstanding_requests 
-                -= s_bsc.n_requests[ s_bsc.queue_start ];
+            sbsc->total_n_outstanding_requests 
+                -= sbsc->n_requests[ sbsc->queue_start ];
 
             /* search for the step this process can skip to */
-            if ( 0 == s_bsc.total_n_outstanding_requests ) {
+            if ( 0 == sbsc->total_n_outstanding_requests ) {
                 common_step = until;
             } else {
-                for (common_step = 1; common_step < s_bsc.horizon ; common_step++){
-                    unsigned j = (s_bsc.queue_start + common_step) % s_bsc.horizon;
-                    if ( s_bsc.n_requests[j]  != 0 ) {
+                for (common_step = 1; common_step < sbsc->horizon ; common_step++){
+                    unsigned j = (sbsc->queue_start + common_step) % sbsc->horizon;
+                    if ( sbsc->n_requests[j]  != 0 ) {
                         break;
                     }
                 } 
-                common_step += s_bsc.current;
+                common_step += sbsc->current;
             }
         }
 
         if ( common_step != bsc_flush ) {
             for ( i = 0; i < P; ++i ) 
-                bsp_put( i, &common_step, s_bsc.next_step, bsp_pid()*sz, sz );
+                bsp_put( i, &common_step, sbsc->next_step, bsp_pid()*sz, sz );
         }
         bsp_sync();
         common_step = until;
         for ( i = 0; i < P; ++i ) {
-            if ( s_bsc.next_step[i] < common_step )
-                common_step = s_bsc.next_step[i];
+            if ( sbsc->next_step[i] < common_step )
+                common_step = sbsc->next_step[i];
         }
 
-        if (s_bsc.horizon > 0) {
+        if (sbsc->horizon > 0) {
             /* execute the delayed local reduce operations */
-            for ( i = 0; i < s_bsc.n_requests[s_bsc.queue_start]; ++i ) {
-                request_t * r = s_bsc.queue + 
-                    s_bsc.queue_start * s_bsc.max_requests_per_step + i ;
+            for ( i = 0; i < sbsc->n_requests[sbsc->queue_start]; ++i ) {
+                request_t * r = sbsc->queue + 
+                    sbsc->queue_start * sbsc->max_requests_per_step + i ;
                 if ( r->kind == EXEC ) {
                     bsc_reduce_t f = r->payload.exec.func;
                     void * a = r->payload.exec.a;
@@ -464,59 +594,19 @@ bsc_step_t bsc_sync( bsc_step_t until )
                     (*f)( a, a0, xs, size );
                 }
             }
-            s_bsc.n_requests[ s_bsc.queue_start ] = 0;
-            s_bsc.queue_start = (s_bsc.queue_start+common_step-s_bsc.current) % s_bsc.horizon;
+            sbsc->n_requests[ sbsc->queue_start ] = 0;
+            sbsc->queue_start = (sbsc->queue_start+common_step-sbsc->current) % sbsc->horizon;
         }
         if ( common_step == bsc_flush ) {
-            assert( s_bsc.total_n_outstanding_requests == 0 );
-            s_bsc.current = 0;
-            s_bsc.queue_start = 0;
+            assert( sbsc->total_n_outstanding_requests == 0 );
+            sbsc->current = 0;
+            sbsc->queue_start = 0;
             break;
         }
-        s_bsc.current = common_step ;
+        sbsc->current = common_step ;
     }
 
-    return s_bsc.current;
-}
-
-double bsc_g()
-{
-    static double g = 0.0;
-    if ( g == 0.0 ) {
-        const double default_g = 1.0;
-        char * numend = NULL;
-        char * str = getenv("BSC_G");
-        double result = str?strtod( str, &numend ):default_g;
-        if ( (str && numend == str) || result == HUGE_VAL 
-                || result == -HUGE_VAL || result < 1e-300 ) {
-            result = default_g;
-            fprintf(stderr, "bsc_g: BSC_G was not a finite positve "
-                            "floating point number."
-                            " Using default: %g\n", result );
-        }
-        g = result;
-    }
-    return g;
-}
-
-double bsc_L()
-{
-    static double L = 0.0;
-    if ( L == 0.0 ) {
-        const double default_L = 1e+4;
-        char * numend = NULL;
-        char * str = getenv("BSC_L");
-        double result = str?strtod( str, &numend ):default_L;
-        if ( (str && numend == str) || result == HUGE_VAL 
-                || result == -HUGE_VAL || result < 1e-300 ) {
-            result = default_L;
-            fprintf(stderr, "bsc_L: BSC_L was not a finite positve "
-                            "floating point number."
-                            " Using default: %g\n", result );
-        }
-        L = result;
-    }
-    return L;
+    return sbsc->current;
 }
 
 
@@ -998,8 +1088,8 @@ bsc_step_t bsc_bcast_2phase( bsc_step_t depends,
     bsc_pid_t s = g?g->lid[bsp_pid()]:bsp_pid();
     bsc_size_t i, total_size = 0;
     bsc_size_t block;
-    bsc_size_t b, my_start_b, my_block_size;
-    bsc_size_t j, my_start_j;
+    bsc_size_t b, my_start_b=-1, my_block_size=-1;
+    bsc_size_t j, my_start_j=-1;
     const char * src_bytes;
     char * dst_bytes;
  

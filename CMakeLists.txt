@@ -44,6 +44,8 @@ set(SOVERSION "${CPACK_PACKAGE_VERSION}")
 
 set(DOXYGEN_SKIP_DOT TRUE)
 find_package(Doxygen)
+set(CMAKE_THREAD_PREFER_PTHREAD ON)
+find_package(Threads)
 find_package(MPI)
 
 if (NOT MPI_FOUND)
@@ -202,7 +204,9 @@ install(FILES include/bsp.h
 
 
 # Other libraries
+# Bulk Synchronous Collectives
 add_library( bsc src/bsc.c src/util.c )
+target_compile_definitions( bsc PRIVATE BUILDING_DLL )
 install(TARGETS bsc
             RUNTIME DESTINATION bin
             LIBRARY DESTINATION lib
@@ -210,6 +214,17 @@ install(TARGETS bsc
        )
 install(FILES include/bsc.h 
         DESTINATION include )
+
+if (CMAKE_USE_PTHREADS_INIT)
+add_library( bsc_pthread src/bsc.c src/util.c )
+target_compile_definitions( bsc_pthread PRIVATE BUILDING_DLL PTHREADSAFE )
+target_link_libraries( bsc_pthread -lpthread )
+install(TARGETS bsc_pthread
+            RUNTIME DESTINATION bin
+            LIBRARY DESTINATION lib
+            ARCHIVE DESTINATION lib
+       )
+endif()
 
 # Compiler and bsprun frontends
 set(BSPONMPI_LIB_DIR "${CMAKE_INSTALL_PREFIX}/lib")
