@@ -62,12 +62,20 @@ function show_help()
    echo "              MPI_Irsend/MPI_Irecv when linked with --msg) are"
    echo "              used, but that have also higher latency L = O(p)."
    echo
-   echo "    --assume-linear-cost-for-p2p=<alpha>[:<beta>]"
+   echo "    --use-p2p-benchmark-file=<file>    [default: none]"
+   echo "              Assumes the given benchmark for the linear cost-"
+   echo "              model for sending point-to-point messages with MPI."
+   echo "              The linear cost model assumes start-up cost alpha"
+   echo "              and cost per byte beta, as can be measured with "
+   echo "              the \`mpiprobe' tool. "
+   echo 
+   echo "    --assume-p2p-benchmark=<alpha>[:<beta>]"
    echo "                                       [default: 10000:1]"
-   echo "              Assumes a linear cost-model for sending point-"
-   echo "              to-point messages with MPI with start-up cost"
-   echo "              alpha and cost per byte beta. Both values accept" 
-   echo "              a floating point format."
+   echo "              Assumes the given benchmark for the linear cost-"
+   echo "              model for sending point-to-point messages with MPI."
+   echo "              The linear cost model assumes start-up cost alpha"
+   echo "              and cost per byte beta. Both values accept a" 
+   echo "              floating point format."
    echo 
    echo "    --assume-bsp-parameters=<L>[:<g>]  [default: <P*alpha>:<beta>]"
    echo "              Assumes the specified values for the BSP parameters"
@@ -82,6 +90,7 @@ max_msg_size=$((2**31 - 1))
 small_exchange_size=1024
 p2p_latency=10000
 p2p_msggap=1
+p2p_bench_file=
 bsp_g=
 bsp_L=
 bsp_nprocs=
@@ -141,14 +150,18 @@ do
          small_exchange_size=${arg#--small-exchange-size=}
          ;;
  
-    --assume-linear-cost-for-p2p=*:*)
-         p2p_cost=${arg#--assume-linear-cost-for-p2p=}
+    --assume-p2p-benchmark=*:*)
+         p2p_cost=${arg#--assume-p2p-benchmark=}
          p2p_latency=${p2p_cost%:*}
          p2p_msggap=${p2p_cost#*:}
          ;;
  
-    --assume-linear-cost-for-p2p=*)
-         p2p_latency=${arg#--assume-linear-cost-for-p2p=}
+    --assume-p2p-benchmark=*)
+         p2p_latency=${arg#--assume-p2p-benchmark=}
+         ;;
+ 
+    --use-p2p-benchmark-file=*)
+         p2p_bench_file=${arg#--use-p2p-benchmark-file=}
          ;;
          
     --assume-bsp-parameters=*:*)
@@ -188,5 +201,9 @@ $show export BSPONPMI_P2P_MSGGAP=${p2p_msggap}
 $show export BSPONMPI_A2A_METHOD=${a2amethod}
 $show export BSC_L=${bsp_L}
 $show export BSC_G=${bsp_g}
+
+if [ "x${p2p_bench_file}" != x ]; then
+  $show source ${p2p_bench_file}
+fi
 
 $show exec @MPIRUN_EXECUTABLE@ "${rest[@]}"

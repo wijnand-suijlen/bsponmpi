@@ -231,6 +231,15 @@ install(TARGETS bsc_pthread
        )
 endif()
 
+# Tools
+add_executable( bompiprobe src/bompiprobe.c src/util.c )
+target_link_libraries( bompiprobe ${MPI_C_LIBRARIES})
+install(TARGETS bompiprobe
+            RUNTIME DESTINATION bin
+            LIBRARY DESTINATION lib
+            ARCHIVE DESTINATION lib
+       )
+
 # Compiler and bsprun frontends
 set(BSPONMPI_LIB_DIR "${CMAKE_INSTALL_PREFIX}/lib")
 set(BSPONMPI_INCLUDE "${CMAKE_INSTALL_PREFIX}/include")

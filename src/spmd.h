@@ -1,7 +1,7 @@
 #ifndef BSPONMPI_SPMD_H
 #define BSPONMPI_SPMD_H
 
-#if HAS_CLOCK_GETTIME
+#ifdef HAS_CLOCK_GETTIME
   #include <time.h>
 #endif
 

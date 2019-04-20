@@ -117,11 +117,19 @@ is sensitive to synchronisation latency.
 By default a communication of 1024 bytes per process or less is a small
 exchange.
 .TP
-.BR \-\-assume\-linear\-cost\-for\-p2p=\fIalpha\fR:\fIbeta\fR
+.BR \-\-use\-p2p\-benchmark\-file=\fIfile\fR
 In order to determine how much data is communicated through the
 latency optimal method and how much through the throughput optimal method,
 the system requires an estimate of the ratio between a the startup
 time and the reciprocal throughput of a point-to-point message.
+The 
+.B bompiprobe
+tool can be used to take measurements and generate the file.
+.TP
+.BR \-\-assume\-p2p\-benchmark=\fIalpha\fR:\fIbeta\fR
+Similar as
+.B \-\-assume\-p2p\-benchmark-file
+but allows parameters \fIalpha\fR and \fIbeta\fR to be set directly.
 By default this is assumed to be \fIalpha\fR:\fIbeta\fR = 10000:1.
 .TP
 .BR \-\-assume\-bsp\-parameters=\fIL\fR:\fIg\fR
@@ -158,7 +166,7 @@ above.
 .B BSPONMPI_P2P_MSGGAP
 Sets the reciprocal throughput for point-to-point messages.
 See the description of 
-.B \-\-assume\-linear\-cost\-for\-p2p
+.B \-\-assume\-p2p\-benchmark
 above.
 .TP
 .B BSPONMPI_A2A_METHOD
