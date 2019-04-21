@@ -21,13 +21,13 @@ For directions on how to launch a program, it is, therefore, essential
 to consult the 
 .I mpirun
 (1) manual as well. However, the following will just work:
-.PP
-.nf
 .RS
+.EX
+
 $ bsprun -n 5 ./a.out
+
+.EE
 .RE
-.fi
-.PP
 which runs ./a.out with 5 processes.
 If the system requires a different launcher, then the user
 is invited to copy the 
@@ -104,31 +104,44 @@ For small exchanges an
 (3) is used, for which there is an O(log p) algorithm on high-bandwidth
 networks, where p is the number of processes.
 For large exchanges throughput
-optimal methods, such as 
+optimal methods are used, such as 
 .I MPI_Put
-(3) when linked with \-\-rma or
+(3) when running with \-\-rma or
 .I MPI_Irsend
 (3) and
 .I MPI_Irecv
-(3) when linked with \-\-msg are used. 
+(3) when running with \-\-msg.
 These have, however, also a higher latency of O(p). 
-Hence, the general advice is to increase this value if your application
-is sensitive to synchronisation latency.
-By default a communication of 1024 bytes per process or less is a small
-exchange.
+The BSPonMPI runtime determines automatically the optimal amount
+of data to be sent through the latency optimal method and the 
+throughput optimal method,
+based on the
+.I alpha
+and
+.I beta
+performance parameters as given through
+.B \-\-use\-p2p\-benchmark
+or 
+.B \-\-assume\-p2p\-benchmark
+options.
+This 
+.B \-\-small\-exchange\-size
+parameter limits the maximum amount of memory used for the
+extra required buffering.
+By default the limit is set to 1024 bytes.
 .TP
 .BR \-\-use\-p2p\-benchmark\-file=\fIfile\fR
 In order to determine how much data is communicated through the
 latency optimal method and how much through the throughput optimal method,
-the system requires an estimate of the ratio between a the startup
+the system requires an estimate of the ratio between the startup
 time and the reciprocal throughput of a point-to-point message.
 The 
 .B bompiprobe
 tool can be used to take measurements and generate the file.
 .TP
 .BR \-\-assume\-p2p\-benchmark=\fIalpha\fR:\fIbeta\fR
-Similar as
-.B \-\-assume\-p2p\-benchmark-file
+Similar to
+.B \-\-use\-p2p\-benchmark-file
 but allows parameters \fIalpha\fR and \fIbeta\fR to be set directly.
 By default this is assumed to be \fIalpha\fR:\fIbeta\fR = 10000:1.
 .TP
@@ -159,14 +172,18 @@ above.
 .TP
 .B BSPONMPI_P2P_LATENCY
 Sets the startup cost for point-to-point messages.
-See the description of
-.B \-\-assume\-linear\-cost\-for\-p2p
+See the descriptions of
+.B \-\-assume\-p2p\-benchmark
+and
+.B \-\-use\-p2p\-benchmark\-file
 above.
 .TP
 .B BSPONMPI_P2P_MSGGAP
 Sets the reciprocal throughput for point-to-point messages.
 See the description of 
 .B \-\-assume\-p2p\-benchmark
+and
+.B \-\-use\-p2p\-benchmark\-file
 above.
 .TP
 .B BSPONMPI_A2A_METHOD
@@ -208,11 +225,27 @@ This does not violate the BSPlib performance contract, because,
 asymptotically, the time required to complete an arbitrary h-relation
 still depends only linearly on h.
 However, locally the behaviour may seem non-linear, which can make
-benchmark results hard to interpret.
-For that reason it is advised to set, during benchmarking,
+benchmark results hard to interpret. 
+.PP
+There are several ways to make BSPonMPI perform more predictable:
+.IP - 
+Set 
 .B \-\-small\-exchange\-size
-to either zero or a very high value, higher than any exchange between
-two pairs of processes.
+to zero.
+This disables use of the latency optimal method.
+.IP - 
+Provide accurate estimates of 
+.I alpha
+and
+.I beta
+with the 
+.B \-\-use\-p2p\-benchmark\-file
+or 
+.B \-\-assume\-p2p\-benchmark
+options.
+Use the 
+.B bompiprobe
+to determine them.
 .
 .PP
 Many MPI implementations also change communication algorithms at runtime
@@ -229,6 +262,8 @@ Written by Wijnand J. Suijlen
 .B mpirun
 (1),
 .B bspcc
+(1),
+.B bompiprobe
 (1)
 .PP
 "BSPlib: The BSP programming library," by J. M. D. Hill, W. F. McColl, D. C. Stefanescu, M. W. Goudreau, K. Lang, S. B. Rao, T. Suel, Th. Tsantilas, R. H. Bisseling, Elsevier, Parallel Computing, Volume 24, Issue 14, December 1998, pages 1947–1980. 

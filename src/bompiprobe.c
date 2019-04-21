@@ -9,6 +9,7 @@
 #include <math.h>
 #include <string.h>
 #include <signal.h>
+#include <limits.h>
 #include "util.h"
 
 #ifdef HAS_CLOCK_GETTIME
@@ -23,53 +24,58 @@ double get_time() { return MPI_Wtime() }
 
 
 double measure_hrel_rma( MPI_Comm comm, MPI_Win win, 
-        char * sendbuf, int h, int size ) 
+        char * sendbuf, int h, int size, int repeat ) 
 {
     double t0, t1;
-    int i, pid, nprocs;
+    int i, j, pid, nprocs;
     MPI_Comm_size( comm, &nprocs);
     MPI_Comm_rank( comm, &pid );
-    MPI_Win_fence( 0, win );
     MPI_Barrier( comm );
     t0 = get_time();
-    for ( i = 0; i < h; ++i ) {
-        MPI_Put( sendbuf + i*size, size, MPI_BYTE,
-                (i+pid) % nprocs, pid*size, size, MPI_BYTE,
-                win );
+    for ( j = 0; j < repeat; ++j ) {
+        MPI_Win_fence( 0, win );
+        for ( i = 0; i < h; ++i ) {
+            MPI_Put( sendbuf + i*size, size, MPI_BYTE,
+                    (i+pid) % nprocs, pid*size, size, MPI_BYTE,
+                    win );
+        }
+        MPI_Win_fence( 0, win );
     }
-    MPI_Win_fence( 0, win );
     t1 = get_time() - t0;
     MPI_Allreduce( &t1, &t0, 1, MPI_DOUBLE, MPI_MAX, comm );
-    return t0;
+    return t0 / repeat;
 }
 
 double measure_hrel_msg( MPI_Comm comm, 
         char * sendbuf, char * recvbuf, MPI_Request * reqs, 
-        int h, int size ) 
+        int h, int size, int repeat ) 
 {
     double t0, t1;
-    int i, pid, nprocs, tag = 0;
+    int i, j, pid, nprocs, tag = 0;
     MPI_Comm_size( comm, &nprocs );
     MPI_Comm_rank( comm, &pid );
 
     MPI_Barrier( comm );
     t0 = get_time();
+    for ( j = 0; j < repeat; ++j ) {
 
-    for ( i = 0; i < h; ++i ) {
-        MPI_Irecv( recvbuf + i*size, size, MPI_BYTE,
-                (pid + nprocs - i) % nprocs, tag, comm, &reqs[i] );
-    }
-    MPI_Barrier( comm );
+        for ( i = 0; i < h; ++i ) {
+            MPI_Irecv( recvbuf + i*size, size, MPI_BYTE,
+                    (pid + nprocs - i) % nprocs, tag, comm, &reqs[i] );
+        }
+        MPI_Barrier( comm );
 
-    for ( i = 0; i < h; ++i ) {
-        MPI_Irsend( sendbuf + i*size, size, MPI_BYTE,
-                (i+pid) % nprocs, tag, comm, &reqs[h+i] );
+        for ( i = 0; i < h; ++i ) {
+            MPI_Irsend( sendbuf + i*size, size, MPI_BYTE,
+                    (i+pid) % nprocs, tag, comm, &reqs[h+i] );
+        }
+        MPI_Waitall( 2*h, reqs, MPI_STATUSES_IGNORE );
+        MPI_Barrier( comm );
     }
-    MPI_Waitall( 2*h, reqs, MPI_STATUSES_IGNORE );
 
     t1 = get_time() - t0;
     MPI_Allreduce( &t1, &t0, 1, MPI_DOUBLE, MPI_MAX, comm );
-    return t0;
+    return t0 / repeat;
 }
 
 
@@ -108,7 +114,9 @@ int cmp_double( const void * a, const void * b )
     return x < y ? -1 : x > y ? 1 : 0;
 }
 
-void measure_lincost( int pid, int nprocs, 
+static int s_interrupted = 0;
+
+int measure_lincost( int pid, int nprocs, int repeat,
         int msg_size, int niters, int ncomms,
         double * alpha_msg, double * alpha_msg_ci, 
         double * alpha_rma, double * alpha_rma_ci, 
@@ -119,13 +127,13 @@ void measure_lincost( int pid, int nprocs,
     char * sendbuf, * recvbuf;
     sample_t * samples;
     size_t rng = 0;
-    int i, j, k;
+    int i, j, k, my_error=0, glob_error=0;
     MPI_Request * reqs = 0; 
     MPI_Win * wins;  MPI_Comm * comms;
     const int n_avgs = 10.0 / conf_level;
     double * avgs;
-    int o[5];  /* two methods x two msg sizes + 1 */
-    double T[4], T_ci[4]; /* two methods x two msg sizes */
+    int o[7];  /* two methods x two msg sizes + 1 */
+    double T[6], T_ci[6]; /* two methods x three msg sizes */
 
     /* allocate memory */
     sendbuf = calloc( (long) 2 * msg_size * nprocs, 1 );
@@ -136,9 +144,22 @@ void measure_lincost( int pid, int nprocs,
     comms = calloc( ncomms, sizeof(MPI_Comm) ); 
     avgs = calloc( n_avgs, sizeof(avgs[0]) );
 
-    if (!sendbuf || !recvbuf || !samples || !reqs
-            || !wins || !comms || !avgs  ) {
-        fprintf(stderr, "Insufficient memory. For a benchmark on "
+    if (comms) {
+        for ( i = 0; i < ncomms; ++i )
+            comms[i] = MPI_COMM_NULL;
+    }
+    if (wins) { 
+        for ( i = 0; i < ncomms; ++i) 
+            wins[i] = MPI_WIN_NULL;
+    }
+
+    my_error = !sendbuf || !recvbuf || !samples || !reqs
+            || !wins || !comms || !avgs ;
+    MPI_Allreduce( &my_error, &glob_error, 1, MPI_INT, 
+            MPI_MAX, MPI_COMM_WORLD );
+    if ( glob_error ) {
+        if (!pid) fprintf( stderr,
+                "Insufficient memory. For a benchmark on "
                 "%d processes I require 2x %ld bytes of memory "
                 "for send and receive buffers, %ld bytes for "
                 "storing the measurements, %ld bytes for "
@@ -151,7 +172,7 @@ void measure_lincost( int pid, int nprocs,
                ncomms * (long) sizeof(MPI_Win), 
                ncomms * (long) sizeof(MPI_Comm), 
                (long) n_avgs * (long) sizeof(avgs[0]) );
-        MPI_Abort( MPI_COMM_WORLD, EXIT_FAILURE );
+        goto exit;
     }
 
     memset( sendbuf, 1, (long) 2*msg_size*nprocs );
@@ -187,7 +208,7 @@ void measure_lincost( int pid, int nprocs,
     permute( &rng, samples, niters );
 
     for ( i = 0 ; i < niters; ++i )
-        samples[i].msg_size = i < niters/2 ? msg_size : 2*msg_size;
+        samples[i].msg_size = (i % 3) * msg_size;
 
     permute( &rng, samples, niters );
 
@@ -200,9 +221,9 @@ void measure_lincost( int pid, int nprocs,
     /* Warm up */
     for ( i = 0; i < ncomms; ++i ) {
         measure_hrel_msg( comms[i], 
-                sendbuf, recvbuf, reqs, nprocs, 2*msg_size );
+                sendbuf, recvbuf, reqs, nprocs, 2*msg_size, repeat );
         measure_hrel_rma( comms[i], wins[i], 
-                sendbuf, nprocs, 2*msg_size );
+                sendbuf, nprocs, 2*msg_size, repeat );
     }
 
     /* And now the measurements */
@@ -214,11 +235,17 @@ void measure_lincost( int pid, int nprocs,
         MPI_Win win = wins[ samples[i].comm ];
 
         if ( samples[i].method )
-            t = measure_hrel_msg( comm, sendbuf, recvbuf, reqs, h, size );
+            t = measure_hrel_msg( comm, sendbuf, recvbuf, reqs, h, size,
+                                  repeat );
         else
-            t = measure_hrel_rma( comm, win, sendbuf, h, size );
+            t = measure_hrel_rma( comm, win, sendbuf, h, size, repeat );
 
         samples[i].time = t / h;
+
+        MPI_Allreduce( &s_interrupted, &glob_error, 1, MPI_INT,
+                MPI_MAX, MPI_COMM_WORLD );
+        if ( glob_error ) 
+            goto exit;
     } 
 
     /* Analysis */
@@ -228,16 +255,16 @@ void measure_lincost( int pid, int nprocs,
     
     o[0] = 0;
     i = 0;
-    for ( k = 0; k < 4; ++k ) {
+    for ( k = 0; k < 6; ++k ) {
         for ( ; i < niters; ++i )
-            if (samples[i].msg_size != (k%2 + 1)*msg_size
-                || samples[i].method != (k/2) )
+            if (samples[i].msg_size != (k%3)*msg_size
+                || samples[i].method != (k/3) )
                 break;
 
         o[k+1] = i;
     }
     
-    for ( k = 0; k < 4; ++k ) {
+    for ( k = 0; k < 6; ++k ) {
         int n = o[k+1] - o[k]; 
         int l = 0;
         double total_sum = 0.0;
@@ -268,22 +295,26 @@ void measure_lincost( int pid, int nprocs,
     }
 
     /* saving results */
-    *alpha_rma = 2*T[0] - T[1];
-    *alpha_rma_ci = fabs(2*T_ci[0] + T_ci[1] );
+    *alpha_rma = MAX( 0.0, 2*T[1] - T[2] - T[0]);
+    *alpha_rma_ci = fabs(2*T_ci[1] + T_ci[2] + T_ci[0] );
 
-    *alpha_msg = 2*T[2] - T[3];
-    *alpha_msg_ci = fabs(2*T_ci[2] + T_ci[3] );
+    *alpha_msg = MAX( 0.0, 2*T[4] - T[5] - T[3]);
+    *alpha_msg_ci = fabs(2*T_ci[4] + T_ci[5] + T_ci[3]);
 
-    *beta_rma = (T[1] - T[0])/msg_size;
-    *beta_rma_ci = (T_ci[1] + T_ci[0]) / msg_size;
+    *beta_rma = MAX( 0.0, (T[2] - T[1])/msg_size );
+    *beta_rma_ci = (T_ci[2] + T_ci[1]) / msg_size;
 
-    *beta_msg = (T[3] - T[2])/msg_size;
-    *beta_msg_ci = (T_ci[3] + T_ci[2]) / msg_size;
+    *beta_msg = MAX( 0.0, (T[5] - T[4])/msg_size );
+    *beta_msg_ci = (T_ci[5] + T_ci[4]) / msg_size;
 
+exit:
     /* free resources */
     for ( i = 0; i < ncomms; ++i ) {
-        MPI_Win_free( &wins[i] );
-        MPI_Comm_free( &comms[i] );
+        if (wins[i] != MPI_WIN_NULL)
+            MPI_Win_free( &wins[i] );
+
+        if (comms[i] != MPI_COMM_NULL )
+            MPI_Comm_free( &comms[i] );
     }
 
     free( sendbuf );
@@ -293,6 +324,8 @@ void measure_lincost( int pid, int nprocs,
     free( comms );
     free( wins );
     free( avgs );
+
+    return glob_error;
 }
 
 
@@ -310,7 +343,8 @@ const char * get_param( const char * arg, const char * find ) {
 
 int parse_params( int argc, char ** argv,
         int * ncomms, int * msg_size,
-        double * conf_level, int * digits )
+        double * conf_level, int * digits, int * max_niters,
+        int * repeat )
 {
     int i;
     const char * val = NULL;
@@ -318,8 +352,10 @@ int parse_params( int argc, char ** argv,
     for ( i = 1; i < argc; ++i ) {
         if ( get_param( argv[i], "--help") ) {
             fprintf(stderr, "Usage %s [--ncomms=<number>] "
+                    "[--granularity=<number>]"
                     "[--msg-size=<size>] [--conf-level=<percentage>] "
-                    "[--digits=<number>]\n", argv[0]);
+                    "[--digits=<number>] [--max-samples=<number>]\n",
+                    argv[0]);
             return 1;
         }
         else if ( (val = get_param( argv[i], "--ncomms=" ) ) ) {
@@ -334,11 +370,23 @@ int parse_params( int argc, char ** argv,
         else if ( (val = get_param(argv[i], "--digits=") ) ) {
             *digits = atoi( val );
         }
+        else if ( (val = get_param(argv[i], "--max-samples=") ) ) {
+            *max_niters = atoi( val );
+        }
+        else if ( (val = get_param(argv[i], "--granularity=") ) ) {
+            *repeat = atoi( val );
+        }
         else
             fprintf(stderr, "Ignoring unrecognized parameter '%s'\n",
                     argv[i]);
     }
     return 0;
+}
+
+static void interrupt( int signal )
+{
+    (void) signal;
+    s_interrupted = 1;
 }
 
 int main( int argc, char ** argv )
@@ -349,18 +397,22 @@ int main( int argc, char ** argv )
     double beta_rma=1.0, beta_msg=1.0;
     double beta_rma_ci=1.0, beta_msg_ci=1.0;
     double conf_level = 0.95;
-    int niters = 1000;
+    double grow_factor = 2.0;
+    double speed_estimate = HUGE_VAL;
+    int niters = 1000, max_niters = INT_MAX, repeat=10;
     int ncomms = 10;
     int msg_size = 10000;
-    int digits = 1;
+    int digits = 1, pow_digits=10;
     int error = 0;
     MPI_Init( &argc, & argv );
+    signal( SIGINT, interrupt );
 
     MPI_Comm_rank( MPI_COMM_WORLD, &pid );
     MPI_Comm_size( MPI_COMM_WORLD, &nprocs );
 
     if (!pid) error = parse_params( argc, argv, 
-            &ncomms, &msg_size, &conf_level, &digits );
+            &ncomms, &msg_size, &conf_level, &digits,
+            &max_niters, &repeat );
 
     MPI_Bcast( &error, 1, MPI_INT, 0, MPI_COMM_WORLD );
 
@@ -373,25 +425,34 @@ int main( int argc, char ** argv )
     MPI_Bcast( &msg_size, 1, MPI_INT, 0, MPI_COMM_WORLD);
     MPI_Bcast( &conf_level, 1, MPI_DOUBLE, 0, MPI_COMM_WORLD);
     MPI_Bcast( &digits, 1, MPI_INT, 0, MPI_COMM_WORLD);
+    MPI_Bcast( &max_niters, 1, MPI_INT, 0, MPI_COMM_WORLD );
+    MPI_Bcast( &repeat, 1, MPI_INT, 0, MPI_COMM_WORLD );
 
     if (!pid) printf(
            "# Number of MPI processes= %d\n"
            "# Typical message size   = %d\n"
            "# Confidence level       = %.2f%%\n"
            "# Significant digits     = %d\n"
-           "# Random process layouts = %d\n",
-           nprocs, msg_size, 100.0*conf_level, digits, ncomms );
+           "# Random process layouts = %d\n"
+           "# Max number of samples  = %d\n"
+           "# Granularity            = %d\n",
+           nprocs, msg_size, 100.0*conf_level, digits, ncomms,
+           max_niters, repeat );
 
 
     do { 
-        double t0, t1;
-        niters *= 10;
+        double t0, t1, dbl_niters;
+        int error;
 
         if (!pid)
-            printf("#     Samples = %d\n", niters );
+            printf("#\n"
+                   "#     Taking %d samples ...\n"
+                   "#     Expected sampling time: %g seconds\n" 
+                   "#     (Press CTRL-C to interrupt)\n",
+                   niters, speed_estimate * niters );
 
         t0 = get_time();
-        measure_lincost( pid, nprocs, 
+        error = measure_lincost( pid, nprocs, repeat,
             msg_size,  niters, ncomms,
             &alpha_msg, &alpha_msg_ci, 
             &alpha_rma, &alpha_rma_ci, 
@@ -400,8 +461,14 @@ int main( int argc, char ** argv )
             conf_level );
         t1 = get_time();
 
+        if (error) {
+            if (!pid)
+                printf("# Interrupted: target precision was not achieved\n");
+             break;
+        }
+            
         if (!pid) {
-            printf("#     Sampling time =  %g seconds\n"
+            printf("#     Sampling time was %g seconds\n"
                     "# MSG: alpha = %12.4g +/- %12.4g ;"
                     "beta =  %12.4g +/- %12.4g \n"
                     "# RMA: alpha = %12.4g +/- %12.4g ;"
@@ -413,10 +480,29 @@ int main( int argc, char ** argv )
                     beta_rma, beta_rma_ci );
 
         }
-    } while ( alpha_rma_ci * int_pow(10,digits) > alpha_rma
-         || alpha_msg_ci * int_pow(10, digits) > alpha_msg
-         || beta_msg_ci * int_pow(10, digits) > beta_msg
-         || beta_rma_ci * int_pow(10, digits) > beta_rma );
+
+        speed_estimate = (t1-t0)/niters;
+        pow_digits = int_pow(10,digits);
+
+        grow_factor = 
+            MAX( MAX( MAX( alpha_rma_ci * pow_digits  / alpha_rma
+                     ,  alpha_msg_ci * pow_digits / alpha_msg) 
+                , beta_msg_ci * pow_digits / beta_msg )
+            ,  beta_rma_ci * pow_digits / beta_rma );
+
+        if ( niters == max_niters ) {
+            if (!pid)
+                printf("# Warning: target precision was not achieved\n");
+            break;
+        }
+
+        dbl_niters = MIN(100.0,MAX(2.0, grow_factor)) * niters ;
+        if ( dbl_niters > (double) max_niters )
+            niters = max_niters;
+        else
+            niters = (int) dbl_niters;
+
+    } while ( grow_factor > 1.0 );
 
     if (!pid) {
         printf(

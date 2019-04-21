@@ -1,0 +1,197 @@
+.TH BOMPIPROBE 1
+.SH NAME
+bompiprobe \- The BSPonMPI machine probing tool
+.
+.SH SYNOPSIS
+.B mpirun
+.RI [ MPI\ OPTIONS ...]
+.B bompiprobe
+.RI [ OPTIONS ...]
+.fi
+.
+.SH DESCRIPTION
+Benchmarks point-to-point MPI communications and generates a 
+configuration for 
+.B bsprun
+to allow
+the BSPonMPI runtime to choose the fastest communication algorithms.
+BSPonMPI schedules buffered communication through a latency
+optimal exchange algorithm and a throughput optimal exchange algorithm.
+To determine which data should go through which algorithm,
+the 
+.B bsp_sync()
+runs an optimisation algorithm, which assumes a linear cost model for
+sending point-to-point messages. 
+Concretely, it assumes that it takes
+.I T(n) = alpha + beta n 
+seconds to send a message of 
+.I n
+bytes.
+The
+.B bompiprobe 
+tool measures the average 
+.I alpha
+and
+.I beta
+over a randomized topology and estimates confidence intervals
+by means of bootstrapping.
+The results a printed as shell script that can be sourced by 
+.B bsprun
+with the
+.B \-\-use\-p2p\-benchmark
+option.
+.
+.SH OPTIONS
+.TP
+.BI \-\-msg-size= size
+Communication time of only three types of messages are measured. 
+With 0 bytes, with 
+.I size
+bytes, and with 2x
+.I size
+bytes.
+This message should be large enough to measure 
+.I beta
+accurately enough.
+Taking it too large may make measurement of 
+.I alpha
+more difficult.
+.TP
+.BI \-\-granularity= number
+Each measurement of a communication pattern is taken on a repetition of
+.I number
+times.
+Increasing this value reduces variance in the samples, at a cost
+of longer sampling times.
+.TP
+.BI \-\-conf-level= percentage
+Results are presented as averages that will fall with
+.IR percentage %
+probability inside the given confidence intervals.
+.TP
+.BI \-\-digits= number
+Measurements are taken until averages of
+.I alpha
+and
+.I beta
+can be establised with 
+.I number
+significant digits with the current confidence level.
+.TP
+.BI \-\-ncomms= number
+To avoid an advantage for any communications network topology, all 
+measurements are taken on a randomized topology.
+Because resources are required for each such topology, only
+.I number
+topologies are allocated.
+.TP
+.BI \-\-max-samples= number
+The maximum number of samples to take.
+.
+.SH QUICK START
+First a note of warning: 
+Determining accurate average estimates of performance parameters
+.I alpha
+and
+.I beta
+may take up quite some time.
+On modern computer systems,
+the probability distribution of the time to complete a communication
+pattern is often highly skewed (heavy tailed), which prevents
+averages to converge quickly.
+Also, energy saving mechanisms cause temporal correlations between
+measurements, lasting several minutes, which excludes application of the
+Central Limit Theorem on short time spans altogether.
+Hence, this tool will not finish quickly.
+.PP
+The default settings of this tool should suffice for many. 
+On your personal system you can run e.g. (assuming you have 4 processors) 
+.RS
+.EX
+
+$ mpirun -n 4 bompiprobe
+
+.EE
+.RE
+which produces something like the following output
+.RS
+.EX
+
+# Number of MPI processes= 4
+# Typical message size   = 10000
+# Confidence level       = 95.00%
+# Significant digits     = 1
+# Random process layouts = 10
+# Max number of samples  = 2147483647
+# Granularity            = 10
+#
+#     Taking 1000 samples ...
+#     Expected sampling time: inf seconds
+#     (Press CTRL-C to interrupt)
+#     Sampling time was 0.131985 seconds
+# MSG: alpha = 0 +/- 8.557e-07 ;beta = 2.721e-10 +/- 5.136e-11
+# RMA: alpha = 0 +/- 2.951e-06 ;beta = 4.08e-10 +/- 2.056e-10
+#
+
+.EE
+.RE
+The sampling will continue until 
+.I alpha
+and
+.I beta
+can be determined with the required number of significant digits.
+When that happens, a final report is written in the form
+of a shell script, e.g.:
+.RS
+.EX
+
+if [ x${BSPONMPI_A2A_METHOD} = xrma ]; then
+   export BSPONMPI_P2P_LATENCY="1.5e-8"
+   export BSPONMPI_P2P_MSGGAP="2.6e-10"
+elif [ x${BSPONMPI_A2A_METHOD} = xmsg ]; then
+   export BSPONMPI_P2P_LATENCY="1.5e-8"
+   export BSPONMPI_P2P_MSGGAP="2.4e-10"
+fi
+
+# Save this output to a file, and use it with bsprun's
+# --use-p2p-benchmark-file parameter
+
+.EE
+.RE
+If you are satisfied with the results, you should copy
+these lines to a file, which you can then use with
+.B bsprun.
+For example, if you have named this file
+.IR my_pc_params ,
+you can run a BSPonMPI program
+.I my_program
+as follows:
+.RS
+.EX
+
+$ bsprun --use-p2p-benchmark=my_pc_params -n 4 ./my_program
+
+.EE
+.RE
+.PP
+If sampling requires too much time, it can be interrupted at any
+time by sending the 
+.I SIGINT
+signal (CTRL-C from a terminal), if the MPI implementation supports it. 
+The total sampling time can also be limited by using the
+.B \-\-max-samples
+parameter to limit the total number of samples.
+This is useful when
+.B bompiprobe
+is run from a batch job.
+.
+.SH AUTHOR
+Written by Wijnand J. Suijlen
+.
+.SH SEE ALSO
+.B mpirun
+(1),
+.B bsprun
+(1)
+.PP
+"BSPlib: The BSP programming library," by J. M. D. Hill, W. F. McColl, D. C. Stefanescu, M. W. Goudreau, K. Lang, S. B. Rao, T. Suel, Th. Tsantilas, R. H. Bisseling, Elsevier, Parallel Computing, Volume 24, Issue 14, December 1998, pages 1947–1980. 
