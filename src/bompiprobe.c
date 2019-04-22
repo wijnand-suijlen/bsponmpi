@@ -114,6 +114,30 @@ int cmp_double( const void * a, const void * b )
     return x < y ? -1 : x > y ? 1 : 0;
 }
 
+void linear_least_squares( const double *x, const double * y, int n,
+        double * alpha, double * beta )
+{
+    double avg_x = 0.0, avg_y = 0.0;
+    double cov_xy = 0.0, var_x = 0.0;
+    int i;
+
+    for ( i = 0; i < n; ++i) {
+        avg_x += x[i];
+        avg_y += y[i];
+    }
+    avg_x /= n;
+    avg_y /= n;
+
+    for ( i = 0; i < n; ++i)  {
+        var_x += (x[i] - avg_x)*(x[i] - avg_x);
+        cov_xy += (x[i] - avg_x)*(y[i] - avg_y);
+    }
+
+    *beta = cov_xy / var_x;
+    *alpha = avg_y - (*beta) * avg_x;
+}
+
+
 static int s_interrupted = 0;
 
 int measure_lincost( int pid, int nprocs, int repeat,
@@ -130,10 +154,10 @@ int measure_lincost( int pid, int nprocs, int repeat,
     int i, j, k, my_error=0, glob_error=0;
     MPI_Request * reqs = 0; 
     MPI_Win * wins;  MPI_Comm * comms;
-    const int n_avgs = 10.0 / conf_level;
-    double * avgs;
-    int o[7];  /* two methods x two msg sizes + 1 */
-    double T[6], T_ci[6]; /* two methods x three msg sizes */
+    const int n_avgs = 10.0 / (1.0 - conf_level);
+    double * avgs, *xs, *ys;
+    int o[5];  /* two methods x two msg sizes + 1 */
+    double T[4], T_ci[4]; /* two methods x two msg sizes */
 
     /* allocate memory */
     sendbuf = calloc( (long) 2 * msg_size * nprocs, 1 );
@@ -143,6 +167,8 @@ int measure_lincost( int pid, int nprocs, int repeat,
     wins = calloc( ncomms, sizeof(MPI_Win) );
     comms = calloc( ncomms, sizeof(MPI_Comm) ); 
     avgs = calloc( n_avgs, sizeof(avgs[0]) );
+    xs = calloc( niters, sizeof(xs[0]));
+    ys = calloc( niters, sizeof(ys[0]));
 
     if (comms) {
         for ( i = 0; i < ncomms; ++i )
@@ -154,7 +180,7 @@ int measure_lincost( int pid, int nprocs, int repeat,
     }
 
     my_error = !sendbuf || !recvbuf || !samples || !reqs
-            || !wins || !comms || !avgs ;
+            || !wins || !comms || !avgs || !xs || !ys ;
     MPI_Allreduce( &my_error, &glob_error, 1, MPI_INT, 
             MPI_MAX, MPI_COMM_WORLD );
     if ( glob_error ) {
@@ -171,7 +197,8 @@ int measure_lincost( int pid, int nprocs, int repeat,
                 (long) 2*nprocs*sizeof(MPI_Request),
                ncomms * (long) sizeof(MPI_Win), 
                ncomms * (long) sizeof(MPI_Comm), 
-               (long) n_avgs * (long) sizeof(avgs[0]) );
+               (long) n_avgs * (long) sizeof(avgs[0]) + 
+               (long) 2*niters*sizeof(double) );
         goto exit;
     }
 
@@ -198,7 +225,7 @@ int measure_lincost( int pid, int nprocs, int repeat,
 
     /* Create measurement points */
     for ( i = 0; i < niters; ++i ) 
-        samples[i].h = (1 + i % nprocs);
+        samples[i].h = i % (nprocs+1);
 
     permute( &rng, samples, niters );
 
@@ -208,7 +235,7 @@ int measure_lincost( int pid, int nprocs, int repeat,
     permute( &rng, samples, niters );
 
     for ( i = 0 ; i < niters; ++i )
-        samples[i].msg_size = (i % 3) * msg_size;
+        samples[i].msg_size = (i%2 + 1) * msg_size;
 
     permute( &rng, samples, niters );
 
@@ -240,7 +267,7 @@ int measure_lincost( int pid, int nprocs, int repeat,
         else
             t = measure_hrel_rma( comm, win, sendbuf, h, size, repeat );
 
-        samples[i].time = t / h;
+        samples[i].time = t;
 
         MPI_Allreduce( &s_interrupted, &glob_error, 1, MPI_INT,
                 MPI_MAX, MPI_COMM_WORLD );
@@ -253,36 +280,53 @@ int measure_lincost( int pid, int nprocs, int repeat,
     /* sort on (msg_size, method) */
     qsort( samples, niters, sizeof(sample_t), cmp_sample );
     
+    /* create an index to each (msg_size, method) in array 'o' */
     o[0] = 0;
     i = 0;
-    for ( k = 0; k < 6; ++k ) {
+    for ( k = 0; k < 4; ++k ) {
         for ( ; i < niters; ++i )
-            if (samples[i].msg_size != (k%3)*msg_size
-                || samples[i].method != (k/3) )
+            if (samples[i].msg_size != (k%2+1)*msg_size
+                || samples[i].method != (k/2) )
                 break;
 
         o[k+1] = i;
     }
     
-    for ( k = 0; k < 6; ++k ) {
+    for ( k = 0; k < 4; ++k ) {
         int n = o[k+1] - o[k]; 
         int l = 0;
         double total_sum = 0.0;
         double left, right;
-        /* permute to randomly sample over time */
+        /* now do to the bootstrapping: take random samples from the 
+         * current samples. 
+         */
         permute( &rng, samples + o[k], n); 
         for ( i = 0; i < n_avgs; i++) {
+            double T_barrier, T_hrel;
             int m = (n + n_avgs - i - 1)/n_avgs;
-            double sum = 0.0;
+
+            if ( m < 2 ) {
+                glob_error = 1;
+                goto exit;
+            }
+
+            /* Compute a linear least squares fit.
+             * Denote f(h) the recorded time required by a h-relation,
+             * then f(h) = T_barrier + h ( alpha + n beta ).
+             * We want to know the: alpha + n beta */
             for ( j = 0; j < m; ++j ) {
-                sum += samples[o[k]+l].time;
+                xs[j] = (double) samples[o[k]+l].h;
+                ys[j] = samples[o[k]+l].time;
                 l++;
             }
-            avgs[i] = sum / m;
-            total_sum += sum;
+
+            linear_least_squares( xs, ys, m, &T_barrier, &T_hrel );
+
+            avgs[i] = T_hrel;
+            total_sum += T_hrel; /* = alpha + n beta */
         }
 
-        T[k] = total_sum / n;
+        T[k] = total_sum / n_avgs; /* The average time for alpha + n beta */
 
         /* generate CFD of averages */
         qsort( avgs, n_avgs, sizeof(double), cmp_double );
@@ -295,17 +339,17 @@ int measure_lincost( int pid, int nprocs, int repeat,
     }
 
     /* saving results */
-    *alpha_rma = MAX( 0.0, 2*T[1] - T[2] - T[0]);
-    *alpha_rma_ci = fabs(2*T_ci[1] + T_ci[2] + T_ci[0] );
+    *alpha_rma_ci = fabs(2*T_ci[0] + T_ci[1] );
+    *alpha_rma = MAX( *alpha_rma_ci, 2*T[0] - T[1]);
 
-    *alpha_msg = MAX( 0.0, 2*T[4] - T[5] - T[3]);
-    *alpha_msg_ci = fabs(2*T_ci[4] + T_ci[5] + T_ci[3]);
+    *alpha_msg_ci = fabs(2*T_ci[2] + T_ci[3]);
+    *alpha_msg = MAX( *alpha_msg_ci, 2*T[2] - T[3]);
 
-    *beta_rma = MAX( 0.0, (T[2] - T[1])/msg_size );
-    *beta_rma_ci = (T_ci[2] + T_ci[1]) / msg_size;
+    *beta_rma_ci = (T_ci[1] + T_ci[0]) / msg_size;
+    *beta_rma = MAX( *beta_rma_ci, (T[1] - T[0])/msg_size );
 
-    *beta_msg = MAX( 0.0, (T[5] - T[4])/msg_size );
-    *beta_msg_ci = (T_ci[5] + T_ci[4]) / msg_size;
+    *beta_msg_ci = (T_ci[3] + T_ci[2]) / msg_size;
+    *beta_msg = MAX( *beta_msg_ci, (T[3] - T[2])/msg_size );
 
 exit:
     /* free resources */
@@ -324,6 +368,8 @@ exit:
     free( comms );
     free( wins );
     free( avgs );
+    free( xs );
+    free( ys );
 
     return glob_error;
 }
@@ -343,7 +389,8 @@ const char * get_param( const char * arg, const char * find ) {
 
 int parse_params( int argc, char ** argv,
         int * ncomms, int * msg_size,
-        double * conf_level, int * digits, int * max_niters,
+        double * conf_level, int * digits, 
+        int * min_niters, int * max_niters,
         int * repeat )
 {
     int i;
@@ -354,7 +401,8 @@ int parse_params( int argc, char ** argv,
             fprintf(stderr, "Usage %s [--ncomms=<number>] "
                     "[--granularity=<number>]"
                     "[--msg-size=<size>] [--conf-level=<percentage>] "
-                    "[--digits=<number>] [--max-samples=<number>]\n",
+                    "[--digits=<number>] "
+                    "[--min-samples=<number>] [--max-samples=<number>]\n",
                     argv[0]);
             return 1;
         }
@@ -369,6 +417,9 @@ int parse_params( int argc, char ** argv,
         }
         else if ( (val = get_param(argv[i], "--digits=") ) ) {
             *digits = atoi( val );
+        }
+        else if ( (val = get_param(argv[i], "--min-samples=") ) ) {
+            *min_niters = atoi( val );
         }
         else if ( (val = get_param(argv[i], "--max-samples=") ) ) {
             *max_niters = atoi( val );
@@ -399,7 +450,7 @@ int main( int argc, char ** argv )
     double conf_level = 0.95;
     double grow_factor = 2.0;
     double speed_estimate = HUGE_VAL;
-    int niters = 1000, max_niters = INT_MAX, repeat=10;
+    int niters = 10000, max_niters = INT_MAX, repeat=10;
     int ncomms = 10;
     int msg_size = 10000;
     int digits = 1, pow_digits=10;
@@ -412,7 +463,7 @@ int main( int argc, char ** argv )
 
     if (!pid) error = parse_params( argc, argv, 
             &ncomms, &msg_size, &conf_level, &digits,
-            &max_niters, &repeat );
+            &niters, &max_niters, &repeat );
 
     MPI_Bcast( &error, 1, MPI_INT, 0, MPI_COMM_WORLD );
 
@@ -425,6 +476,7 @@ int main( int argc, char ** argv )
     MPI_Bcast( &msg_size, 1, MPI_INT, 0, MPI_COMM_WORLD);
     MPI_Bcast( &conf_level, 1, MPI_DOUBLE, 0, MPI_COMM_WORLD);
     MPI_Bcast( &digits, 1, MPI_INT, 0, MPI_COMM_WORLD);
+    MPI_Bcast( &niters, 1, MPI_INT, 0, MPI_COMM_WORLD);
     MPI_Bcast( &max_niters, 1, MPI_INT, 0, MPI_COMM_WORLD );
     MPI_Bcast( &repeat, 1, MPI_INT, 0, MPI_COMM_WORLD );
 

@@ -255,7 +255,7 @@ install( PROGRAMS ${CMAKE_BINARY_DIR}/bspcc
                   ${CMAKE_BINARY_DIR}/bsprun
          DESTINATION bin
        )
-install( FILES man/man1/bsprun.1 man/man1/bspcc.1
+install( FILES man/man1/bsprun.1 man/man1/bspcc.1 man/man1/bompiprobe.1
          DESTINATION share/man/man1/ )
 
 else()
