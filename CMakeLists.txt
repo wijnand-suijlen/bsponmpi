@@ -233,7 +233,7 @@ endif()
 
 # Tools
 add_executable( bompiprobe src/bompiprobe.c src/util.c )
-target_link_libraries( bompiprobe ${MPI_C_LIBRARIES})
+target_link_libraries( bompiprobe bsponmpi bsc )
 install(TARGETS bompiprobe
             RUNTIME DESTINATION bin
             LIBRARY DESTINATION lib
