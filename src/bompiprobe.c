@@ -71,6 +71,10 @@ typedef struct lincost_sample {
     int    msg_size; /* size per msg */
     int    comm;   /* topology */
     int    method; /* 0 == rma, 1 == msg */
+
+    /* info on the order of samples taken */
+    int    serial; /* serial number of sample */
+    double timestamp; /* moment of sample */
 } lincost_sample_t;
 
 void permute( size_t * rng, void * data, 
@@ -132,6 +136,7 @@ static int s_interrupted = 0;
 
 int measure_lincost( int pid, int nprocs, int repeat,
         int msg_size, int niters, int ncomms,
+        const char * sample_file_name,
         double * alpha_msg, double * alpha_msg_ci, 
         double * alpha_rma, double * alpha_rma_ci, 
         double * beta_msg, double * beta_msg_ci,
@@ -149,6 +154,34 @@ int measure_lincost( int pid, int nprocs, int repeat,
     double * avgs, *xs, *ys;
     int o[5];  /* two methods x two msg sizes + 1 */
     double T[4], T_ci[4]; /* two methods x two msg sizes */
+    FILE * sample_file;
+    double t0;
+
+    if ( pid == 0 && sample_file_name ) {
+        sample_file = fopen( sample_file_name, "w" );
+        if (sample_file) {
+            fprintf( sample_file, "#ID\tSTAMP\tMETHOD\tTOPOLOGY\t"
+                                  "MSG_SIZE\tH_REL\tTIME\n" );
+            my_error = 0;
+        }
+        else {
+            my_error = 1;
+        }
+    }
+    else {
+        sample_file = NULL;
+        my_error = 0;
+    }
+
+    MPI_Allreduce( &my_error, &glob_error, 1, MPI_INT, 
+            MPI_MAX, MPI_COMM_WORLD );
+    if ( glob_error ) {
+        if (!pid) fprintf( stderr,
+                "Could not open file '%s' for writing sample data\n",
+                sample_file_name );
+        return 1;
+    }
+ 
 
     /* allocate memory */
     sendbuf = calloc( (long) 2 * msg_size * nprocs, 1 );
@@ -245,6 +278,7 @@ int measure_lincost( int pid, int nprocs, int repeat,
     }
 
     /* And now the measurements */
+    t0 = bsp_time();
     for ( i = 0; i < niters; ++i ) {
         double t;
         int h    = samples[i].h;
@@ -259,12 +293,27 @@ int measure_lincost( int pid, int nprocs, int repeat,
             t = measure_hrel_rma( comm, win, sendbuf, h, size, repeat );
 
         samples[i].time = t;
+        samples[i].timestamp = bsp_time() - t0;
+        samples[i].serial = i;
 
         MPI_Allreduce( &s_interrupted, &glob_error, 1, MPI_INT,
                 MPI_MAX, MPI_COMM_WORLD );
         if ( glob_error ) 
             goto exit;
     } 
+
+    /* Saving data */
+    if (sample_file) {
+        for ( i = 0; i < niters; ++i ) {
+            fprintf( sample_file, 
+                      "%d\t%.15e\t%d\t%d\t%d\t%d\t%.15e\n",
+                      samples[i].serial, samples[i].timestamp,
+                      samples[i].method, samples[i].comm,
+                      samples[i].msg_size, samples[i].h, samples[i].time );
+        }
+        fclose( sample_file );
+        sample_file = NULL;
+    }
 
     /* Analysis */
 
@@ -373,6 +422,10 @@ typedef struct bsp_sample {
     int    h;  /* size of h-relation */
     int    word_size;  /* word size  */
     int    comm;   /* toplogy number */
+
+    /* info on the order of samples taken */
+    int    serial; /* serial number of sample */
+    double timestamp; /* moment of sample */
 } bsp_sample_t;
 
 int cmp_bsp_sample( const void * a, const void * b )
@@ -492,7 +545,7 @@ double measure_bsp_hrel( const int * pid_perm, const int * pid_perm_inv,
 int measure_bsp_params( int pid, int nprocs, int repeat,
         int pessimistic_word_size, int optimistic_word_size,
         int max_total_bytes, int nhrels,
-        int niters, int ncomms,
+        int niters, int ncomms, const char * sample_file_name,
         double * L, double * L_ci,
         double * g_pes, double * g_pes_ci, 
         double * g_opt, double * g_opt_ci,
@@ -502,12 +555,38 @@ int measure_bsp_params( int pid, int nprocs, int repeat,
     bsp_sample_t * samples;
     int * pid_perm, * pid_perm_inv;
     size_t rng = 0;
+    FILE * sample_file = NULL;
     int i, j, k, my_error=0, glob_error=0;
     int * hrels;
     const int n_avgs = 10.0 / (1.0 - conf_level);
     double * avgs, *xs, *ys;
     int *o;  /* index into samples */
     double *T, *T_ci; /* averages + confidence interval */
+    double t0 ;
+
+    if ( pid == 0 && sample_file_name ) {
+        sample_file = fopen( sample_file_name, "w" );
+        if (sample_file) {
+            fprintf( sample_file, "#ID\tSTAMP\tTOPOLOGY\t"
+                                  "WORD_SIZE\tH_REL\tTIME\n" );
+            my_error = 0;
+        }
+        else {
+            my_error = 1;
+        }
+    }
+    else {
+        sample_file = NULL;
+        my_error = 0;
+    }
+
+    glob_error = bsp_or( my_error );
+    if ( glob_error ) {
+        if (!pid) fprintf( stderr,
+                "Could not open file '%s' for writing sample data\n",
+                sample_file_name );
+        return 1;
+    }
 
     /* allocate memory */
     sendbuf = calloc( max_total_bytes, 1 );
@@ -595,6 +674,7 @@ int measure_bsp_params( int pid, int nprocs, int repeat,
     }
 
     /* And now the measurements */
+    t0 = bsp_time();
     for ( i = 0; i < niters; ++i ) {
         int comm = samples[i].comm;
         int h    = samples[i].h;
@@ -605,10 +685,25 @@ int measure_bsp_params( int pid, int nprocs, int repeat,
                     pid_perm_inv + comm*nprocs,
                     sendbuf, recvbuf, ws, h, repeat );
 
+        samples[i].timestamp = bsp_time() - t0;
+        samples[i].serial = i;
+
         glob_error = bsp_or( s_interrupted );
         if ( glob_error ) 
             goto exit;
     } 
+
+    /* Saving data */
+    if (sample_file) {
+        for ( i = 0; i < niters; ++i ) {
+            fprintf( sample_file, "%d\t%.15e\t%d\t%d\t%d\t%.15e\n",
+                      samples[i].serial, samples[i].timestamp,
+                      samples[i].comm, samples[i].word_size, 
+                      samples[i].h, samples[i].time );
+        }
+        fclose( sample_file );
+        sample_file = NULL;
+    }
 
     /* Analysis */
 
@@ -760,7 +855,8 @@ int parse_params( int argc, char ** argv,
         int * repeat, int * pessimistic_word_size, 
         int * optimistic_word_size,
         int * max_total_bytes, int * nhrels,
-        int * mes_lincost )
+        int * mes_lincost, 
+        char * sample_file_name, int max_file_name_length )
 {
     int i;
     const char * val = NULL;
@@ -774,11 +870,16 @@ int parse_params( int argc, char ** argv,
                     "[--min-samples=<number>] [--max-samples=<number>] "
                     "[--pessimistic-word-size=<bytes>] [--optimistic-word-size=<bytes>] "
                     "[--max-total-bytes=<bytes>] [--nhrels=<number>] "
+                    "[--save-sample-data=<file name>] "
                     "[--bsp|--lincost]\n",
                     argv[0]);
             return 1;
         }
-        else if ( (val = get_param( argv[i], "--ncomms=" ) ) ) {
+        else if ( (val = get_param( argv[i], "--save-sample-data=") ) ) {
+            strncpy( sample_file_name, val, max_file_name_length );
+            sample_file_name[ max_file_name_length - 1 ] = '\0';
+        }
+        else if ( (val = get_param( argv[i], "--ntopos=" ) ) ) {
             *ncomms = atoi( val );
         }
         else if ( (val = get_param(argv[i], "--msg-size=") ) ) {
@@ -845,6 +946,7 @@ int main( int argc, char ** argv )
     double conf_level = 0.95;
     double grow_factor = 2.0;
     double speed_estimate = HUGE_VAL;
+    char sample_file_name[256]="";
     int lincost_mode = 1;
     int niters = 10000, max_niters = INT_MAX, repeat=10;
     int ncomms = 10;
@@ -866,7 +968,8 @@ int main( int argc, char ** argv )
             &niters, &max_niters, &repeat,
             & pessimistic_word_size, & optimistic_word_size, 
             & max_total_bytes, &nhrels,
-            & lincost_mode );
+            & lincost_mode,
+            & sample_file_name[0], sizeof(sample_file_name)  );
 
     bsp_bcast( 0, &error, sizeof(error) );
 
@@ -886,6 +989,7 @@ int main( int argc, char ** argv )
     bsp_bcast( 0, &max_total_bytes, sizeof(max_total_bytes) );
     bsp_bcast( 0, &nhrels, sizeof(nhrels) );
     bsp_bcast( 0, &lincost_mode, sizeof(lincost_mode) );
+    /* do not broadcast sample_file_name, because it is not necessary */
 
     if (!pid) printf(
            "# Number of processes    = %d\n"
@@ -893,9 +997,11 @@ int main( int argc, char ** argv )
            "# Significant digits     = %d\n"
            "# Random process layouts = %d\n"
            "# Max number of samples  = %d\n"
-           "# Granularity            = %d\n",
+           "# Granularity            = %d\n"
+           "# Save samples to        = %s\n",
            nprocs, 100.0*conf_level, digits, ncomms,
-           max_niters, repeat );
+           max_niters, repeat, 
+           sample_file_name[0]=='\0'?"NA":sample_file_name );
 
     if (!pid && lincost_mode )
         printf( "\n"
@@ -930,6 +1036,7 @@ int main( int argc, char ** argv )
         if (lincost_mode) {
             error = measure_lincost( pid, nprocs, repeat,
                 msg_size,  niters, ncomms,
+                sample_file_name[0] == '\0' ? NULL : sample_file_name,
                 &alpha_msg, &alpha_msg_ci, 
                 &alpha_rma, &alpha_rma_ci, 
                 &beta_msg, & beta_msg_ci,
@@ -939,8 +1046,8 @@ int main( int argc, char ** argv )
         else {
             error = measure_bsp_params( pid, nprocs, repeat,
                 pessimistic_word_size, optimistic_word_size,
-                max_total_bytes, nhrels,
-                niters, ncomms,
+                max_total_bytes, nhrels, niters, ncomms, 
+                sample_file_name[0] == '\0' ? NULL : sample_file_name,
                 &L, & L_ci, & g_pes, &g_pes_ci, &g_opt, &g_opt_ci,
                 conf_level );
         }
