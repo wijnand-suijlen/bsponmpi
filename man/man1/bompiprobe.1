@@ -3,45 +3,117 @@
 bompiprobe \- The BSPonMPI machine probing tool
 .
 .SH SYNOPSIS
-.B mpirun
-.RI [ MPI\ OPTIONS ...]
+.B bsprun
+.RI [ BSPRUN\ OPTIONS ...]
 .B bompiprobe
+.RB [ \-\-lincost | \-\-bsp ]
 .RI [ OPTIONS ...]
 .fi
 .
 .SH DESCRIPTION
-Benchmarks point-to-point MPI communications and generates a 
-configuration for 
-.B bsprun
-to allow
-the BSPonMPI runtime to choose the fastest communication algorithms.
-BSPonMPI schedules buffered communication through a latency
-optimal exchange algorithm and a throughput optimal exchange algorithm.
-To determine which data should go through which algorithm,
-the 
-.B bsp_sync()
-runs an optimisation algorithm, which assumes a linear cost model for
-sending point-to-point messages. 
-Concretely, it assumes that it takes
+This tool measures performance characteristics of a parallel
+computer in order to fine-tune various internal communication algorithms.
+MPI communication performance is modeled with a linear cost-model
+that assumes 
 .I T(n) = alpha + beta n 
-seconds to send a message of 
+seconds are required to send a message of 
 .I n
 bytes.
-The
+When the
+.B \-\-linicost
+option is used, the
 .B bompiprobe 
 tool measures the average 
 .I alpha
 and
 .I beta
-over a randomized topology and estimates confidence intervals
-by means of bootstrapping.
+by random sampling the time required for various communication patterns.
+Similarly, the 
+.B \-\-bsp
+option makes this tool measure the BSP cost-model parameters
+.I g
+and 
+.IR L ,
+which are used by the parallel collectives library.
 The results a printed as shell script that can be sourced by 
 .B bsprun
 with the
 .B \-\-use\-p2p\-benchmark
 option.
 .
-.SH OPTIONS
+.PP
+Performance of modern high-performance computer systems
+is often highly irregular, due to interference from the
+operating system or other users. 
+To get a sense of accuracy, confidence intervals are estimated by 
+random subsampling. 
+However, these may not be entirely accurate due to
+power saving features, which can skew performace for long
+periods of time. 
+For example, dynamic frequency scaling allows systems
+to operate faster as long as thermal constraints are not exceeded. 
+Ambient temperature has, therefore, also an influence on the operating
+speed of such systems.
+A computer cluster housed in an office where
+the air conditioning is switched off during the nights,
+will experience a daily rhythm, and can thus easily require 
+a month of probing before confidence intervals have
+converged sufficiently. 
+.
+.SH GENERAL OPTIONS
+.TP
+.BR \-\-lincost \ or \ \-\-bsp
+Measure either the linear cost model parameters
+.I alpha
+and
+.I beta
+or the BSP cost parameters
+.I L
+and
+.IR g .
+.TP
+.BI \-\-granularity= number
+Each measurement of a communication pattern is taken by measuring the
+time it takes to repeat that pattern a
+.I number
+times.
+Increasing this value reduces variance in the samples, at a cost
+of longer sampling times.
+.TP
+.BI \-\-conf-level= percentage
+Results are presented as ranges that will contain the true mean with
+.IR percentage %
+probability. 
+.TP
+.BI \-\-digits= number
+Measurements are taken until averages of
+.I alpha
+and
+.I beta
+can be establised with 
+.I number
+significant digits with the current confidence level.
+.TP
+.BI \-\-ntopos= number
+To avoid an advantage for any communications network topology, all 
+measurements are taken on a randomized topology.
+Because resources are required for each such topology, only
+.I number
+topologies are allocated.
+.TP
+.BI \-\-min-samples= number
+The minimum number of samples to take.
+.TP
+.BI \-\-max-samples= number
+The maximum number of samples to take.
+.TP
+.BI \-\-save-sample-data= file
+Save raw sample data a file. 
+Data is formatted in text.
+The column separator is the tab character.
+Rows are separated by the newline character.
+.
+.SH SPECIFIC OPTIONS FOR DETERMINING LINEAR COST PARAMETERS
 .TP
 .BI \-\-msg-size= size
 Communication time of only three types of messages are measured. 
@@ -56,63 +128,73 @@ accurately enough.
 Taking it too large may make measurement of 
 .I alpha
 more difficult.
+.
+.SH SPECIFIC OPTIONS FOR DETERMINING BSP COST PARAMETERS
 .TP
-.BI \-\-granularity= number
-Each measurement of a communication pattern is taken on a repetition of
-.I number
-times.
-Increasing this value reduces variance in the samples, at a cost
-of longer sampling times.
-.TP
-.BI \-\-conf-level= percentage
-Results are presented as averages that will fall with
-.IR percentage %
-probability inside the given confidence intervals.
-.TP
-.BI \-\-digits= number
-Measurements are taken until averages of
-.I alpha
+.BI \-\-pessimistic-word-size= bytes
+Sets the word size for pessimistic 
+.I g
 and
-.I beta
-can be establised with 
-.I number
-significant digits with the current confidence level.
+.I L
+to 
+.IR bytes .
+This size is used in the 
+.BR bsp_put , 
+.B bsp_get
+and
+.B bsp_send 
+calls.
+A smaller size will lead to a higher
+.I g
+parameter.
+By default, this size is set to 8 bytes, coinciding with 
+the size of double-precision floating-point number.
+.
 .TP
-.BI \-\-ncomms= number
-To avoid an advantage for any communications network topology, all 
-measurements are taken on a randomized topology.
-Because resources are required for each such topology, only
-.I number
-topologies are allocated.
+.BI \-\-optimistic-word-size= bytes
+Sets the word size for optimistic
+.I g
+and
+.I L
+to 
+.IR bytes .
+This size is used in the 
+.BR bsp_put , 
+.B bsp_get
+and
+.B bsp_send 
+calls.
+A large enough size will lead to an asymptotic value for the
+.I g
+parameter.
+By default, this size is set to 1 MB, which is 
+indeed sometimes not enough to reach the asymptotic 
+.I g
+value.
+.
 .TP
-.BI \-\-min-samples= number
-The minimum number of samples to take.
-.TP
-.BI \-\-max-samples= number
-The maximum number of samples to take.
+.BI \-\-nhrels= number
+Number of different 
+.IR h -relations
+to measure. 
+This number must be at least two.
+A higher number may possibly expose congestion problems
+in software or hardware, which, in such event,
+will show a super-linear cost behaviour.
 .
 .SH QUICK START
-First a note of warning: 
-Determining accurate average estimates of performance parameters
-.I alpha
-and
-.I beta
-may take up quite some time.
-On modern computer systems,
-the probability distribution of the time to complete a communication
-pattern is often highly skewed (heavy tailed), which prevents
-averages to converge quickly.
-Also, energy saving mechanisms cause temporal correlations between
-measurements, lasting several minutes, which excludes application of the
-Central Limit Theorem on short time spans altogether.
-Hence, this tool will not finish quickly.
-.PP
-The default settings of this tool should suffice for many. 
+.B Linear cost-model parameters:
+For efficient operation of BSPonMPI, accurate estimates of the 
+linear cost-model parameters are necessary. 
+These are measured by default. 
+The default values for the other settings should also suffice
+for most systems, 
+although it may take some time to complete. 
 On your personal system you can run e.g. (assuming you have 4 processors) 
 .RS
 .EX
 
-$ mpirun -n 4 bompiprobe
+$ bsprun -n 4 bompiprobe
 
 .EE
 .RE
@@ -121,12 +203,14 @@ which produces something like the following output
 .EX
 
 # Number of MPI processes= 4
-# Typical message size   = 10000
 # Confidence level       = 95.00%
 # Significant digits     = 1
 # Random process layouts = 10
 # Max number of samples  = 2147483647
 # Granularity            = 10
+#
+# Measuring parameters of linear cost model
+# Typical message size   = 10000 bytes
 #
 #     Taking 1000 samples ...
 #     Expected sampling time: inf seconds
@@ -177,13 +261,76 @@ $ bsprun --use-p2p-benchmark=my_pc_params -n 4 ./my_program
 .EE
 .RE
 .PP
+.B BSP cost-model parameters:
+Now use the 
+.B \-\-bsp
+command line parameter
+.RS
+.EX
+
+$ bsprun -n 4 bompiprobe --bsp
+
+.EE
+.RE
+which produces something like the following output
+.RS
+.EX
+
+# Number of processes    = 4
+# Confidence level       = 95.00%
+# Significant digits     = 1
+# Random process layouts = 10
+# Max number of samples  = 2147483647
+# Granularity            = 10
+# Save samples to        = NA
+
+# Measuring BSP machine parameters
+# Optimistic word size    = 1000000 bytes
+# Pessimistic word size   = 8 bytes
+# Size of max h-relation  = 4000000 bytes
+# Number of h-relations   = 3
+#
+#     Taking 5000 samples ...
+#     Expected sampling time: inf seconds
+#     (Press CTRL-C to interrupt)
+#     Sampling time was 76.2405 seconds
+# L =    2.341e-05 +/-    2.347e-06 ; g_opt =     2.944e-09 +/-    6.635e-10 ; g_pes =    2.047e-08 +/-    2.791e-09
+
+.EE
+.RE
+
+Again, measurements will continue until the parameters can be 
+established with the required number of significant digits.
+Finally the program will report the results as a shell script snippet
+
+.RS
+.EX
+
+export BSC_L="2.6e-05"
+export BSC_G="2.9e-09"
+
+# Save this output to a file, and use it with bsprun's
+# --use-p2p-benchmark-file parameter
+
+.EE
+.RE
+
+These lines should be copied to the same file used
+for the linear cost-model parameters, like
+.I my_pc_params 
+in the example earlier.
+.
+.PP
 If sampling requires too much time, it can be interrupted at any
 time by sending the 
 .I SIGINT
 signal (CTRL-C from a terminal), if the MPI implementation supports it. 
 The total sampling time can also be limited by using the
-.B \-\-max-samples
-parameter to limit the total number of samples.
+.BR \-\-granularity ,
+.BR \-\-min-samples ,
+and
+.BR \-\-max-samples 
+parameters.
 This is useful when
 .B bompiprobe
 is run from a batch job.
