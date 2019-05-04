@@ -1,3 +1,19 @@
+.\" Some useful macros copied from groff's an-ext.tmac, which are not available on e.g. macOS
+.\"
+.\" Start example
+.de EX
+.  nr mE \\n(.f
+.  nf
+.  nh
+.  ft CW
+..
+.\" End example
+.de EE
+.  ft \\n(mE
+.  fi
+.  hy \\n(HY
+..
+.\" The man page
 .TH BOMPIPROBE 1
 .SH NAME
 bompiprobe \- The BSPonMPI machine probing tool
@@ -183,7 +199,7 @@ in software or hardware, which, in such event,
 will show a super-linear cost behaviour.
 .
 .SH QUICK START
-.B Linear cost-model parameters:
+.SS Linear cost-model parameters
 For efficient operation of BSPonMPI, accurate estimates of the 
 linear cost-model parameters are necessary. 
 These are measured by default. 
@@ -261,7 +277,7 @@ $ bsprun --use-p2p-benchmark=my_pc_params -n 4 ./my_program
 .EE
 .RE
 .PP
-.B BSP cost-model parameters:
+.SS BSP cost-model parameters
 Now use the 
 .B \-\-bsp
 command line parameter

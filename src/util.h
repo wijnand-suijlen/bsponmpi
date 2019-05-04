@@ -47,16 +47,7 @@ DLL_LOCAL double rand_next_uint64( uint64_t * next );
 
 DLL_LOCAL double rand_next_uint32( uint32_t * next );
 
-#ifdef UINT64_MAX
-  #if SIZE_MAX == UINT64_MAX
-     #define rand_next( next )  rand_next_uint64( next )
-  #elif SIZE_MAX == UINT32_MAX
-     #define rand_next( next )  rand_next_uint32( next )
-  #endif
-#else
-  #define rand_next( next )  rand_next_uint32( next )
-#endif
-
+DLL_LOCAL double rand_next( size_t * next );
 
 typedef struct universal_hash_function {
     size_t mult, add;

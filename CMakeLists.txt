@@ -211,6 +211,7 @@ install(FILES include/bsp.h
 # Other libraries
 # Bulk Synchronous Collectives
 add_library( bsc src/bsc.c src/util.c )
+target_link_libraries( bsc bsponmpi )
 target_compile_definitions( bsc PRIVATE BUILDING_DLL )
 install(TARGETS bsc
             RUNTIME DESTINATION bin
@@ -223,7 +224,7 @@ install(FILES include/bsc.h
 if (CMAKE_USE_PTHREADS_INIT)
 add_library( bsc_pthread src/bsc.c src/util.c )
 target_compile_definitions( bsc_pthread PRIVATE BUILDING_DLL PTHREADSAFE )
-target_link_libraries( bsc_pthread -lpthread )
+target_link_libraries( bsc_pthread bsponmpi -lpthread )
 install(TARGETS bsc_pthread
             RUNTIME DESTINATION bin
             LIBRARY DESTINATION lib

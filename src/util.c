@@ -135,6 +135,20 @@ double rand_next_uint32( uint32_t * next )
     return (x & m )/ (1.0 + m);
 }
 
+
+double rand_next( size_t * next ) 
+{
+#ifdef UINT64_MAX
+  #if SIZE_MAX == UINT64_MAX
+    return rand_next_uint64( (uint64_t *) next );
+  #elif SIZE_MAX == UINT32_MAX
+    return rand_next_uint32( (uint32_t *) next );
+  #endif
+#else
+  return rand_next_uint32( (uint32_t *) next );
+#endif
+}
+
 #define hash( universal_hash_function, integer ) \
     ( ( (size_t) universal_hash_function.mult * (integer) + \
         universal_hash_function.add ) >> ( CHAR_BIT * sizeof(size_t) \

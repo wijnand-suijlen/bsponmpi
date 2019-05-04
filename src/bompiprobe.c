@@ -416,12 +416,17 @@ exit:
 }
 
 
+typedef enum bsp_method { PUT, HPPUT, GET, HPGET, SEND, 
+    N_BSP_METHODS } bsp_method_t;
+static const char * bsp_method_labels[] = { "PUT", "HPPUT",
+    "GET", "HPGET", "SEND", "UNKNOWN" };
 
 typedef struct bsp_sample {
     double time;   /* time per h-relation */
     int    h;  /* size of h-relation */
     int    word_size;  /* word size  */
     int    comm;   /* toplogy number */
+    bsp_method_t method; /* method */
 
     /* info on the order of samples taken */
     int    serial; /* serial number of sample */
@@ -432,9 +437,10 @@ int cmp_bsp_sample( const void * a, const void * b )
 {
     const bsp_sample_t * x = a, * y = b;
 
-    int i = x->word_size - y->word_size;
-    int j = x->h - y -> h;
-    return i?i:j;
+    int i = x->method - y->method;
+    int j = x->word_size - y->word_size;
+    int k = x->h - y->h;
+    return i?i:j?j:k;
 }
 
 int cmp_int( const void * a, const void * b )
@@ -516,8 +522,8 @@ static double bsp_max( double x )
 
 
 double measure_bsp_hrel( const int * pid_perm, const int * pid_perm_inv,
-        char * sendbuf,  char * recvbuf, int word_size, int h, 
-        int repeat ) 
+        char * sendbuf,  char * recvbuf, bsp_method_t method, int word_size, 
+        int h, int max_total_bytes, int repeat ) 
 {
     double t0, t1;
     int i, k;
@@ -529,12 +535,35 @@ double measure_bsp_hrel( const int * pid_perm, const int * pid_perm_inv,
     for ( k = 0; k < repeat; ++k ) {
         for ( i = 0; i < h; ++i ) {
             int dst_pid = pid_perm_inv[ (i+pid) % nprocs ];
-            bsp_put( dst_pid, sendbuf + i * word_size, 
-                        recvbuf, ((i/nprocs)*nprocs + pid) * word_size,
-                        word_size );
-        }
+            int offset = ((i/nprocs)*nprocs + pid) * word_size;
+            if ( offset + word_size <= max_total_bytes ) {
+                switch( method ) {
+                    case PUT: bsp_put( dst_pid, sendbuf + i * word_size, 
+                                       recvbuf, offset, word_size );
+                              break;
+                    case HPPUT: bsp_hpput( dst_pid, sendbuf + i * word_size, 
+                                       recvbuf, offset, word_size );
+                              break;
+                    case GET: bsp_get( dst_pid, recvbuf, offset,
+                                       sendbuf + i * word_size, 
+                                       word_size );
+                              break;
+                    case HPGET: bsp_hpget( dst_pid, recvbuf, offset,
+                                       sendbuf + i * word_size, 
+                                       word_size );
+                              break;
+
+                    case SEND: bsp_send( dst_pid, NULL, 
+                                       sendbuf + i * word_size, word_size );
+                              break;
+                    case N_BSP_METHODS:
+                              abort();
+                              break;
+                }
+            }
+        } // for i = 0 to h
         bsp_sync();
-    }
+    } 
     t1 = bsp_time() ;
     
     return bsp_max(t1-t0) / repeat;
@@ -567,7 +596,7 @@ int measure_bsp_params( int pid, int nprocs, int repeat,
     if ( pid == 0 && sample_file_name ) {
         sample_file = fopen( sample_file_name, "w" );
         if (sample_file) {
-            fprintf( sample_file, "#ID\tSTAMP\tTOPOLOGY\t"
+            fprintf( sample_file, "#ID\tSTAMP\tMETHOD\tTOPOLOGY\t"
                                   "WORD_SIZE\tH_REL\tTIME\n" );
             my_error = 0;
         }
@@ -598,9 +627,9 @@ int measure_bsp_params( int pid, int nprocs, int repeat,
     avgs = calloc( n_avgs, sizeof(avgs[0]) );
     xs = calloc( niters, sizeof(xs[0]));
     ys = calloc( niters, sizeof(ys[0]));
-    o = calloc( 2*nhrels+2, sizeof(o[0]) );
-    T = calloc( 2*nhrels, sizeof(T[0]));
-    T_ci = calloc( 2*nhrels, sizeof(T_ci[0]) );
+    o = calloc( (2*nhrels+2)*N_BSP_METHODS, sizeof(o[0]) );
+    T = calloc( 2*nhrels*N_BSP_METHODS, sizeof(T[0]));
+    T_ci = calloc( 2*nhrels*N_BSP_METHODS, sizeof(T_ci[0]) );
 
     my_error = !sendbuf || !recvbuf || !samples 
                 || !pid_perm || !pid_perm_inv || !hrels
@@ -621,8 +650,8 @@ int measure_bsp_params( int pid, int nprocs, int repeat,
                 (long) nhrels * (long) sizeof(hrels[0]),
                (long) n_avgs * (long) sizeof(avgs[0]) + 
                (long) 2*niters* (long) sizeof(double) +
-               (long) (2*nhrels+2) * (long) sizeof(o[0]) +
-               (long) 4*nhrels * (long) sizeof(T[0])  );
+               (long) (2*nhrels+2) * N_BSP_METHODS * (long) sizeof(o[0]) +
+               (long) 4*nhrels * N_BSP_METHODS * (long) sizeof(T[0])  );
         goto exit;
     }
 
@@ -644,34 +673,50 @@ int measure_bsp_params( int pid, int nprocs, int repeat,
         }
     }
 
-    /* Create measurement points */
+    /* Define nhrels measurements at equidistant intervals */
     hrels[0] = 0;
     for ( i = 1; i < nhrels ; ++i ) {
         hrels[i] = (int) ( (double) i / nhrels * max_total_bytes );
     }
 
+    /* Assign word size randomly to each sample */
     for ( i = 0; i < niters; ++i ) 
         samples[i].word_size = 
             (i%2) ? pessimistic_word_size : optimistic_word_size;
 
     permute( &rng, samples, niters, sizeof(samples[0]) );
 
+    /* Assign h randomly to each sample */
     for ( i = 0; i < niters; ++i ) 
         samples[i].h = hrels[i % nhrels] / samples[i].word_size;
 
     permute( &rng, samples, niters, sizeof(samples[0]) );
 
+    /* Assign a topology randomly to each sample */
     for ( i = 0; i < niters; ++i ) 
         samples[i].comm = i % ncomms;
 
     permute( &rng, samples, niters, sizeof(samples[0]) );
 
+    /* Assign a random bsp method (PUT, GET, etc...) */
+    for ( i = 0; i < niters ; ++i ) 
+        samples[i].method = i % N_BSP_METHODS;
+
+    permute( &rng, samples, niters, sizeof(samples[0]) );
+
     /* Warm up */
-    for ( i = 0; i < ncomms; ++i ) {
+    for ( i = 0; i < ncomms; ++i ) 
+      for ( j = 0; j < N_BSP_METHODS; ++j ) {
         measure_bsp_hrel( pid_perm + i*nprocs, pid_perm_inv + i*nprocs,
-                sendbuf, recvbuf, pessimistic_word_size, 
-                max_total_bytes / pessimistic_word_size, repeat );
+                sendbuf, recvbuf, (bsp_method_t) j, pessimistic_word_size, 
+                max_total_bytes / pessimistic_word_size, 
+                max_total_bytes, repeat );
+        measure_bsp_hrel( pid_perm + i*nprocs, pid_perm_inv + i*nprocs,
+                sendbuf, recvbuf, (bsp_method_t) j, optimistic_word_size, 
+                max_total_bytes / optimistic_word_size,
+                max_total_bytes, repeat );
     }
+
 
     /* And now the measurements */
     t0 = bsp_time();
@@ -679,11 +724,13 @@ int measure_bsp_params( int pid, int nprocs, int repeat,
         int comm = samples[i].comm;
         int h    = samples[i].h;
         int ws   = samples[i].word_size;
+        bsp_method_t m = samples[i].method;
 
         samples[i].time =
             measure_bsp_hrel( pid_perm + comm*nprocs, 
                     pid_perm_inv + comm*nprocs,
-                    sendbuf, recvbuf, ws, h, repeat );
+                    sendbuf, recvbuf, m, ws, h,
+                    max_total_bytes, repeat );
 
         samples[i].timestamp = bsp_time() - t0;
         samples[i].serial = i;
@@ -696,8 +743,9 @@ int measure_bsp_params( int pid, int nprocs, int repeat,
     /* Saving data */
     if (sample_file) {
         for ( i = 0; i < niters; ++i ) {
-            fprintf( sample_file, "%d\t%.15e\t%d\t%d\t%d\t%.15e\n",
+            fprintf( sample_file, "%d\t%.15e\t%s\t%d\t%d\t%d\t%.15e\n",
                       samples[i].serial, samples[i].timestamp,
+                      bsp_method_labels[ samples[i].method ],
                       samples[i].comm, samples[i].word_size, 
                       samples[i].h, samples[i].time );
         }
@@ -714,18 +762,19 @@ int measure_bsp_params( int pid, int nprocs, int repeat,
      * in samples */
     o[0] = 0;
     i = 0;
-    for ( k = 0; k < 2*nhrels; ++k ) {
+    for ( k = 0; k < 2*nhrels*N_BSP_METHODS; ++k ) {
         for ( ; i < niters; ++i ) {
-            if (samples[i].h != hrels[k%nhrels] / samples[i].word_size 
+            if ( samples[i].h != hrels[k%nhrels] / samples[i].word_size 
                 || samples[i].word_size != 
-                 ((k/nhrels)? optimistic_word_size : pessimistic_word_size)
+                 ((k/nhrels%2)? optimistic_word_size : pessimistic_word_size)
+                || samples[i].method != (bsp_method_t) k / (2 * nhrels)
                )  break;
         }
 
         o[k+1] = i;
     }
     
-    for ( k = 0; k < 2*nhrels; ++k ) {
+    for ( k = 0; k < 2*nhrels*N_BSP_METHODS; ++k ) {
         int n = o[k+1] - o[k]; 
         int l = 0;
         double total_sum = 0.0;
@@ -763,56 +812,62 @@ int measure_bsp_params( int pid, int nprocs, int repeat,
         T_ci[k] = MAX( fabs(T[k] - left),  fabs(right - T[k]) );
     }
 
-    /* now infer L and g results */
-    if ( T[0] < T[nhrels] ) { 
-        *L = T[0];
-        *L_ci = T_ci[0];
-    }
-    else {
-        *L = T[nhrels];
-        *L_ci = T_ci[nhrels];
-    }
-
-    *g_opt = 0.0;
-    *g_pes = 0.0;
-    *g_opt_ci = HUGE_VAL;
-    *g_pes_ci = HUGE_VAL;
-    for ( i = 1 ; i < nhrels-1; ++i) {
-        const int ws_pes = pessimistic_word_size;
-        const int ws_opt = optimistic_word_size;
-        const int h_pes_a = hrels[i] / ws_pes, h_pes_b = hrels[i+1]/ws_pes;
-        const int h_opt_a = hrels[i] / ws_opt, h_opt_b = hrels[i+1]/ws_opt;
-        const int bytes_pes_a = ws_pes * h_pes_a;
-        const int bytes_pes_b = ws_pes * h_pes_b;
-        const int bytes_opt_a = ws_opt * h_opt_a;
-        const int bytes_opt_b = ws_opt * h_opt_b;
-
-        double g_opt_cand = 
-            (T[nhrels+i+1]-T[nhrels+i]) / ( bytes_opt_b - bytes_opt_a);
-        double g_pes_cand = (T[i+1]-T[i]) / ( bytes_pes_b - bytes_pes_a);
-
-        if ( *g_opt < g_opt_cand ) {
-            double L_low;
-            *g_opt = g_opt_cand;
-            *g_opt_ci = (T_ci[nhrels+i-1]+T_ci[nhrels+i]) /
-                             (bytes_opt_b - bytes_opt_a);
-
-            L_low = T[nhrels+i] - T_ci[nhrels+i] - ( *g_opt + *g_opt_ci ) * bytes_opt_a ;
-            if (L_low > *L) {
-                *L = T[nhrels+i] - (*g_opt) * bytes_opt_a;
-                *L_ci = (*L) - L_low;
-            }
+    for ( k = 0; k < N_BSP_METHODS; ++k ) {
+        /* now infer L and g results */
+        if ( T[2*k*nhrels] < T[(2*k+1)*nhrels] ) { 
+            L[k] = T[2*k*nhrels];
+            L_ci[k] = T_ci[2*k*nhrels];
+        }
+        else {
+            L[k] = T[(2*k+1)*nhrels];
+            L_ci[k] = T_ci[(2*k+1)*nhrels];
         }
 
-        if ( *g_pes < g_pes_cand ) {
-            double L_low;
-            *g_pes = g_pes_cand;
-            *g_pes_ci = (T_ci[i-1]+T_ci[i]) / (bytes_pes_b - bytes_pes_a);
+        g_opt[k] = 0.0;
+        g_pes[k] = 0.0;
+        g_opt_ci[k] = HUGE_VAL;
+        g_pes_ci[k] = HUGE_VAL;
+        for ( i = 1 ; i < nhrels-1; ++i) {
+            const int ws_pes = pessimistic_word_size;
+            const int ws_opt = optimistic_word_size;
+            const int h_pes_a = hrels[i] / ws_pes, h_pes_b = hrels[i+1]/ws_pes;
+            const int h_opt_a = hrels[i] / ws_opt, h_opt_b = hrels[i+1]/ws_opt;
+            const int bytes_pes_a = ws_pes * h_pes_a;
+            const int bytes_pes_b = ws_pes * h_pes_b;
+            const int bytes_opt_a = ws_opt * h_opt_a;
+            const int bytes_opt_b = ws_opt * h_opt_b;
 
-            L_low = T[i] - T_ci[i] - ( *g_pes + *g_pes_ci ) * bytes_pes_a ;
-            if (L_low > *L) {
-                *L = T[i] - (*g_pes) * bytes_pes_a;
-                *L_ci = (*L) - L_low;
+            double g_opt_cand = (T[(2*k+1)*nhrels+i+1]-T[(2*k+1)*nhrels+i]) 
+                                / ( bytes_opt_b - bytes_opt_a);
+            double g_pes_cand = (T[2*k*nhrels + i+1]-T[2*k*nhrels+i]) 
+                                / ( bytes_pes_b - bytes_pes_a);
+
+            if ( g_opt[k] < g_opt_cand ) {
+                double L_low;
+                g_opt[k] = g_opt_cand;
+                g_opt_ci[k] = (T_ci[(2*k+1)*nhrels+i-1]+T_ci[(2*k+1)*nhrels+i]) 
+                                / (bytes_opt_b - bytes_opt_a);
+
+                L_low = T[(2*k+1)*nhrels+i] - T_ci[(2*k+1)*nhrels+i] 
+                                - ( g_opt[k] + g_opt_ci[k] ) * bytes_opt_a ;
+                if (L_low > L[k]) {
+                    L[k] = T[(2*k+1)*nhrels+i] - g_opt[k] * bytes_opt_a;
+                    L_ci[k] = L[k] - L_low;
+                }
+            }
+
+            if ( g_pes[k] < g_pes_cand ) {
+                double L_low;
+                g_pes[k] = g_pes_cand;
+                g_pes_ci[k] = (T_ci[2*k*nhrels+i-1]+T_ci[2*k*nhrels+i]) 
+                                / (bytes_pes_b - bytes_pes_a);
+
+                L_low = T[2*k*nhrels+i] - T_ci[2*k*nhrels+i] 
+                        - ( g_pes[k] + g_pes_ci[k] ) * bytes_pes_a ;
+                if (L_low > L[k]) {
+                    L[k] = T[2*k*nhrels+i] - g_pes[k] * bytes_pes_a;
+                    L_ci[k] = L[k] - L_low;
+                }
             }
         }
     }
@@ -934,15 +989,14 @@ static void interrupt( int signal )
 
 int main( int argc, char ** argv )
 {
-    int nprocs, pid;
+    int nprocs, pid, i;
     double alpha_rma=1e+4, alpha_msg=1e+4;
     double alpha_rma_ci=1e+4, alpha_msg_ci=1e+4;
     double beta_rma=1.0, beta_msg=1.0;
     double beta_rma_ci=1.0, beta_msg_ci=1.0;
-    double L=bsp_nprocs()*1e+4, L_ci = bsp_nprocs()*1e+4;
-    double g_pes=1.0, g_pes_ci=1.0; 
-    double g_opt=1.0, g_opt_ci=1.0;
-
+    double L[N_BSP_METHODS], L_ci[N_BSP_METHODS];
+    double g_pes[N_BSP_METHODS], g_pes_ci[N_BSP_METHODS];
+    double g_opt[N_BSP_METHODS], g_opt_ci[N_BSP_METHODS];
     double conf_level = 0.95;
     double grow_factor = 2.0;
     double speed_estimate = HUGE_VAL;
@@ -962,6 +1016,13 @@ int main( int argc, char ** argv )
 
     pid = bsp_pid();
     nprocs = bsp_nprocs();
+
+    for ( i = 0; i < N_BSP_METHODS; ++i ) {
+        L[i]=bsp_nprocs()*1e+4;
+        L_ci[i] = bsp_nprocs()*1e+4;
+        g_pes[i]=1.0; g_pes_ci[i]=1.0; 
+        g_opt[i]=1.0, g_opt_ci[i]=1.0;
+    }
 
     if (!pid) error = parse_params( argc, argv, 
             &ncomms, &msg_size, &conf_level, &digits,
@@ -1048,7 +1109,7 @@ int main( int argc, char ** argv )
                 pessimistic_word_size, optimistic_word_size,
                 max_total_bytes, nhrels, niters, ncomms, 
                 sample_file_name[0] == '\0' ? NULL : sample_file_name,
-                &L, & L_ci, & g_pes, &g_pes_ci, &g_opt, &g_opt_ci,
+                L, L_ci, g_pes, g_pes_ci, g_opt, g_opt_ci,
                 conf_level );
         }
 
@@ -1074,13 +1135,14 @@ int main( int argc, char ** argv )
         }
 
         if (!pid && !lincost_mode) {
-            printf("#     Sampling time was %g seconds\n"
-                    "# L = %12.4g +/- %12.4g ;"
-                    " g_opt =  %12.4g +/- %12.4g ;"
-                    " g_pes = %12.4g +/- %12.4g\n",
-                    t1-t0,
-                    L, L_ci, g_opt, g_opt_ci, g_pes, g_pes_ci);
-
+            printf("#     Sampling time was %g seconds\n", t1-t0);
+            for ( i = 0; i < N_BSP_METHODS; ++i ) {
+                printf( "# %5s :: L = %12.4g +/- %12.4g ;"
+                        " g_opt =  %12.4g +/- %12.4g ;"
+                        " g_pes = %12.4g +/- %12.4g\n",
+                        bsp_method_labels[ i ],
+                        L[i], L_ci[i], g_opt[i], g_opt_ci[i], g_pes[i], g_pes_ci[i]);
+            }
         }
         speed_estimate = (t1-t0)/niters;
         pow_digits = int_pow(10,digits);
@@ -1092,9 +1154,13 @@ int main( int argc, char ** argv )
                     , beta_msg_ci * pow_digits / beta_msg )
                 ,  beta_rma_ci * pow_digits / beta_rma );
         } else {
-            grow_factor = MAX( MAX( L_ci * pow_digits / L, 
-                                g_opt_ci * pow_digits / g_opt)
-                             ,  g_pes_ci * pow_digits / g_pes);
+            grow_factor = 1.0;
+            for ( i = 0; i < N_BSP_METHODS; ++i ) {
+                grow_factor = MAX( MAX( MAX( grow_factor,
+                                    L_ci[i] * pow_digits / L[i]) 
+                                 ,  g_opt_ci[i] * pow_digits / g_opt[i])
+                                 ,  g_pes_ci[i] * pow_digits / g_pes[i]);
+            }
         }
 
         if ( niters == max_niters ) {
@@ -1130,7 +1196,7 @@ int main( int argc, char ** argv )
         printf(
            "export BSC_L=\"%.2g\"\n"
            "export BSC_G=\"%.2g\"\n",
-           L, g_opt );
+           L[0], g_opt[0] );
            
 
         printf("\n# Save this output to a file, and use it with bsprun's\n"
