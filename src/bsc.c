@@ -36,7 +36,6 @@ typedef struct coll_request {
     struct coll_request * next;
 } coll_request_t;
 
-
 typedef struct request {
     enum { PUT, GET, EXEC, COLL } kind;
     union { 
@@ -77,38 +76,53 @@ typedef struct state {
     bsc_size_t collcoa_param_list_size;
 } state_t;
 
-static double load_param_g(void) 
+
+static double load_param(const char * param, double default_val, 
+        const char * func ) 
 {
-    const double default_g = 1.0;
     char * numend = NULL;
-    char * str = getenv("BSC_G");
-    double result = str?strtod( str, &numend ):default_g;
+    char * str = getenv(param);
+    double result = str?strtod( str, &numend ):default_val;
     if ( (str && numend == str) || result == HUGE_VAL 
-            || result == -HUGE_VAL || result < 1e-300 ) {
-        result = default_g;
-        fprintf(stderr, "bsc_g: BSC_G was not a finite positve "
+            || result == -HUGE_VAL ) {
+        result = default_val;
+        fprintf(stderr, "%s: %s was not a finite positve "
                         "floating point number."
-                        " Using default: %g\n", result );
+                        " Using default: %g\n", 
+                        func, param, result );
     }
     return result;
 }
 
-static double load_param_L(void)
+static double s_g[BSC_N_REQUEST_TYPES];
+static double s_o[BSC_N_REQUEST_TYPES];
+static double s_L[BSC_N_REQUEST_TYPES];
+
+void load_param_g_once(void)
 {
-    const double default_L = 1e+4;
-    char * numend = NULL;
-    char * str = getenv("BSC_L");
-    double result = str?strtod( str, &numend ):default_L;
-    if ( (str && numend == str) || result == HUGE_VAL 
-            || result == -HUGE_VAL || result < 1e-300 ) {
-        result = default_L;
-        fprintf(stderr, "bsc_L: BSC_L was not a finite positve "
-                        "floating point number."
-                        " Using default: %g\n", result );
-    }
-    return result;
+    const char * env_names_g[] = { 
+        "BSC_PUT_G", "BSP_HPPUT_G", "BSP_GET_G",
+        "BSP_HPGET_G", "BSP_SEND_G" } ;
+    const char * env_names_o[] = { 
+        "BSC_PUT_O", "BSP_HPPUT_O", "BSP_GET_O",
+        "BSP_HPGET_O", "BSP_SEND_O" } ;
+    int i;
+    for ( i = 0; i < BSC_N_REQUEST_TYPES; ++i )
+        if (env_names_g[i]) {
+                s_g[i] = load_param(env_names_g[i], 1.0, "bsc_g");
+                s_o[i] = load_param(env_names_o[i], 0.0, "bsc_g");
+        }
 }
 
+void load_param_L_once(void) {
+    const char * env_names[] = { 
+        "BSC_PUT_L", "BSP_HPPUT_L", "BSP_GET_L",
+        "BSP_HPGET_L", "BSP_SEND_L" } ;
+    int i;
+    for ( i = 0; i < BSC_N_REQUEST_TYPES; ++i )
+        if (env_names[i])
+                s_L[i] = load_param(env_names[i], 1.0e+4, "bsc_L");
+}
 
 #ifdef PTHREADSAFE
 #include <pthread.h>
@@ -154,29 +168,19 @@ static state_t * bsc()  {
     return data;
 }
 
-static double s_g, s_L;
 
-void load_param_g_once(void)
-{
-    s_g = load_param_g();
-}
-
-void load_param_L_once(void) {
-    s_L = load_param_L();
-}
-
-double bsc_g()
+double bsc_g(bsc_request_t type, int word_size)
 {
     static pthread_once_t once = PTHREAD_ONCE_INIT;
     (void) pthread_once( &once, load_param_g_once );
-    return s_g;
+    return s_g[type] + s_o[type] / word_size;
 }
 
-double bsc_L()
+double bsc_L(bsc_request_t type)
 {
     static pthread_once_t once = PTHREAD_ONCE_INIT;
     (void) pthread_once( &once, load_param_L_once );
-    return s_L;
+    return s_L[type];
 }
 
 #else
@@ -186,22 +190,20 @@ static state_t * bsc(void) {
     return & s_bsc; 
 }
 
-double bsc_g()
+double bsc_g(bsc_request_t type, int word_size)
 {
-    static double g = 0.0;
-    if ( g == 0.0 ) {
-        g = load_param_g();
+    if ( s_g[0] == 0.0 ) {
+        load_param_g_once();
     }
-    return g;
+    return s_g[type] + s_o[type] / word_size;
 }
 
-double bsc_L()
+double bsc_L(bsc_request_t type)
 {
-    static double L = 0.0;
-    if ( L == 0.0 ) {
-        L = load_param_L();
+    if ( s_L[0] == 0.0 ) {
+        load_param_L_once();
     }
-    return L;
+    return s_L[type];
 }
 #endif
 
@@ -758,43 +760,87 @@ void bsc_group_destroy( bsc_group_t group )
     free( g );
 }
 
-double bsc_costs_std_1phase( bsc_group_t group,
+double bsc_costs_std_1phase_put( bsc_group_t group,
          bsc_coll_params_t * set, bsc_size_t n )
 {
-    bsc_size_t i, total_size = 0;
+    bsc_size_t i;
     group_t * g = group;
     bsc_pid_t P = g?g->size:bsp_nprocs() ;
+    double costs = bsc_L(BSC_PUT);
     for ( i = 0; i < n ; ++i )
-        total_size += set[i].size;
+        costs += bsc_g(BSC_PUT, set[i].size) * P * set[i].size;
 
-    return bsc_g() * P * total_size + bsc_L();
+    return costs;
 }
 
-double bsc_costs_std_2tree(  bsc_group_t group,
+double bsc_costs_std_1phase_get( bsc_group_t group,
          bsc_coll_params_t * set, bsc_size_t n )
 {
-    bsc_size_t i, total_size = 0;
+    bsc_size_t i;
     group_t * g = group;
     bsc_pid_t P = g?g->size:bsp_nprocs() ;
+    double costs = bsc_L(BSC_GET);
     for ( i = 0; i < n ; ++i )
-        total_size += set[i].size;
+        costs += bsc_g(BSC_GET, set[i].size) * P * set[i].size;
 
-    return P==1?0:(int_log2(P-1)+1) * (total_size * bsc_g() +  bsc_L() ) ;
+    return costs;
 }
 
-double bsc_costs_std_root_p_tree(  bsc_group_t group,
+
+double bsc_costs_std_2tree_put(  bsc_group_t group,
          bsc_coll_params_t * set, bsc_size_t n )
 {
-    bsc_size_t i, total_size = 0;
+    bsc_size_t i;
+    group_t * g = group;
+    bsc_pid_t P = g?g->size:bsp_nprocs() ;
+    double one_phase = bsc_L(BSC_PUT);
+    for ( i = 0; i < n ; ++i )
+        one_phase += bsc_g(BSC_PUT, set[i].size) * set[i].size;
+
+    return P==1?0:(int_log2(P-1)+1) * one_phase ;
+}
+
+double bsc_costs_std_2tree_get(  bsc_group_t group,
+         bsc_coll_params_t * set, bsc_size_t n )
+{
+    bsc_size_t i;
+    group_t * g = group;
+    bsc_pid_t P = g?g->size:bsp_nprocs() ;
+    double one_phase = bsc_L(BSC_GET);
+    for ( i = 0; i < n ; ++i )
+        one_phase += bsc_g(BSC_GET, set[i].size) * set[i].size;
+
+    return P==1?0:(int_log2(P-1)+1) * one_phase ;
+}
+
+
+double bsc_costs_std_root_p_tree_put(  bsc_group_t group,
+         bsc_coll_params_t * set, bsc_size_t n )
+{
+    bsc_size_t i;
     group_t * g = group;
     bsc_pid_t P = g?g->size:bsp_nprocs() ;
     bsc_pid_t root_P = ceil(sqrt(P));
+    double one_phase = bsc_L(BSC_PUT); 
     for ( i = 0; i < n ; ++i )
-        total_size += set[i].size;
+        one_phase += (root_P - 1) * bsc_g(BSC_PUT, set[i].size) * set[i].size;
 
-    return bsc_g() * 2*(root_P - 1) * total_size + 2 * bsc_L();
+    return 2*one_phase;
 }
 
+double bsc_costs_std_root_p_tree_get(  bsc_group_t group,
+         bsc_coll_params_t * set, bsc_size_t n )
+{
+    bsc_size_t i;
+    group_t * g = group;
+    bsc_pid_t P = g?g->size:bsp_nprocs() ;
+    bsc_pid_t root_P = ceil(sqrt(P));
+    double one_phase = bsc_L(BSC_GET); 
+    for ( i = 0; i < n ; ++i )
+        one_phase += (root_P - 1) * bsc_g(BSC_GET, set[i].size) * set[i].size;
+
+    return 2*one_phase;
+}
 
 
 bsc_step_t bsc_steps_1phase( bsc_group_t group )
@@ -846,7 +892,7 @@ bsc_step_t bsc_scatter_multiple( bsc_step_t depends,
 
 const bsc_collective_t bsc_scatter_algs = {
     { bsc_scatter_multiple },
-    { bsc_costs_std_1phase},
+    { bsc_costs_std_1phase_put},
     { bsc_steps_1phase },
     1 
 };
@@ -895,7 +941,7 @@ bsc_step_t bsc_gather_multiple( bsc_step_t depends,
 
 const bsc_collective_t bsc_gather_algs = {
     { bsc_gather_multiple },
-    { bsc_costs_std_1phase },
+    { bsc_costs_std_1phase_get },
     { bsc_steps_1phase },
     1 
 };
@@ -940,7 +986,7 @@ bsc_step_t bsc_allgather_multiple( bsc_step_t depends,
 
 const bsc_collective_t bsc_allgather_algs = {
     { bsc_allgather_multiple },
-    { bsc_costs_std_1phase},
+    { bsc_costs_std_1phase_get},
     { bsc_steps_1phase },
     1 
 };
@@ -986,7 +1032,7 @@ bsc_step_t bsc_alltoall_multiple( bsc_step_t depends,
 
 const bsc_collective_t bsc_alltoall_algs = {
     { bsc_alltoall_multiple },
-    { bsc_costs_std_1phase},
+    { bsc_costs_std_1phase_put},
     { bsc_steps_1phase },
     1 
 };
@@ -1160,17 +1206,25 @@ bsc_step_t bsc_bcast_2phase( bsc_step_t depends,
     return depends+1;
 }
 
-
 double bsc_bcast_2phase_costs(  bsc_group_t group,
          bsc_coll_params_t * set, bsc_size_t n )
 {
-    bsc_size_t i, total_size = 0;
+    bsc_size_t i;
     group_t * g = group;
     bsc_pid_t P = g?g->size:bsp_nprocs() ;
-    for ( i = 0; i < n ; ++i )
-        total_size += set[i].size;
+    double one_phase = bsc_L(BSC_PUT);
 
-    return (total_size + ((total_size+P-1)/P)*(P-2)) * bsc_g() + 2 * bsc_L();
+    /* Note: the following is only an estimate */
+
+    if ( n < P ) {
+        for ( i = 0; i < n ; ++i ) 
+            one_phase += bsc_g(BSC_PUT, (set[i].size+P-1)/P) * set[i].size ;
+    } else {
+        for ( i = 0 ; i < n; ++i )
+            one_phase += bsc_g(BSC_PUT, set[i].size) * set[i].size;
+    }
+
+    return 2.0 * one_phase;
 }
 
 
@@ -1179,9 +1233,9 @@ const bsc_collective_t bsc_bcast_algs = {
       bsc_bcast_2tree_multiple,
       bsc_bcast_root_p_tree_multiple,
       bsc_bcast_2phase },
-    { bsc_costs_std_1phase,
-      bsc_costs_std_2tree,
-      bsc_costs_std_root_p_tree,
+    { bsc_costs_std_1phase_put,
+      bsc_costs_std_2tree_put,
+      bsc_costs_std_root_p_tree_put,
       bsc_bcast_2phase_costs },
     { bsc_steps_1phase,
       bsc_steps_2tree ,
@@ -1302,9 +1356,9 @@ const bsc_collective_t bsc_reduce_algs = {
       bsc_reduce_2tree_multiple,
       bsc_reduce_root_p_tree_multiple,
     },      
-    { bsc_costs_std_1phase,
-      bsc_costs_std_2tree,
-      bsc_costs_std_root_p_tree,
+    { bsc_costs_std_1phase_get,
+      bsc_costs_std_2tree_get,
+      bsc_costs_std_root_p_tree_get,
     },
     { bsc_steps_1phase,
       bsc_steps_2tree ,
@@ -1425,9 +1479,9 @@ const bsc_collective_t bsc_allreduce_algs = {
       bsc_allreduce_2tree_multiple,
       bsc_allreduce_root_p_tree_multiple,
     },      
-    { bsc_costs_std_1phase,
-      bsc_costs_std_2tree,
-      bsc_costs_std_root_p_tree,
+    { bsc_costs_std_1phase_get,
+      bsc_costs_std_2tree_get,
+      bsc_costs_std_root_p_tree_get,
     },
     { bsc_steps_1phase,
       bsc_steps_2tree ,
@@ -1564,9 +1618,9 @@ const bsc_collective_t bsc_scan_algs = {
       bsc_scan_2tree_multiple,
       bsc_scan_root_p_tree_multiple,
     },      
-    { bsc_costs_std_1phase,
-      bsc_costs_std_2tree,
-      bsc_costs_std_root_p_tree,
+    { bsc_costs_std_1phase_put,
+      bsc_costs_std_2tree_put,
+      bsc_costs_std_root_p_tree_put,
     },
     { bsc_steps_1phase,
       bsc_steps_2tree ,

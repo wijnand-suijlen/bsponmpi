@@ -157,7 +157,7 @@ int measure_lincost( int pid, int nprocs, int repeat,
     int o[5];  /* two methods x two msg sizes + 1 */
     double T[4], T_ci[4]; /* two methods x two msg sizes */
     FILE * sample_file;
-    double t0;
+    double t0, t1;
 
     if ( pid == 0 && sample_file_name ) {
         sample_file = fopen( sample_file_name, "w" );
@@ -280,7 +280,7 @@ int measure_lincost( int pid, int nprocs, int repeat,
     }
 
     /* And now the measurements */
-    t0 = bsp_time();
+    t0 = t1 = bsp_time();
     for ( i = 0; i < niters; ++i ) {
         double t;
         int h    = samples[i].h;
@@ -298,10 +298,18 @@ int measure_lincost( int pid, int nprocs, int repeat,
         samples[i].timestamp = bsp_time() - t0;
         samples[i].serial = i;
 
+        if ( !pid && bsp_time() - t1 > 10.0 ) {
+            printf("# Sample time remaining: %f seconds\n",
+                    (bsp_time() - t0) / i *(niters - i - 1) );
+            t1 = bsp_time();
+        }
+
         MPI_Allreduce( &s_interrupted, &glob_error, 1, MPI_INT,
                 MPI_MAX, MPI_COMM_WORLD );
-        if ( glob_error ) 
-            goto exit;
+        if ( glob_error ) { 
+            niters = i;
+            break;
+        }
     } 
 
     /* Saving data */
@@ -593,7 +601,7 @@ int measure_bsp_params( int pid, int nprocs, int repeat,
     double * avgs, *xs, *ys;
     int *o;  /* index into samples */
     double *T, *T_ci; /* averages + confidence interval */
-    double t0 ;
+    double t0, t1 ;
 
     if ( pid == 0 && sample_file_name ) {
         sample_file = fopen( sample_file_name, "w" );
@@ -707,7 +715,9 @@ int measure_bsp_params( int pid, int nprocs, int repeat,
     permute( &rng, samples, niters, sizeof(samples[0]) );
 
     /* Warm up */
-    for ( i = 0; i < ncomms; ++i ) 
+    if (!pid) {printf("# Warm up phase: "); fflush(stdout); }
+    for ( i = 0; i < ncomms; ++i ) {
+      if (!pid) printf(" %d/%d; ", i+1, ncomms);
       for ( j = 0; j < N_BSP_METHODS; ++j ) {
         measure_bsp_hrel( pid_perm + i*nprocs, pid_perm_inv + i*nprocs,
                 sendbuf, recvbuf, (bsp_method_t) j, pessimistic_word_size, 
@@ -717,11 +727,13 @@ int measure_bsp_params( int pid, int nprocs, int repeat,
                 sendbuf, recvbuf, (bsp_method_t) j, optimistic_word_size, 
                 max_total_bytes / optimistic_word_size,
                 max_total_bytes, repeat );
+      }
     }
+    if (!pid) printf("\n");
 
 
     /* And now the measurements */
-    t0 = bsp_time();
+    t1 = t0 = bsp_time();
     for ( i = 0; i < niters; ++i ) {
         int comm = samples[i].comm;
         int h    = samples[i].h;
@@ -736,10 +748,19 @@ int measure_bsp_params( int pid, int nprocs, int repeat,
 
         samples[i].timestamp = bsp_time() - t0;
         samples[i].serial = i;
+        
+        if ( !pid && bsp_time() - t1 > 10.0 ) {
+            printf("# Sample time remaining: %f seconds\n"
+                   "#    (Press CTRL+C to interrupt)\n",
+                    (bsp_time() - t0) / i *(niters - i - 1) );
+            t1 = bsp_time();
+        }
 
         glob_error = bsp_or( s_interrupted );
-        if ( glob_error ) 
-            goto exit;
+        if ( glob_error ) { 
+            niters = i;
+            break;
+        }
     } 
 
     /* Saving data */
@@ -1195,10 +1216,23 @@ int main( int argc, char ** argv )
     }
 
     if (!pid && !lincost_mode ) {
-        printf(
-           "export BSC_L=\"%.2g\"\n"
-           "export BSC_G=\"%.2g\"\n",
-           L[0], g_opt[0] );
+        for ( i = 0; i < N_BSP_METHODS; ++i ) {
+            double w_opt = optimistic_word_size;
+            double w_pes = pessimistic_word_size;
+            double g_assymp 
+                = (g_opt[i]*w_opt - g_pes[i]*w_pes) / (w_opt - w_pes );
+            double req_overhead = g_pes[i] * w_pes - g_assymp * w_pes;
+
+            g_assymp = MAX( 0.0, g_assymp );
+            req_overhead = MAX( 0.0, req_overhead );
+            printf(
+               "export BSC_%s_L=\"%.2g\"\n"
+               "export BSC_%s_G=\"%.2g\"\n"
+               "export BSC_%s_O=\"%.2g\"\n",
+                bsp_method_labels[i], L[i], 
+                bsp_method_labels[i], g_assymp,
+                bsp_method_labels[i], req_overhead );
+        }
            
 
         printf("\n# Save this output to a file, and use it with bsprun's\n"

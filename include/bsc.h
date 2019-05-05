@@ -169,18 +169,30 @@ void bsc_group_destroy( bsc_group_t group );
  *
  */
 
+typedef enum bsc_request { 
+    BSC_PUT, BSC_HPPUT, BSC_GET, BSC_HPGET, BSC_SEND,
+    BSC_N_REQUEST_TYPES
+} bsc_request_t;
 
 /** BSP cost parameter \f$g\f$, denoting the message gap or reciprocal
  * throughput. This can be used to choose the best algorithm, depending
  * on the input data size. The value is relative to bsp_L().
+ *
+ * \param type      The type of requests 
+ * \param word_size The value of the \a size argument in the request.
+ * \returns The BSP cost parameter \f$g\f$ for the specified type of requests
+ *          and specified size.
  */
-double bsc_g(void);
+double bsc_g(bsc_request_t type, int word_size);
 
 /** BSP cost parameter \f$\ell\f$, denoting the synchronisation latency.
  * This can be used to choose the best algorithm, depending
  * on the input data size. The value is relative to bsp_g().
+ * \param type      The type of requests 
+ * \returns The BSP cost parameter \f$\ell\f$ for the specified type of
+ *          requests.
  */
-double bsc_L(void);
+double bsc_L(bsc_request_t type);
 
 /**
  * @}
