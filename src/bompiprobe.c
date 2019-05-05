@@ -84,9 +84,11 @@ void permute( size_t * rng, void * data,
     char * xs = data;
     while (nmemb > 1 ){
         int i = nmemb * rand_next(rng);
-        memcpy( tmp, xs + i * size, size);
-        memcpy( xs + i * size, xs + (nmemb-1)*size, size );
-        memcpy( xs + (nmemb-1)*size, tmp, size );
+        if (i != nmemb - 1 ) {
+            memcpy( tmp, xs + i * size, size);
+            memcpy( xs + i * size, xs + (nmemb-1)*size, size );
+            memcpy( xs + (nmemb-1)*size, tmp, size );
+        }
         nmemb -= 1;
     }
     free( tmp );
@@ -494,7 +496,7 @@ static void dbl_max( void * a, const void *a0, const void * xs, int size)
     double * result = a;
     const double * neutral = a0;
     const double * item = xs;
-    const int n = size/sizeof(int);
+    const int n = size/sizeof(double);
     int i;
 
     *result = *neutral;
@@ -561,7 +563,7 @@ double measure_bsp_hrel( const int * pid_perm, const int * pid_perm_inv,
                               break;
                 }
             }
-        } // for i = 0 to h
+        } /* for i = 0 to h */
         bsp_sync();
     } 
     t1 = bsp_time() ;
