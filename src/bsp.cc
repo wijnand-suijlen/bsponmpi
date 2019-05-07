@@ -200,6 +200,12 @@ void bsp_begin( bsp_pid_t maxprocs )
         beta = 1.0;
         fprintf(stderr, "bsp_begin: BSPONMPI_P2P_MSGGAP was not a positive number. Using default: %g\n", beta);
     }
+    size_t min_n_hp_msg_size = 0;
+    if (bsplib::read_env( "BSPONMPI_P2P_N_HP", min_n_hp_msg_size ) ) {
+        min_n_hp_msg_size = 0;
+        fprintf(stderr, "bsp_begin: BSPONMPI_P2P_N_HP was not a non-negative integer. Using default %ld\n", (long) min_n_hp_msg_size );
+    }
+
     
     std::string method = "rma";
     if (bsplib::read_env( "BSPONMPI_A2A_METHOD", method ) 
@@ -212,6 +218,7 @@ void bsp_begin( bsp_pid_t maxprocs )
 
     s_rdma = new bsplib::Rdma( s_spmd->comm(), max_msg_size, 
                                small_exch_size, alpha, beta, 
+                               min_n_hp_msg_size,
                                method == "rma" ? bsplib::A2A::RMA 
                                                : bsplib::A2A::MSG );
     s_bsmp = new bsplib::Bsmp( s_spmd->comm(), max_msg_size,

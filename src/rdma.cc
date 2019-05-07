@@ -10,13 +10,15 @@
 namespace bsplib {
 
 Rdma :: Rdma( MPI_Comm comm, size_t max_msg_size, size_t small_exch_size,
-      double alpha, double beta, A2A::Method method  )
+      double alpha, double beta, size_t min_n_hp_msg_size,
+      A2A::Method method  )
     : m_first_exchange( comm, max_msg_size, small_exch_size, 
                         alpha, beta, method )
     , m_second_exchange( comm, max_msg_size, small_exch_size,
                         alpha, beta, method )
     , m_pid(m_first_exchange.pid())
     , m_nprocs(m_first_exchange.nprocs())
+    , m_min_n_hp_msg_size( min_n_hp_msg_size )
     , m_register()
     , m_used_slots()
     , m_free_slots()
@@ -94,6 +96,11 @@ void Rdma::hpput( const void * src,
 #ifdef PROFILE
     TicToc t( TicToc::HPPUT );
 #endif
+    if ( size < m_min_n_hp_msg_size ) { 
+        put( src, dst_pid, dst_slot, dst_offset, size );
+        return;
+    }
+
     assert( ! (slot( m_pid, dst_slot ).status & Memblock::PUSHED) );
     
     Memslot src_slot = m_local_slots.size();
@@ -128,6 +135,11 @@ void Rdma::hpget( int src_pid, Memslot src_slot, size_t src_offset,
 #ifdef PROFILE
     TicToc t( TicToc::HPGET );
 #endif
+    if ( size < m_min_n_hp_msg_size ) { 
+        get( src_pid, src_slot, src_offset, dst, size );
+        return;
+    }
+
     assert( !( slot( m_pid, src_slot ).status & Memblock::PUSHED) );
     
     Memslot dst_slot = m_local_slots.size();

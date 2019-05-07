@@ -9,6 +9,24 @@
 #include <limits.h>
 #include "util.h"
 
+double measure_hrel_memcpy( MPI_Comm comm, char * sendbuf, char * recvbuf,
+                            int h, int size, int repeat ) 
+{
+    double t0, t1;
+    int i, j;
+    MPI_Barrier( comm );
+    t0 = bsp_time();
+    for ( j = 0; j < repeat; ++j ) {
+        for ( i = 0; i < h; ++i ) {
+            memcpy( recvbuf + i*size, sendbuf + i*size, size );
+        }
+    }
+    t1 = bsp_time() - t0;
+    MPI_Allreduce( &t1, &t0, 1, MPI_DOUBLE, MPI_MAX, comm );
+    return t0 / repeat;
+}
+
+
 double measure_hrel_rma( MPI_Comm comm, MPI_Win win, 
         char * sendbuf, int h, int size, int repeat ) 
 {
@@ -137,12 +155,13 @@ void linear_least_squares( const double *x, const double * y, int n,
 static int s_interrupted = 0;
 
 int measure_lincost( int pid, int nprocs, int repeat,
-        int msg_size, int niters, int ncomms,
+        int msg_size, int min_niters, int niters, int ncomms,
         const char * sample_file_name,
         double * alpha_msg, double * alpha_msg_ci, 
         double * alpha_rma, double * alpha_rma_ci, 
         double * beta_msg, double * beta_msg_ci,
         double * beta_rma, double * beta_rma_ci,
+        double * beta_memcpy, double * beta_memcpy_ci,
         double conf_level )
 {
     char * sendbuf, * recvbuf;
@@ -154,8 +173,8 @@ int measure_lincost( int pid, int nprocs, int repeat,
     MPI_Win * wins;  MPI_Comm * comms;
     const int n_avgs = 10.0 / (1.0 - conf_level);
     double * avgs, *xs, *ys;
-    int o[5];  /* two methods x two msg sizes + 1 */
-    double T[4], T_ci[4]; /* two methods x two msg sizes */
+    int o[7];  /* two methods x two msg sizes + 1 */
+    double T[6], T_ci[6]; /* two methods x two msg sizes */
     FILE * sample_file;
     double t0, t1;
 
@@ -266,7 +285,7 @@ int measure_lincost( int pid, int nprocs, int repeat,
     permute( &rng, samples, niters, sizeof(samples[0]) );
 
     for ( i = 0 ; i < niters; ++i )
-        samples[i].method = i < niters/2 ;
+        samples[i].method = i % 3;
 
     permute( &rng, samples, niters, sizeof(samples[0]) );
 
@@ -277,6 +296,8 @@ int measure_lincost( int pid, int nprocs, int repeat,
                 sendbuf, recvbuf, reqs, nprocs, 2*msg_size, repeat );
         measure_hrel_rma( comms[i], wins[i], 
                 sendbuf, nprocs, 2*msg_size, repeat );
+        measure_hrel_memcpy( comms[i], sendbuf, recvbuf, nprocs,
+                2*msg_size, repeat );
     }
 
     /* And now the measurements */
@@ -288,18 +309,25 @@ int measure_lincost( int pid, int nprocs, int repeat,
         MPI_Comm comm = comms[ samples[i].comm ];
         MPI_Win win = wins[ samples[i].comm ];
 
-        if ( samples[i].method )
-            t = measure_hrel_msg( comm, sendbuf, recvbuf, reqs, h, size,
-                                  repeat );
-        else
-            t = measure_hrel_rma( comm, win, sendbuf, h, size, repeat );
+        switch( samples[i].method ) {
+            case 0: t = measure_hrel_rma( comm, win, sendbuf, h, size, 
+                                        repeat );
+                    break;
+            case 1: t = measure_hrel_msg( comm, sendbuf, recvbuf, reqs, h, 
+                                        size, repeat );
+                    break;
+            case 2: t = measure_hrel_memcpy( comm, sendbuf, recvbuf, h, 
+                                        size, repeat );
+                    break;
+        }
 
         samples[i].time = t;
         samples[i].timestamp = bsp_time() - t0;
         samples[i].serial = i;
 
         if ( !pid && bsp_time() - t1 > 10.0 ) {
-            printf("# Sample time remaining: %f seconds\n",
+            printf("# Sample time remaining: %.0f seconds\n"
+                   "#    (Press CTRL+C to interrupt)\n",
                     (bsp_time() - t0) / i *(niters - i - 1) );
             t1 = bsp_time();
         }
@@ -307,8 +335,13 @@ int measure_lincost( int pid, int nprocs, int repeat,
         MPI_Allreduce( &s_interrupted, &glob_error, 1, MPI_INT,
                 MPI_MAX, MPI_COMM_WORLD );
         if ( glob_error ) { 
-            niters = i;
-            break;
+            if (i > min_niters) {
+                niters = i;
+                break;
+            }
+            else {
+                goto exit;
+            }
         }
     } 
 
@@ -333,7 +366,7 @@ int measure_lincost( int pid, int nprocs, int repeat,
     /* create an index to each (msg_size, method) in array 'o' */
     o[0] = 0;
     i = 0;
-    for ( k = 0; k < 4; ++k ) {
+    for ( k = 0; k < 6; ++k ) {
         for ( ; i < niters; ++i )
             if (samples[i].msg_size != (k%2+1)*msg_size
                 || samples[i].method != (k/2) )
@@ -342,12 +375,12 @@ int measure_lincost( int pid, int nprocs, int repeat,
         o[k+1] = i;
     }
     
-    for ( k = 0; k < 4; ++k ) {
+    for ( k = 0; k < 6; ++k ) {
         int n = o[k+1] - o[k]; 
         int l = 0;
         double total_sum = 0.0;
         double left, right;
-        /* now do to the bootstrapping: take random samples from the 
+        /* now do to the subsampling: take random samples from the 
          * current samples. 
          */
         permute( &rng, samples + o[k], n, sizeof(samples[0])); 
@@ -400,6 +433,9 @@ int measure_lincost( int pid, int nprocs, int repeat,
 
     *beta_msg_ci = (T_ci[3] + T_ci[2]) / msg_size;
     *beta_msg = MAX( *beta_msg_ci, (T[3] - T[2])/msg_size );
+
+    *beta_memcpy_ci = (T_ci[5] + T_ci[4]) / msg_size;
+    *beta_memcpy = MAX( *beta_msg_ci, (T[5] - T[4])/msg_size );
 
 exit:
     /* free resources */
@@ -583,8 +619,8 @@ double measure_bsp_hrel( const int * pid_perm, const int * pid_perm_inv,
 
 int measure_bsp_params( int pid, int nprocs, int repeat,
         int pessimistic_word_size, int optimistic_word_size,
-        int max_total_bytes, int nhrels,
-        int niters, int ncomms, const char * sample_file_name,
+        int max_total_bytes, int nhrels, int min_niters, int niters, 
+        int ncomms, const char * sample_file_name,
         double * L, double * L_ci,
         double * g_pes, double * g_pes_ci, 
         double * g_opt, double * g_opt_ci,
@@ -750,7 +786,7 @@ int measure_bsp_params( int pid, int nprocs, int repeat,
         samples[i].serial = i;
         
         if ( !pid && bsp_time() - t1 > 10.0 ) {
-            printf("# Sample time remaining: %f seconds\n"
+            printf("# Sample time remaining: %.0f seconds\n"
                    "#    (Press CTRL+C to interrupt)\n",
                     (bsp_time() - t0) / i *(niters - i - 1) );
             t1 = bsp_time();
@@ -758,8 +794,13 @@ int measure_bsp_params( int pid, int nprocs, int repeat,
 
         glob_error = bsp_or( s_interrupted );
         if ( glob_error ) { 
-            niters = i;
-            break;
+            if (i > min_niters) {
+                niters = i;
+                break;
+            }
+            else {
+                goto exit;
+            }
         }
     } 
 
@@ -802,7 +843,7 @@ int measure_bsp_params( int pid, int nprocs, int repeat,
         int l = 0;
         double total_sum = 0.0;
         double left, right;
-        /* now do to the bootstrapping: take random samples from the 
+        /* now do to the subsampling: take random samples from the 
          * current samples. 
          */
         permute( &rng, samples + o[k], n, sizeof(samples[0])); 
@@ -1017,6 +1058,7 @@ int main( int argc, char ** argv )
     double alpha_rma_ci=1e+4, alpha_msg_ci=1e+4;
     double beta_rma=1.0, beta_msg=1.0;
     double beta_rma_ci=1.0, beta_msg_ci=1.0;
+    double beta_memcpy = 0.1, beta_memcpy_ci = 0.1;
     double L[N_BSP_METHODS], L_ci[N_BSP_METHODS];
     double g_pes[N_BSP_METHODS], g_pes_ci[N_BSP_METHODS];
     double g_opt[N_BSP_METHODS], g_opt_ci[N_BSP_METHODS];
@@ -1025,9 +1067,10 @@ int main( int argc, char ** argv )
     double speed_estimate = HUGE_VAL;
     char sample_file_name[256]="";
     int lincost_mode = 1;
-    int niters = 10000, max_niters = INT_MAX, repeat=10;
+    int min_niters = 0, max_niters = INT_MAX, repeat=10;
+    int niters = 20000;
     int ncomms = 10;
-    int msg_size = 10000;
+    int msg_size = 2500000;
     int pessimistic_word_size = 8;
     int optimistic_word_size = 1000000;
     int max_total_bytes = 4000000;
@@ -1039,6 +1082,7 @@ int main( int argc, char ** argv )
 
     pid = bsp_pid();
     nprocs = bsp_nprocs();
+    max_total_bytes = nprocs * optimistic_word_size;
 
     for ( i = 0; i < N_BSP_METHODS; ++i ) {
         L[i]=bsp_nprocs()*1e+4;
@@ -1119,18 +1163,19 @@ int main( int argc, char ** argv )
         t0 = bsp_time();
         if (lincost_mode) {
             error = measure_lincost( pid, nprocs, repeat,
-                msg_size,  niters, ncomms,
+                msg_size,  min_niters, niters, ncomms,
                 sample_file_name[0] == '\0' ? NULL : sample_file_name,
                 &alpha_msg, &alpha_msg_ci, 
                 &alpha_rma, &alpha_rma_ci, 
                 &beta_msg, & beta_msg_ci,
                 &beta_rma, & beta_rma_ci,
+                &beta_memcpy, &beta_memcpy_ci,
                 conf_level );
         }
         else {
             error = measure_bsp_params( pid, nprocs, repeat,
                 pessimistic_word_size, optimistic_word_size,
-                max_total_bytes, nhrels, niters, ncomms, 
+                max_total_bytes, nhrels, min_niters, niters, ncomms, 
                 sample_file_name[0] == '\0' ? NULL : sample_file_name,
                 L, L_ci, g_pes, g_pes_ci, g_opt, g_opt_ci,
                 conf_level );
@@ -1146,15 +1191,17 @@ int main( int argc, char ** argv )
             
         if (!pid && lincost_mode) {
             printf("#     Sampling time was %g seconds\n"
-                    "# MSG: alpha = %12.4g +/- %12.4g ;"
+                    "# MSG:  alpha = %12.4g +/- %12.4g ;"
                     "beta =  %12.4g +/- %12.4g \n"
-                    "# RMA: alpha = %12.4g +/- %12.4g ;"
-                    "beta =  %12.4g +/- %12.4g\n",
+                    "# RMA:  alpha = %12.4g +/- %12.4g ;"
+                    "beta =  %12.4g +/- %12.4g\n"
+                    "# MEMCPY: beta= %12.4g +/- %12.4g\n",
                     t1-t0,
                     alpha_msg, alpha_msg_ci,
                     beta_msg, beta_msg_ci,
                     alpha_rma, alpha_rma_ci,
-                    beta_rma, beta_rma_ci );
+                    beta_rma, beta_rma_ci,
+                    beta_memcpy, beta_memcpy_ci );
         }
 
         if (!pid && !lincost_mode) {
@@ -1192,6 +1239,7 @@ int main( int argc, char ** argv )
             break;
         }
 
+        min_niters = niters;
         dbl_niters = MIN(100.0,MAX(2.0, grow_factor)) * niters ;
         if ( dbl_niters > (double) max_niters )
             niters = max_niters;
@@ -1201,15 +1249,28 @@ int main( int argc, char ** argv )
     } while ( grow_factor > 1.0 );
 
     if (!pid && lincost_mode ) {
+        /* n_hp is the minimum message size at which bsp_hpget or bsp_hpput
+         * is faster than buffered bsp_put and bsp_get 
+         *
+         * n_hp = (alpha - bsp_msg_overhead) / ( 2*beta_memcpy )
+         *
+         * in reality bsp_msg_overhead is negligible compared to alpha,
+         * so we can assume it to be zero.
+         * */
+
+        long n_hp_rma = (long) (alpha_rma / (2 * beta_memcpy ));
+        long n_hp_msg = (long) (alpha_msg / (2 * beta_memcpy ));
         printf(
            "if [ x${BSPONMPI_A2A_METHOD} = xrma ]; then\n"
            "   export BSPONMPI_P2P_LATENCY=\"%.2g\"\n"
            "   export BSPONMPI_P2P_MSGGAP=\"%.2g\"\n"
+           "   export BSPONMPI_P2P_N_HP=%ld\n"
            "elif [ x${BSPONMPI_A2A_METHOD} = xmsg ]; then\n"
            "   export BSPONMPI_P2P_LATENCY=\"%.2g\"\n"
            "   export BSPONMPI_P2P_MSGGAP=\"%.2g\"\n"
+           "   export BSPONMPI_P2P_N_HP=%ld\n"
            "fi\n", 
-           alpha_rma, beta_rma, alpha_msg, beta_msg);
+           alpha_rma, beta_rma, n_hp_rma, alpha_msg, beta_msg, n_hp_msg );
 
         printf("\n# Save this output to a file, and use it with bsprun's\n"
                  "# --use-p2p-benchmark-file parameter\n");

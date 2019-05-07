@@ -31,7 +31,8 @@ public:
     typedef size_t Memslot;
 
     Rdma( MPI_Comm comm , size_t max_msg_size, size_t small_exch_size,
-       double alpha, double beta, A2A::Method method );
+       double alpha, double beta, size_t min_n_hp_msg_size,
+       A2A::Method method );
     
     void push_reg( void * addr, size_t size );
     void pop_reg( Memslot slot );
@@ -99,6 +100,7 @@ private:
     A2A m_first_exchange;
     A2A m_second_exchange;
     int m_pid, m_nprocs;
+    size_t m_min_n_hp_msg_size;
     Reg m_register;
     std::vector< Memblock > m_used_slots;
     std::vector< Memslot > m_free_slots;
