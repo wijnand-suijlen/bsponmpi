@@ -120,71 +120,30 @@ based on the
 and
 .I beta
 performance parameters as given through
-.B \-\-use\-p2p\-benchmark
-or 
-.B \-\-assume\-p2p\-benchmark
-options.
+.B \-\-use\-benchmark\-file
+option.
 This 
 .B \-\-small\-exchange\-size
 parameter limits the maximum amount of memory used for the
 extra required buffering.
 By default the limit is set to 1024 bytes.
 .TP
-.BR \-\-use\-p2p\-benchmark\-file=\fIfile\fR
+.BR \-\-use\-benchmark\-file=\fIfile\fR
 In order to determine how much data is communicated through the
 latency optimal method and how much through the throughput optimal method,
 the system requires an estimate of the ratio between the startup
 time and the reciprocal throughput of a point-to-point message.
+Likewise, BSP machine parameters are necessary to determine the
+optimal algorithms for the collectives library.
 The 
 .B bompiprobe
 tool can be used to take measurements and generate the file.
-.TP
-.BR \-\-assume\-p2p\-benchmark=\fIalpha\fR:\fIbeta\fR
-Similar to
-.B \-\-use\-p2p\-benchmark-file
-but allows parameters \fIalpha\fR and \fIbeta\fR to be set directly.
-By default this is assumed to be \fIalpha\fR:\fIbeta\fR = 10000:1.
-.TP
-.BR \-\-assume\-bsp\-parameters=\fIL\fR:\fIg\fR
-The included collectives library requires estimates of the BSP
-machine parameters L and g in order to choose the best algorithm
-for each call.
-By default these values are assumed to be \fIL\fR = P*\fIalpha\fR, where
-P is the number of processes, and \fIg\fR = \fIbeta\fR.
 .
 .SH ENVIRONMENT
 .B bsprun
 is essentially a wrapper around 
 .I mpirun
 (1) but sets an additional set of environment variables:
-.TP
-.B BSPONMPI_MAX_MSG_SIZE
-Sets the maximum message size. 
-See the description of 
-.B \-\-max-msg-size
-above.
-.TP
-.B BSPONMPI_SMALL_EXCHANGE_SIZE
-Sets the maximum for small exchanges.
-See the description of
-.B \-\-small\-exchange\-size
-above.
-.TP
-.B BSPONMPI_P2P_LATENCY
-Sets the startup cost for point-to-point messages.
-See the descriptions of
-.B \-\-assume\-p2p\-benchmark
-and
-.B \-\-use\-p2p\-benchmark\-file
-above.
-.TP
-.B BSPONMPI_P2P_MSGGAP
-Sets the reciprocal throughput for point-to-point messages.
-See the description of 
-.B \-\-assume\-p2p\-benchmark
-and
-.B \-\-use\-p2p\-benchmark\-file
-above.
 .TP
 .B BSPONMPI_A2A_METHOD
 Sets the all-to-all method for high volume buffered communications.
@@ -195,17 +154,19 @@ and
 .B \-\-rma
 above for more information.
 .TP
-.B BSC_L
-Sets the BSP parameter \fIL\fR.
+.B BSPONMPI_MAX_MSG_SIZE
+Sets the maximum MPI message size. 
 See the description of 
-.B \-\-assume\-bsp\-parameters
+.B \-\-max-msg-size
 above.
+.
 .TP
-.B BSC_G
-Sets the BSP parameter \fIg\fR.
-See the description of 
-.B \-\-assume\-bsp\-parameters
+.B BSPONMPI_SMALL_EXCHANGE_SIZE
+Sets the maximum for small exchanges.
+See the description of
+.B \-\-small\-exchange\-size
 above.
+.
 .P
 In order for the dynamic linker to find the BSPonMPI dynamic
 library the
@@ -213,6 +174,79 @@ library the
 and
 .B LD_LIBRARY_PATH
 variables are extended to include the path to the library.
+.
+.SH COST PARAMETERS
+The following environment variables are read to determine the optimal
+communication algorithms.
+Any cost measurement unit can be used as long as they are used consistently.
+As an example, we use the byte-second unit system here.
+The recommended way of setting these variables is by generating a benchmark
+file with 
+.B bompiprobe
+and using these results with the
+.B \-\-use-benchmark\-file
+option as described above.
+.
+.TP
+.B BSPONMPI_P2P_LATENCY
+The start-up cost of a point-to-point message in
+.IR seconds .
+.
+.TP
+.B BSPONMPI_P2P_MSGGAP
+The reciprocal throughput for point-to-point messages in
+.IR seconds/byte .
+.
+.TP
+.B BSPONMPI_P2P_N_HP
+The minimum number of 
+.I bytes
+at which a 
+.B bsp_hpput
+or a
+.B bsp_hpget
+is expected to be faster than a
+.B bsp_put
+or
+.BR bsp_get .
+.I Note: This value must always be given in bytes.
+.
+.TP
+.BI BSC_ method _L
+The latency cost of a communication pattern with only
+.I method
+requests in 
+.IR seconds . 
+.I Method
+can be one of
+.BR PUT ,
+.BR GET ,
+.BR SEND ,
+.BR HPPUT ,
+and
+.BR HPGET . 
+.
+.TP
+.BI BSC_ method _G
+Sets the reciprocal throughput of a communication pattern with only
+.I method
+requests in
+.IR seconds/byte . 
+See 
+.BI BSC_ method _L
+above for 
+.IR method .
+.
+.TP
+.BI BSC_ method _O
+Sets the overhead of a single
+.I method
+request in
+.IR seconds .
+See 
+.BI BSC_ method _L
+above for 
+.IR method .
 .
 .SH BENCHMARKING
 Every 
@@ -239,7 +273,7 @@ Provide accurate estimates of
 and
 .I beta
 with the 
-.B \-\-use\-p2p\-benchmark\-file
+.B \-\-use\-benchmark\-file
 or 
 .B \-\-assume\-p2p\-benchmark
 options.

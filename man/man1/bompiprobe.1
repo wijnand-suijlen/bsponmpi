@@ -47,24 +47,33 @@ by random sampling the time required for various communication patterns.
 Similarly, the 
 .B \-\-bsp
 option makes this tool measure the BSP cost-model parameters
-.I g
+.I g 
 and 
-.IR L ,
-which are used by the parallel collectives library.
-The results a printed as shell script that can be sourced by 
+.I L
+and an additional request overhead cost 
+.IR o .
+The parallel collectives library assumes that the completion of an arbitrary
+.IR h -relation
+with words of size 
+.I w
+requires 
+.I T(h, w) = L + h o + h w g
+time.
+The results are printed as a shell script that can be sourced by 
 .B bsprun
 with the
-.B \-\-use\-p2p\-benchmark
+.B \-\-use\-benchmark\-file
 option.
 .
 .PP
 Performance of modern high-performance computer systems
-is often highly irregular, due to interference from the
-operating system or other users. 
+is often highly irregular, due to interference from e.g. power saving 
+features in the hardware, the operating system, or other users. 
 To get a sense of accuracy, confidence intervals are estimated by 
-random subsampling. 
-However, these may not be entirely accurate due to
-power saving features, which can skew performace for long
+random subsampling or bootstrapping (see 
+.BR \-\-conf\-interval\-method ). 
+However, these are likely to be inaccurate especially due to
+power saving features, which skew performance for long
 periods of time. 
 For example, dynamic frequency scaling allows systems
 to operate faster as long as thermal constraints are not exceeded. 
@@ -73,8 +82,19 @@ speed of such systems.
 A computer cluster housed in an office where
 the air conditioning is switched off during the nights,
 will experience a daily rhythm, and can thus easily require 
-a month of probing before confidence intervals have
-converged sufficiently. 
+a month of probing before reliable confidence intervals have
+been established. 
+.
+.PP
+If only little time is available for a probe, try
+running without any command line parameters, except
+.BR \-\-lincost \ or \ \-\-bsp .
+Default values for all parameters will be chosen, which should
+lead to a result quickly, though inaccurate. 
+These values should be corrected by hand if they seem inconsistent. 
+For highly accurate estimates, count on running this tool
+for several days. 
+See below how to choose probing parameters.
 .
 .SH GENERAL OPTIONS
 .TP
@@ -86,7 +106,9 @@ and
 or the BSP cost parameters
 .I L
 and
-.IR g .
+.IR g 
+and extra parameter
+.IR o .
 .TP
 .BI \-\-granularity= number
 Each measurement of a communication pattern is taken by measuring the
@@ -101,14 +123,19 @@ Results are presented as ranges that will contain the true mean with
 .IR percentage %
 probability. 
 .TP
-.BI \-\-digits= number
-Measurements are taken until averages of
-.I alpha
-and
-.I beta
-can be establised with 
-.I number
-significant digits with the current confidence level.
+.BI \-\-conf-interval= percentage
+Measurements are taken until cost model parameters have been established
+with confidence interval that is smaller than 
+.I percentage
+of the mean.
+.TP
+.BI \-\-conf\-interval\-method= method
+.I Method
+can be 
+.BR subsample ,
+which gives more accurate results but requires more samples, or
+.BR bootstrap ,
+which also works with less samples but can be deceiving.
 .TP
 .BI \-\-ntopos= number
 To avoid an advantage for any communications network topology, all 
@@ -147,56 +174,18 @@ more difficult.
 .
 .SH SPECIFIC OPTIONS FOR DETERMINING BSP COST PARAMETERS
 .TP
-.BI \-\-pessimistic-word-size= bytes
-Sets the word size for pessimistic 
-.I g
-and
-.I L
-to 
-.IR bytes .
-This size is used in the 
+.BI \-\--word-size= bytes
+Sets the typical request size to 
+.IR bytes 
+as used in 
 .BR bsp_put , 
-.B bsp_get
+.BR bsp_hpput
+.BR bsp_get ,
+.BR bsp_hpget ,
 and
 .B bsp_send 
 calls.
-A smaller size will lead to a higher
-.I g
-parameter.
-By default, this size is set to 8 bytes, coinciding with 
-the size of double-precision floating-point number.
-.
-.TP
-.BI \-\-optimistic-word-size= bytes
-Sets the word size for optimistic
-.I g
-and
-.I L
-to 
-.IR bytes .
-This size is used in the 
-.BR bsp_put , 
-.B bsp_get
-and
-.B bsp_send 
-calls.
-A large enough size will lead to an asymptotic value for the
-.I g
-parameter.
-By default, this size is set to 1 MB, which is 
-indeed sometimes not enough to reach the asymptotic 
-.I g
-value.
-.
-.TP
-.BI \-\-nhrels= number
-Number of different 
-.IR h -relations
-to measure. 
-This number must be at least two.
-A higher number may possibly expose congestion problems
-in software or hardware, which, in such event,
-will show a super-linear cost behaviour.
+This has influence on the accuracy of the results.
 .
 .SH QUICK START
 .SS Linear cost-model parameters
@@ -220,22 +209,23 @@ which produces something like the following output
 
 # Number of MPI processes= 4
 # Confidence level       = 95.00%
-# Significant digits     = 1
+# Max confidence interval= 50.00%
+# Confidence interval method= bootstrap
 # Random process layouts = 10
 # Max number of samples  = 2147483647
 # Granularity            = 10
-#
+# Save samples to        = NA
+
 # Measuring parameters of linear cost model
-# Typical message size   = 10000 bytes
+# Typical message size   = 2500000 bytes
 #
 #     Taking 1000 samples ...
 #     Expected sampling time: inf seconds
 #     (Press CTRL-C to interrupt)
-#     Sampling time was 0.131985 seconds
-# MSG: alpha = 0 +/- 8.557e-07 ;beta = 2.721e-10 +/- 5.136e-11
-# RMA: alpha = 0 +/- 2.951e-06 ;beta = 4.08e-10 +/- 2.056e-10
-#
-
+#     Sampling time was 10.7813 seconds
+# MSG:  alpha =    0.0001776 [    0.0001749 -    0.0001781 ] ;beta =      2.41e-10 [    2.408e-10 -    2.418e-10 ] 
+# RMA:  alpha =    9.226e-05 [    8.804e-05 -    9.607e-05 ] ;beta =     3.993e-10 [    3.981e-10 -    4.006e-10 ] 
+# MEMCPY: beta=    1.864e-10 [    1.862e-10 -    1.867e-10 ]
 .EE
 .RE
 The sampling will continue until 
@@ -249,15 +239,17 @@ of a shell script, e.g.:
 .EX
 
 if [ x${BSPONMPI_A2A_METHOD} = xrma ]; then
-   export BSPONMPI_P2P_LATENCY="1.5e-8"
-   export BSPONMPI_P2P_MSGGAP="2.6e-10"
+   export BSPONMPI_P2P_LATENCY="9.2e-05"
+   export BSPONMPI_P2P_MSGGAP="4e-10"
+   export BSPONMPI_P2P_N_HP=247522
 elif [ x${BSPONMPI_A2A_METHOD} = xmsg ]; then
-   export BSPONMPI_P2P_LATENCY="1.5e-8"
+   export BSPONMPI_P2P_LATENCY="0.00018"
    export BSPONMPI_P2P_MSGGAP="2.4e-10"
+   export BSPONMPI_P2P_N_HP=476474
 fi
 
 # Save this output to a file, and use it with bsprun's
-# --use-p2p-benchmark-file parameter
+# --use-benchmark-file parameter
 
 .EE
 .RE
@@ -272,7 +264,7 @@ as follows:
 .RS
 .EX
 
-$ bsprun --use-p2p-benchmark=my_pc_params -n 4 ./my_program
+$ bsprun --use-benchmark-file=my_pc_params -n 4 ./my_program
 
 .EE
 .RE
@@ -284,7 +276,7 @@ command line parameter
 .RS
 .EX
 
-$ bsprun -n 4 bompiprobe --bsp
+$ bsprun --use-benchmark-file=my_pc_params -n 4 bompiprobe --bsp
 
 .EE
 .RE
@@ -294,23 +286,29 @@ which produces something like the following output
 
 # Number of processes    = 4
 # Confidence level       = 95.00%
-# Significant digits     = 1
+# Max confidence interval= 50.00%
+# Confidence interval method= bootstrap
 # Random process layouts = 10
 # Max number of samples  = 2147483647
 # Granularity            = 10
 # Save samples to        = NA
 
 # Measuring BSP machine parameters
-# Optimistic word size    = 1000000 bytes
-# Pessimistic word size   = 8 bytes
-# Size of max h-relation  = 4000000 bytes
-# Number of h-relations   = 3
+# Word size               = 500000 bytes
+# Size of max h-relation  = 5000000 bytes
 #
-#     Taking 5000 samples ...
+#     Taking 1000 samples ...
 #     Expected sampling time: inf seconds
 #     (Press CTRL-C to interrupt)
-#     Sampling time was 76.2405 seconds
-# L =    2.341e-05 +/-    2.347e-06 ; g_opt =     2.944e-09 +/-    6.635e-10 ; g_pes =    2.047e-08 +/-    2.791e-09
+# Warm up phase:  1/10;  2/10;  3/10;  4/10;  5/10;  6/10;  7/10;  8/10;  9/10;  10/10; 
+# Sample time remaining: 2 seconds
+#    (Press CTRL+C to interrupt)
+#     Sampling time was 14.2869 seconds
+#   PUT :: L =    8.235e-06 [    8.227e-06 -    8.236e-06 ] ; o =    0.0003219 [    0.0003218 -    0.0003221 ] ; g =    6.985e-10 [    6.981e-10 -    6.985e-10 ]
+# HPPUT :: L =    8.246e-06 [     8.24e-06 -    8.252e-06 ] ; o =     7.01e-05 [     6.97e-05 -    7.016e-05 ] ; g =    3.051e-10 [    3.051e-10 -    3.054e-10 ]
+#   GET :: L =    8.145e-06 [    8.141e-06 -    8.147e-06 ] ; o =    0.0003203 [    0.0003192 -    0.0003202 ] ; g =    6.921e-10 [    6.922e-10 -     6.93e-10 ]
+# HPGET :: L =    8.128e-06 [    8.124e-06 -    8.127e-06 ] ; o =    8.726e-05 [    8.653e-05 -      8.7e-05 ] ; g =    2.613e-10 [    2.614e-10 -    2.617e-10 ]
+#  SEND :: L =    8.179e-06 [    8.166e-06 -    8.174e-06 ] ; o =    0.0003267 [    0.0003265 -    0.0003272 ] ; g =    6.976e-10 [    6.974e-10 -    6.979e-10 ]
 
 .EE
 .RE
@@ -322,11 +320,26 @@ Finally the program will report the results as a shell script snippet
 .RS
 .EX
 
-export BSC_L="2.6e-05"
-export BSC_G="2.9e-09"
+if [ x${BSPONMPI_A2A_METHOD} = xrma ]; then
+  export BSC_PUT_L="8.3e-06"
+  export BSC_PUT_G="7e-10"
+  export BSC_PUT_O="0.00032"
+  export BSC_HPPUT_L="8.2e-06"
+  export BSC_HPPUT_G="3.1e-10"
+  export BSC_HPPUT_O="6.4e-05"
+  export BSC_GET_L="8.4e-06"
+  export BSC_GET_G="6.9e-10"
+  export BSC_GET_O="0.00032"
+  export BSC_HPGET_L="8.4e-06"
+  export BSC_HPGET_G="2.6e-10"
+  export BSC_HPGET_O="9.2e-05"
+  export BSC_SEND_L="8.6e-06"
+  export BSC_SEND_G="7e-10"
+  export BSC_SEND_O="0.00031"
+fi
 
 # Save this output to a file, and use it with bsprun's
-# --use-p2p-benchmark-file parameter
+# --use-benchmark-file parameter
 
 .EE
 .RE

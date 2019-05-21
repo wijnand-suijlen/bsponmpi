@@ -62,25 +62,10 @@ function show_help()
    echo "              MPI_Irsend/MPI_Irecv when linked with --msg) are"
    echo "              used, but that have also higher latency L = O(p)."
    echo
-   echo "    --use-p2p-benchmark-file=<file>    [default: none]"
-   echo "              Assumes the given benchmark for the linear cost-"
-   echo "              model for sending point-to-point messages with MPI."
-   echo "              The linear cost model assumes start-up cost alpha"
-   echo "              and cost per byte beta, as can be measured with "
-   echo "              the \`mpiprobe' tool. "
+   echo "    --use-benchmark-file=<file>    [default: none]"
+   echo "              Assumes the given benchmark for internal cost-models."
+   echo "              Use bompiprobe to generate the file."
    echo 
-   echo "    --assume-p2p-benchmark=<alpha>[:<beta>]"
-   echo "                                       [default: 10000:1]"
-   echo "              Assumes the given benchmark for the linear cost-"
-   echo "              model for sending point-to-point messages with MPI."
-   echo "              The linear cost model assumes start-up cost alpha"
-   echo "              and cost per byte beta. Both values accept a" 
-   echo "              floating point format."
-   echo 
-   echo "    --assume-bsp-parameters=<L>[:<g>]  [default: <P*alpha>:<beta>]"
-   echo "              Assumes the specified values for the BSP parameters"
-   echo "              L and g. This allows the collectives library to"
-   echo "              choose the best algorithm."
 }
 
 state=normal
@@ -88,12 +73,7 @@ rest=()
 show=
 max_msg_size=$((2**31 - 1))
 small_exchange_size=1024
-p2p_latency=10000
-p2p_msggap=1
-p2p_bench_file=
-bsp_g=
-bsp_L=
-bsp_nprocs=
+bench_file=
 a2amethod=rma
 
 for arg
@@ -101,7 +81,6 @@ do
 
   case $state in
     nprocs)  
-       bsp_nprocs=${arg}
        rest=( "${rest[@]}"  @MPIRUN_NPROCS_PARAM_SCRIPT@${arg} )
        state=normal
        ;;
@@ -124,7 +103,6 @@ do
         ;;
 
     --nprocs=*)
-        bsp_nprocs=${arg#--nprocs=}
         rest=( "${rest[@]}"  @MPIRUN_NPROCS_PARAM_SCRIPT@${arg#--nprocs=} )
         ;;
 
@@ -150,30 +128,10 @@ do
          small_exchange_size=${arg#--small-exchange-size=}
          ;;
  
-    --assume-p2p-benchmark=*:*)
-         p2p_cost=${arg#--assume-p2p-benchmark=}
-         p2p_latency=${p2p_cost%:*}
-         p2p_msggap=${p2p_cost#*:}
-         ;;
- 
-    --assume-p2p-benchmark=*)
-         p2p_latency=${arg#--assume-p2p-benchmark=}
-         ;;
- 
-    --use-p2p-benchmark-file=*)
-         p2p_bench_file=${arg#--use-p2p-benchmark-file=}
+    --use-benchmark-file=*)
+         bench_file=${arg#--use-benchmark-file=}
          ;;
          
-    --assume-bsp-parameters=*:*)
-         bsp_params=${arg#--assume-bsp-parameters=}
-         bsp_L=${bsp_params%:*}
-         bsp_g=${bsp_params#*:}
-         ;;
- 
-    --assume-bsp-parameters=*)
-         bsp_L=${arg#--assume-bsp-parameters=}
-         ;;
-       
     *)   rest=( "${rest[@]}" "$arg" )
          ;;
   esac
@@ -181,29 +139,14 @@ do
   esac
 done
 
-if [ "x${bsp_L}" = x ]; then
-  if [ x${bsp_nprocs} = x ]; then
-    bsp_nprocs=1
-  fi
-  bsp_L=$(( bsp_nprocs * p2p_latency )) 
-fi
-
-if [ "x${bsp_g}" = x ]; then
-  bsp_g=${p2p_msggap}
-fi
-
 $show export DYLD_LIBRARY_PATH=@BSPONMPI_LIB_DIR@:$DYLD_LIBRARY_PATH
 $show export LD_LIBRARY_PATH=@BSPONMPI_LIB_DIR@:$LD_LIBRARY_PATH
 $show export BSPONMPI_MAX_MSG_SIZE=${max_msg_size}
 $show export BSPONMPI_SMALL_EXCHANGE_SIZE=${small_exchange_size}
-$show export BSPONMPI_P2P_LATENCY=${p2p_latency}
-$show export BSPONPMI_P2P_MSGGAP=${p2p_msggap}
 $show export BSPONMPI_A2A_METHOD=${a2amethod}
-$show export BSC_L=${bsp_L}
-$show export BSC_G=${bsp_g}
 
-if [ "x${p2p_bench_file}" != x ]; then
-  $show source ${p2p_bench_file}
+if [ "x${bench_file}" != x ]; then
+  $show source ${bench_file}
 fi
 
 $show exec @MPIRUN_EXECUTABLE@ "${rest[@]}"
