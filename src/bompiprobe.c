@@ -238,8 +238,8 @@ int subsample( size_t * rng, void * samples, int sample_bytes,
         qsort( avgs, n_avgs, sizeof(double), cmp_double );
 
         /* compute the confidence interval */
-        T_min[k] = avgs[ (int) (n_avgs * conf_level * 0.5) ];
-        T_max[k] = avgs[ (int) (n_avgs * ( 1.0 - conf_level * 0.5)) ];
+        T_min[k] = avgs[ (int) (n_avgs * ( 1.0 - conf_level) * 0.5) ];
+        T_max[k] = avgs[ (int) (n_avgs * ( 1.0 - (1.0 - conf_level) * 0.5)) ];
     }
     error = 0;
 
@@ -303,8 +303,8 @@ int bootstrap( size_t * rng, void * samples, int sample_bytes,
         qsort( avgs, n_avgs, sizeof(double), cmp_double );
 
         /* compute the confidence interval */
-        T_min[k] = avgs[ (int) (n_avgs * conf_level * 0.5) ];
-        T_max[k] = avgs[ (int) (n_avgs * ( 1.0 - conf_level * 0.5)) ];
+        T_min[k] = avgs[ (int) (n_avgs * ( 1.0 - conf_level) * 0.5) ];
+        T_max[k] = avgs[ (int) (n_avgs * ( 1.0 - (1.0 - conf_level) * 0.5)) ];
     }
     error = 0;
 exit:

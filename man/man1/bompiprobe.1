@@ -26,6 +26,8 @@ bompiprobe \- The BSPonMPI machine probing tool
 .RI [ OPTIONS ...]
 .fi
 .
+.\" TODO Give hints on how to reduce probing time, increase accuracy, etc..
+.\" Describe algorithm
 .SH DESCRIPTION
 This tool measures performance characteristics of a parallel
 computer in order to fine-tune various internal communication algorithms.
@@ -118,12 +120,12 @@ times.
 Increasing this value reduces variance in the samples, at a cost
 of longer sampling times.
 .TP
-.BI \-\-conf-level= percentage
+.BI \-\-conf\-level= percentage
 Results are presented as ranges that will contain the true mean with
 .IR percentage %
 probability. 
 .TP
-.BI \-\-conf-interval= percentage
+.BI \-\-conf\-interval= percentage
 Measurements are taken until cost model parameters have been established
 with confidence interval that is smaller than 
 .I percentage
@@ -144,13 +146,13 @@ Because resources are required for each such topology, only
 .I number
 topologies are allocated.
 .TP
-.BI \-\-min-samples= number
+.BI \-\-min\-samples= number
 The minimum number of samples to take.
 .TP
-.BI \-\-max-samples= number
+.BI \-\-max\-samples= number
 The maximum number of samples to take.
 .TP
-.BI \-\-save-sample-data= file
+.BI \-\-save\-sample\-data= file
 Save raw sample data a file. 
 Data is formatted in text.
 The column separator is the tab character.
@@ -158,7 +160,7 @@ Rows are separated by the newline character.
 .
 .SH SPECIFIC OPTIONS FOR DETERMINING LINEAR COST PARAMETERS
 .TP
-.BI \-\-msg-size= size
+.BI \-\-msg\-size= size
 Communication time of only three types of messages are measured. 
 With 0 bytes, with 
 .I size
@@ -174,7 +176,7 @@ more difficult.
 .
 .SH SPECIFIC OPTIONS FOR DETERMINING BSP COST PARAMETERS
 .TP
-.BI \-\--word-size= bytes
+.BI \-\-word\-size= bytes
 Sets the typical request size to 
 .IR bytes 
 as used in 
@@ -186,6 +188,14 @@ and
 .B bsp_send 
 calls.
 This has influence on the accuracy of the results.
+.
+.TP
+.BI \-\-max\-total\-bytes= n
+Sets the size of the largest
+.IR h -relation
+that will be measured, to
+.IR n
+bytes.
 .
 .SH QUICK START
 .SS Linear cost-model parameters
