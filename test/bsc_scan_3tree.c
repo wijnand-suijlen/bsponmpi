@@ -27,13 +27,13 @@ bsc_step_t bsc_scan_qtree_single( bsc_step_t depends, bsc_group_t group,
 TEST( bsc_scan_3tree, success() )
 {
     int i, n1 = 4, n2 = 5, n3 = 6, n4=7;
-    int x[6];
+    int x[7];
     int y1[4] = { 9999, 9999, 9999, 9999};
     int y2[5] = { 9999, 9999, 9999, 9999, 9999};
     int y3[6] = { 9999, 9999, 9999, 9999, 9999, 9999};
     int y4[7] = { 9999, 9999, 9999, 9999, 9999, 9999, 9999};
 
-    int tmp[40] ; 
+    int tmp[100] ; 
     int zero = 0;
     bsc_step_t ready = bsc_start;
     bsp_begin( bsp_nprocs() );
@@ -46,7 +46,7 @@ TEST( bsc_scan_3tree, success() )
     for ( i = 0; i < n1; ++i )
         x[i] = n1*bsp_pid()+i;
 
-    bsp_push_reg( &tmp, (bsp_nprocs()+1)*sizeof(tmp) );
+    bsp_push_reg( &tmp[0], sizeof(tmp) );
     bsp_sync();
 
     ready = bsc_scan_qtree_single( ready, bsc_all, 
