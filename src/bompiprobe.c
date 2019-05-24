@@ -1073,7 +1073,7 @@ int parse_params( int argc, char ** argv,
 
     for ( i = 1; i < argc; ++i ) {
         if ( get_param( argv[i], "--help") ) {
-            fprintf(stderr, "Usage %s [--ncomms=<number>] "
+            fprintf(stderr, "Usage %s [--ntopos=<number>] "
                     "[--granularity=<number>]"
                     "[--msg-size=<size>] [--conf-level=<percentage>] "
                     "[--conf-interval=<percentage>] "

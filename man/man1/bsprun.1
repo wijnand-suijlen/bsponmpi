@@ -128,7 +128,7 @@ parameter limits the maximum amount of memory used for the
 extra required buffering.
 By default the limit is set to 1024 bytes.
 .TP
-.BR \-\-use\-benchmark\-file=\fIfile\fR
+.BI \-\-use\-benchmark\-file= file
 In order to determine how much data is communicated through the
 latency optimal method and how much through the throughput optimal method,
 the system requires an estimate of the ratio between the startup
@@ -138,6 +138,14 @@ optimal algorithms for the collectives library.
 The 
 .B bompiprobe
 tool can be used to take measurements and generate the file.
+.
+.TP
+.BI \-\-mpirun, parameter
+Passes 
+.I parameter
+directly to the underlying 
+.B mpirun
+call.
 .
 .SH ENVIRONMENT
 .B bsprun
