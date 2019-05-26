@@ -1434,6 +1434,9 @@ int main( int argc, char ** argv )
     }
 
     if (!pid && !lincost_mode ) {
+        const char * mode = getenv("BSPONMPI_A2A_METHOD");
+        if (!mode) mode = "rma";
+
         for ( i = 0 ; i < N_BSP_METHODS; ++i ) {
             if (L[i] < 0 || g[i] < 0 || o[i] < 0 ) {
                 printf("# WARNING One of the machine cost parameters is negative, which is\n"
@@ -1443,8 +1446,6 @@ int main( int argc, char ** argv )
             }
         }
 
-        const char * mode = getenv("BSPONMPI_A2A_METHOD");
-        if (!mode) mode = "rma";
         printf("if [ x${BSPONMPI_A2A_METHOD} = x%s ]; then\n", mode);
         for ( i = 0; i < N_BSP_METHODS; ++i ) {
             printf(
