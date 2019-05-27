@@ -49,7 +49,7 @@ double measure_hrel_rma( MPI_Comm comm, MPI_Win win,
         MPI_Win_fence( 0, win );
         for ( i = 0; i < h; ++i ) {
             MPI_Put( sendbuf + i*size, size, MPI_BYTE,
-                    (i+pid) % nprocs, pid*size, size, MPI_BYTE,
+                    (i+pid) % nprocs, i*size, size, MPI_BYTE,
                     win );
         }
         MPI_Win_fence( 0, win );
@@ -410,7 +410,7 @@ int measure_lincost( int pid, int nprocs, int repeat,
                 "communication infrastructure\n",
                 nprocs,  2*total_size,
                 (long) niters * (long) sizeof(samples[0]),
-                (long) max_h*sizeof(MPI_Request),
+                (long) 2*max_h*sizeof(MPI_Request),
                ncomms * (long) sizeof(MPI_Win) +
                ncomms * (long) sizeof(MPI_Comm) +
                nprocs * (long) sizeof(pid_perms[0]) );
@@ -460,12 +460,12 @@ int measure_lincost( int pid, int nprocs, int repeat,
 
     /* Warm up */
     for ( i = 0; i < ncomms; ++i ) {
-        measure_hrel_msg( comms[i], 
-                sendbuf, recvbuf, reqs, max_h, 2*msg_size, repeat );
-        measure_hrel_rma( comms[i], wins[i], 
-                sendbuf, max_h, 2*msg_size, repeat );
-        measure_hrel_memcpy( comms[i], sendbuf, recvbuf, max_h,
-                2*msg_size, repeat );
+        measure_hrel_msg( comms[i], sendbuf, recvbuf, reqs, 
+                max_h, 2*msg_size, repeat );
+        measure_hrel_rma( comms[i], wins[i], sendbuf, 
+                max_h, 2*msg_size, repeat );
+        measure_hrel_memcpy( comms[i], sendbuf, recvbuf, 
+                max_h, 2*msg_size, repeat );
     }
 
     /* And now the measurements */
@@ -478,14 +478,14 @@ int measure_lincost( int pid, int nprocs, int repeat,
         MPI_Win win = wins[ samples[i].comm ];
 
         switch( samples[i].method ) {
-            case 0: t = measure_hrel_rma( comm, win, sendbuf, h, size, 
-                                        repeat );
+            case 0: t = measure_hrel_rma( comm, win, sendbuf, 
+                                          h, size, repeat );
                     break;
-            case 1: t = measure_hrel_msg( comm, sendbuf, recvbuf, reqs, h, 
-                                        size, repeat );
+            case 1: t = measure_hrel_msg( comm, sendbuf, recvbuf, reqs, 
+                                          h, size, repeat );
                     break;
-            case 2: t = measure_hrel_memcpy( comm, sendbuf, recvbuf, h, 
-                                        size, repeat );
+            case 2: t = measure_hrel_memcpy( comm, sendbuf, recvbuf,
+                                          h, size, repeat );
                     break;
         }
 
