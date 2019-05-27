@@ -703,7 +703,7 @@ static double bsp_max( double x )
 
 double measure_bsp_hrel( const int * pid_perm, const int * pid_perm_inv,
         char * sendbuf,  char * recvbuf, bsp_method_t method, int word_size, 
-        int h, int max_total_bytes, int repeat ) 
+        int h, int repeat ) 
 {
     double t0, t1;
     int i, k;
@@ -715,31 +715,29 @@ double measure_bsp_hrel( const int * pid_perm, const int * pid_perm_inv,
     for ( k = 0; k < repeat; ++k ) {
         for ( i = 0; i < h; ++i ) {
             int dst_pid = pid_perm_inv[ (i+pid) % nprocs ];
-            int offset = ((i/nprocs)*nprocs + pid) * word_size;
-            if ( offset + word_size <= max_total_bytes ) {
-                switch( method ) {
-                    case PUT: bsp_put( dst_pid, sendbuf + i * word_size, 
-                                       recvbuf, offset, word_size );
-                              break;
-                    case HPPUT: bsp_hpput( dst_pid, sendbuf + i * word_size, 
-                                       recvbuf, offset, word_size );
-                              break;
-                    case GET: bsp_get( dst_pid, recvbuf, offset,
-                                       sendbuf + i * word_size, 
-                                       word_size );
-                              break;
-                    case HPGET: bsp_hpget( dst_pid, recvbuf, offset,
-                                       sendbuf + i * word_size, 
-                                       word_size );
-                              break;
+            int offset = i * word_size;
+            switch( method ) {
+                case PUT: bsp_put( dst_pid, sendbuf + i * word_size, 
+                                   recvbuf, offset, word_size );
+                          break;
+                case HPPUT: bsp_hpput( dst_pid, sendbuf + i * word_size, 
+                                   recvbuf, offset, word_size );
+                          break;
+                case GET: bsp_get( dst_pid, sendbuf, offset,
+                                   recvbuf+ i * word_size, 
+                                   word_size );
+                          break;
+                case HPGET: bsp_hpget( dst_pid, sendbuf, offset,
+                                   recvbuf + i * word_size, 
+                                   word_size );
+                          break;
 
-                    case SEND: bsp_send( dst_pid, NULL, 
-                                       sendbuf + i * word_size, word_size );
-                              break;
-                    case N_BSP_METHODS:
-                              abort();
-                              break;
-                }
+                case SEND: bsp_send( dst_pid, NULL, 
+                                   sendbuf + i * word_size, word_size );
+                          break;
+                case N_BSP_METHODS:
+                          abort();
+                          break;
             }
         } /* for i = 0 to h */
         bsp_sync();
@@ -815,8 +813,8 @@ int measure_bsp_params( int pid, int nprocs, int repeat,
     }
 
     /* allocate memory */
-    sendbuf = calloc( 2*total_size, 1 );
-    recvbuf = calloc( 2*total_size, 1 );
+    sendbuf = calloc( 4*total_size, 1 );
+    recvbuf = calloc( 4*total_size, 1 );
     samples =  calloc( niters, sizeof(samples[0]) );
     pid_perm = calloc( ncomms * nprocs, sizeof(pid_perm[0]) );
     pid_perm_inv = calloc( ncomms * nprocs, sizeof(pid_perm_inv[0]) );
@@ -838,7 +836,7 @@ int measure_bsp_params( int pid, int nprocs, int repeat,
                 "storing the measurements, %ld bytes for "
                 "preparing sample points, and %ld bytes for "
                 "analysis.\n",
-                nprocs, (long) 2*total_size,
+                nprocs, (long) 4*total_size,
                 (long) niters * (long) sizeof(samples[0]),
                 (long) 2*ncomms * nprocs * (long) sizeof(pid_perm[0]),
                (long) (1+ 6 * N_BSP_METHODS) * (long) sizeof(offsets[0]) +
@@ -846,11 +844,11 @@ int measure_bsp_params( int pid, int nprocs, int repeat,
         goto exit;
     }
 
-    memset( sendbuf, 1, 2*total_size );
-    memset( recvbuf, 2, 2*total_size );
+    memset( sendbuf, 1, 4*total_size );
+    memset( recvbuf, 2, 4*total_size );
 
-    bsp_push_reg( sendbuf, 2*total_size );
-    bsp_push_reg( recvbuf, 2*total_size );
+    bsp_push_reg( sendbuf, 4*total_size );
+    bsp_push_reg( recvbuf, 4*total_size );
    
     /* Create random topologies */
     for ( j = 0; j < ncomms; ++j ) {
@@ -866,13 +864,13 @@ int measure_bsp_params( int pid, int nprocs, int repeat,
 
     /* Assign word size randomly to each sample */
     for ( i = 0; i < niters; ++i ) 
-        samples[i].word_size = (i%2 + 1 ) * word_size;
+        samples[i].word_size = (i%2 + 1) * word_size;
 
     permute( &rng, samples, niters, sizeof(samples[0]) );
 
     /* Assign h randomly to each sample */
     for ( i = 0; i < niters; ++i ) 
-        samples[i].h = total_size / samples[i].word_size * (i%3);
+        samples[i].h = total_size / word_size * (i%3);
 
     permute( &rng, samples, niters, sizeof(samples[0]) );
 
@@ -895,12 +893,10 @@ int measure_bsp_params( int pid, int nprocs, int repeat,
       for ( j = 0; j < N_BSP_METHODS; ++j ) {
         measure_bsp_hrel( pid_perm + i*nprocs, pid_perm_inv + i*nprocs,
                 sendbuf, recvbuf, (bsp_method_t) j, word_size, 
-                2*total_size / word_size, 
-                2*total_size, repeat );
+                total_size / word_size * 2, repeat );
         measure_bsp_hrel( pid_perm + i*nprocs, pid_perm_inv + i*nprocs,
                 sendbuf, recvbuf, (bsp_method_t) j, 2*word_size, 
-                total_size / word_size,
-                2*total_size, repeat );
+                total_size / word_size * 2, repeat );
       }
     }
     if (!pid) printf("\n");
@@ -917,8 +913,7 @@ int measure_bsp_params( int pid, int nprocs, int repeat,
         samples[i].time =
             measure_bsp_hrel( pid_perm + comm*nprocs, 
                     pid_perm_inv + comm*nprocs,
-                    sendbuf, recvbuf, m, ws, h,
-                    total_size, repeat );
+                    sendbuf, recvbuf, m, ws, h, repeat );
 
         samples[i].timestamp = bsp_time() - t0;
         samples[i].serial = i;
@@ -966,7 +961,7 @@ int measure_bsp_params( int pid, int nprocs, int repeat,
     i = 0;
     for ( k = 0; k < 6*N_BSP_METHODS; ++k ) {
         for ( ; i < niters; ++i ) {
-            if ( samples[i].h != total_size / samples[i].word_size * (k%3)
+            if ( samples[i].h != total_size / word_size * (k%3)
                 || samples[i].word_size != word_size * (1+(k/3)%2)
                 || samples[i].method != (bsp_method_t) k / 6
                )  break;
@@ -999,8 +994,8 @@ int measure_bsp_params( int pid, int nprocs, int repeat,
          * T[6 k + 1] = T(n, w)
          * T[6 k + 2] = T(2n, w)
          * T[6 k + 3] = T(0, 2 w)
-         * T[6 k + 4] = T(n/2, 2 w)
-         * T[6 k + 5] = T(n, 2 w)
+         * T[6 k + 4] = T(n, 2 w)
+         * T[6 k + 5] = T(2n, 2 w)
          */
 
         double L_cand;
@@ -1010,9 +1005,9 @@ int measure_bsp_params( int pid, int nprocs, int repeat,
         int _n_w = 6*k+1;
         int _2n_w = 6*k+2;
         int _0_2w = 6*k+3;
-        /*  _n_half_2w = 6*k+4; unused */
-        int _n_2w = 6*k+5;
-
+        int _n_2w = 6*k+4;
+        /*  _2n_2w = 6*k+5; unused */
+        
         /* get minimum estimate for L >= max{ T(0, w), T(0, 2w) } */
         if ( T[_0_w] < T[_0_2w]) { 
             L[k] = T[_0_2w];
@@ -1394,17 +1389,14 @@ int main( int argc, char ** argv )
         long n_hp_rma = (long) (alpha_rma / (2 * beta_memcpy ));
         long n_hp_msg = (long) (alpha_msg / (2 * beta_memcpy ));
 
-        if ( alpha_rma < 0 ) {
-            printf("# WARNING Point-to-point latency using RDMA calls is negative,\n"
-                   "#         which is nonsense. This may be caused by super-linear\n"
-                   "#         cost of sending data. Reduce communication volume as\n"
-                   "#         specified by --max-total-bytes\n" );
+        if ( alpha_rma < 0 || alpha_msg < 0 ) {
+            printf("# WARNING Point-to-point latency was measured to be negative.\n"
+                   "#         This may be caused by super-linear cost of sending a\n"
+                   "#         message. Reduce communication volume with --max-total-bytes\n");
         }
-        if ( alpha_msg < 0 ) {
-            printf("# WARNING Point-to-point latency of sending a message is negative,\n"
-                   "#         which is nonsense. This may be caused by super-linear\n"
-                   "#         cost of sending a message. Reduce communication volume as\n"
-                   "#         specified by --max-total-bytes\n" );
+        if ( beta_rma < 0 || beta_msg < 0 || beta_memcpy < 0 ) {
+            printf("# WARNING Reciprocal throughput was measured to be negative.\n"
+                   "#         Increase the message size with --msg-size\n");
         }
         if ( alpha_rma < 0 || alpha_msg < 0 || beta_rma < 0 || beta_msg < 0 ) {
             printf("# WARNING One of the machine cost parameters is negative, which is\n"
@@ -1438,11 +1430,14 @@ int main( int argc, char ** argv )
         if (!mode) mode = "rma";
 
         for ( i = 0 ; i < N_BSP_METHODS; ++i ) {
-            if (L[i] < 0 || g[i] < 0 || o[i] < 0 ) {
-                printf("# WARNING One of the machine cost parameters is negative, which is\n"
-                    "         nonsense. Please inspect the sample data manually\n"
-                    "         (use --save-sample-data)\n");
-                break;
+            if ( g[i] < 0 ) {
+                printf("# WARNING Reciprocal throughput was measured to be negative.\n"
+                       "#         Increase the word size with --word-size\n");
+            }
+            if ( o[i] < 0 ) {
+                printf("# WARNING Message overhead was measured to be negative.\n"
+                       "#         Decrease the word size with --word-size and/or\n"
+                       "#         increase the total volume with --max-total-bytes.\n");
             }
         }
 

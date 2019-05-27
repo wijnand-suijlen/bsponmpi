@@ -184,10 +184,10 @@ void bsp_begin( bsp_pid_t maxprocs )
         std::numeric_limits<int>::max() / s_spmd->nprocs() ;
     int small_exch_size = std::min( 1024, max_small_exchange_size ) ;
     if (bsplib::read_env( "BSPONMPI_SMALL_EXCHANGE_SIZE", small_exch_size ) 
-        || small_exch_size == 0 
+        || small_exch_size < 0 
         || small_exch_size > max_small_exchange_size ) {
         fprintf(stderr, "bsp_begin: WARNING! BSPONMPI_SMALL_EXCHANGE_SIZE"
-                        " was not an integer between 1 and %d \n",
+                        " was not an integer between 0 and %d \n",
                         max_small_exchange_size );
     }
 
