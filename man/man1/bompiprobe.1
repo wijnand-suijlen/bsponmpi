@@ -26,13 +26,10 @@ bompiprobe \- The BSPonMPI machine probing tool
 .RI [ OPTIONS ...]
 .fi
 .
-.\" TODO Give hints on how to reduce probing time, increase accuracy, etc..
-.\" Describe algorithm
 .SH DESCRIPTION
-This tool measures performance characteristics of a parallel
-computer in order to fine-tune various internal communication algorithms.
-MPI communication performance is modeled with a linear cost-model
-that assumes 
+This tool measures performance characteristics of a parallel computer in order
+to fine-tune various internal BSPonMPI communication algorithms.
+MPI communication performance is modelled with a linear cost-function that assumes 
 .I T(n) = alpha + beta n 
 seconds are required to send a message of 
 .I n
@@ -46,21 +43,24 @@ tool measures the average
 and
 .I beta
 by random sampling the time required for various communication patterns.
-Similarly, the 
+Alternatively, the 
 .B \-\-bsp
-option makes this tool measure the BSP cost-model parameters
+option chooses to measure the BSP cost-function parameters
 .I g 
 and 
 .I L
 and an additional request overhead cost 
 .IR o .
-The parallel collectives library assumes that the completion of an arbitrary
+These are used by the parallel collectives library, which assumes the
+completion of an arbitrary
 .IR h -relation
 with words of size 
 .I w
 requires 
 .I T(h, w) = L + h o + h w g
 time.
+A more detailed description of the measurement method can be found in the
+section THE METHOD below.
 The results are printed as a shell script that can be sourced by 
 .B bsprun
 with the
@@ -158,44 +158,19 @@ Data is formatted in text.
 The column separator is the tab character.
 Rows are separated by the newline character.
 .
-.SH SPECIFIC OPTIONS FOR DETERMINING LINEAR COST PARAMETERS
 .TP
-.BI \-\-msg\-size= size
-Communication time of only three types of messages are measured. 
-With 0 bytes, with 
-.I size
-bytes, and with 2x
-.I size
-bytes.
-This message should be large enough to measure 
-.I beta
-accurately enough.
-Taking it too large may make measurement of 
-.I alpha
-more difficult.
-.
-.SH SPECIFIC OPTIONS FOR DETERMINING BSP COST PARAMETERS
-.TP
-.BI \-\-word\-size= bytes
-Sets the typical request size to 
-.IR bytes 
-as used in 
-.BR bsp_put , 
-.BR bsp_hpput
-.BR bsp_get ,
-.BR bsp_hpget ,
-and
-.B bsp_send 
-calls.
-This has influence on the accuracy of the results.
-.
-.TP
-.BI \-\-max\-total\-bytes= n
-Sets the size of the largest
-.IR h -relation
+.BI \-\-avg\-total\-bytes= n
+Sets the size of the average communication pattern
 that will be measured, to
 .IR n
 bytes.
+.
+.TP
+.BI \-\-msg\-size= size \ \ \-\-word\-size= size
+Sets the typical message or request size to 
+.I size
+bytes.
+This has influence on the accuracy of the results.
 .
 .SH QUICK START
 .SS Linear cost-model parameters
@@ -374,6 +349,285 @@ This is useful when
 .B bompiprobe
 is run from a batch job.
 .
+.SH THE METHOD
+The linear cost-model parameters
+.I alpha 
+and
+.I beta
+from the cost-function
+.I T(n) = alpha + beta n
+are easily inferred from the equalities
+.IP -
+.I alpha = 2 T(n) - T(2n)
+and
+.IP -
+.I beta = ( T(2n) - T(n) ) / n.
+.PP
+Hence, measurement of the time required to 
+send one and two mesasages -- measurement of the
+empirical cost-function 
+.I T(n)
+for 
+.IR n=1,
+and
+.I 2
+-- should be sufficient.
+However, for small
+.I n
+the empirical cost-function
+.I T
+is often non-linear due to due to mechanisms like cache hierarchies and eager
+vs. rendezvous message protocols. 
+At the same time we notice that for large 
+.I n
+the derivation of
+.I alpha
+becomes sensitive to measurement errors. 
+Moreover, many MPI implementations have inefficient message queues, which
+makes the empirical cost-function quadratic for 
+.I n > 1000.
+Therefore, 
+.I n
+(set by the 
+.B \-\-max\-total\-bytes 
+parameter) must be chosen appropriately by the user and the values for 
+.I T(n)
+and
+.I T(2n) 
+must be measured with high accuracy. 
+.
+.PP
+The BSP cost-model parameters 
+.I L
+and
+.I g
+and the request overhead parameter
+.I o
+from the cost-function
+.I T(h, w) = L + h o + h w g
+can be inferred from similar equalites
+.IP - 
+.I L = max{ 2 T(h, w) - T(2h, w), T(0, w) },
+.IP -
+.I g = ( T(h, 2w) - T(h, w) ) / (h w),
+and
+.IP -
+.I o = ( T(2h, w) - T(h, 2w) ) / h
+.PP
+Again we see that 
+.I L
+and, to a lesser extent, also
+.I o 
+are sensitive to measurement error.
+Also, 
+.I h
+cannot be chosen too small due to non-linear behaviour
+for small message sizes.
+Although BSPonMPI attempts to minimize the number of messages,
+quadratic cost behaviour may become visible when using poor
+MPI implementations with a large number of processes.
+The user sets 
+.I h
+through the 
+.B \-\-max\-total\-bytes
+parameter.
+.
+.PP
+Measurement of the linear cost-model function
+.I T(n)
+and the BSP + message overhead cost-function
+.I T(h, w)
+has to be done accurately.
+The problem is that background operating system processes, 
+use of shared resources, e.g. a switch in the communication network,
+and hardware power-saving features can introduce large delays to
+elementary operations on impredictable moments.
+In fact, it is more natural to view 
+.I T(n)
+and
+.I T(h, w)
+as random variables, although we do not have precise parameterised
+probability distribution models.
+For both cost-functions we focus on their expected value, so that
+we can infer expected cost-function parameters that can be used
+in their turn to choose, in the BSPonMPI runtime, the 
+communication algorithms that will perform best on average.
+.
+.PP
+The expected value of both 
+.I T(n)
+and
+.I T(h, w)
+can be approximated by the 
+.I sample mean.
+However, there are two problems with that. 
+First, both distributions have long tails which
+hinder convergence of the sample mean.
+Second, subsequent samples are not independent due to
+hardware power-saving features.
+Experiments show that correlations can easily last several seconds or even
+hours due to a daily rhythm of the ambient temperature in the room where
+the computer is located.
+The consequence is that estimates of the true mean may take a very long time.
+.
+.PP
+Fortunately, BSPonMPI does not require that the cost-function parameters 
+be accurate in absolute sense. 
+They only need to be accurate relatively. 
+Therefore the tool measures
+.I T(n)
+for different 
+.I n
+in random order to ensure that the averages of
+.IR T(0) ,
+.IR T(n) ,
+and
+.IR T(2n)
+are uncorrelated.
+The cost-function
+.I T(h,w)
+is measured similarly.
+All measurements that are required to be accurate relative to each other,
+are measured in random order.
+We, therefore, also make sure that the 
+.IR n -relations
+and
+.IR h -relations
+to measure 
+.I T(n)
+and
+.I T(h,w)
+are also chosen randomly using random topologies (see the
+.B \-\-ntopos
+parameter).
+.
+.PP
+To get a sense of the level of accuracy attained, confidence intervals
+are estimated using either bootstrapping or subsampling
+(chosen by the
+.B \-\-conf\-interval\-method
+parameter). 
+Given a sample, confidence intervals with bootstrapping are derived from
+sampling the sample itself, with replacement, which is then used to produce a
+sequence of sample means. 
+From these sample means the range between the 
+.I (1 - delta)/2
+and
+.I 1 - (1-delta)/2
+percentiles make up the confidence interval.
+Subsampling works similarly but without replacement and produces therefore
+intervals that are more conservative.
+Nevertheless, due to hardware power-saving features, even these conservative
+estimates may be too optimistic.
+.
+.SH USAGE HINTS
+This tool is difficult to use, especially because it may require a long
+time to come up with accurate results.
+Listed below are hints how to apply command line parameters given
+the symptom.
+.TP 
+.I Confidence intervals are too large
+Increase 
+.BR \-\-granularity 
+and
+.BR \-\-min\-samples  ,
+decrease
+.BR \-\-conf\-level ,
+or choose 
+.I bootstrap
+method with
+.BR \-\-conf\-interval\-method .
+.
+.TP
+.I Confidence interval seems unrealistic
+Change to 
+.I subsample
+method with
+.BR \-\-conf\-interval\-method .
+.
+.TP 
+.I Initial sample size was too small
+Increase 
+.B \-\-min\-samples
+.
+.TP
+.I Sample size grows unboundedly
+Decrease 
+.B \-\-max\-samples
+or
+.BR \-\-conf\-level 
+or increase
+.BR \-\-conf\-interval .
+.
+.TP
+.I Sampling takes too much time
+Set 
+.B \-\-min\-samples
+and
+.B \-\-max\-samples
+to same, smaller value.
+Decrease 
+.BR \-\-granularity ,
+.BR \-\-msg\-size , 
+.BR \-\-word\-size ,
+.BR \-\-avg\-total\-bytes .
+.
+.TP
+.IR alpha \ is\ negative\ or\ inaccurate
+Adjust
+.B \-\-msg\-size
+and/or
+.BR \-\-avg\-total\-bytes .
+Ideally,
+.I T(n)
+should be about
+.I 2 alpha.
+Increase 
+.BR \-\-min\-samples .
+.
+.TP 
+.IR beta \ is\ negative\ or\ inaccurate
+Increase
+.B \-\-msg\-size
+and/or
+.BR \-\-avg\-total\-bytes .
+Sometimes it also helps to decrease
+.BR \-\-avg\-total\-bytes .
+Increase 
+.BR \-\-min\-samples .
+.
+.TP
+.IR L \ is\ inaccurate
+Adjust
+.B \-\-word\-size
+and/or
+.BR \-\-avg\-total\-bytes .
+Ideally, 
+.I T(h, w)
+should take about 
+.IR 2L .
+Increase 
+.BR \-\-min\-samples .
+.
+.TP
+.IR o \ is\ negative\ or\ inaccurate
+Increase
+.BR \-\-avg\-total\-bytes
+and/or
+decrease
+.BR \-\-word\-size .
+Increase 
+.BR \-\-min\-samples .
+.
+.TP
+.IR g \ is\ negative\ or\ inaccurate
+Increase
+.BR \-\-avg\-total\-bytes
+and/or
+.BR \-\-word\-size .
+Increase 
+.BR \-\-min\-samples .
+.
 .SH AUTHOR
 Written by Wijnand J. Suijlen
 .
@@ -383,4 +637,4 @@ Written by Wijnand J. Suijlen
 .B bsprun
 (1)
 .PP
-"BSPlib: The BSP programming library," by J. M. D. Hill, W. F. McColl, D. C. Stefanescu, M. W. Goudreau, K. Lang, S. B. Rao, T. Suel, Th. Tsantilas, R. H. Bisseling, Elsevier, Parallel Computing, Volume 24, Issue 14, December 1998, pages 1947–1980. 
+"BSPlib: The BSP programming library," by J. M. D. Hill, W. F. McColl, D. C. Stefanescu, M. W. Goudreau, K. Lang, S. B. Rao, T. Suel, Th. Tsantilas, R. H. Bisseling, Elsevier, Parallel Computing, Volume 24, Issue 14, December 1998, pages 1947-1980. 

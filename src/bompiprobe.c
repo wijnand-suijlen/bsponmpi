@@ -330,6 +330,7 @@ static int s_interrupted = 0;
 int measure_lincost( int pid, int nprocs, int repeat,
         int msg_size, int total_size, int min_niters, int niters, int ncomms,
         conf_interval_method_t conf_interval_method,
+        int * n_samples, 
         const char * sample_file_name,
         double * alpha_msg, double * alpha_msg_min, double * alpha_msg_max, 
         double * alpha_rma, double * alpha_rma_min, double * alpha_rma_max, 
@@ -351,6 +352,8 @@ int measure_lincost( int pid, int nprocs, int repeat,
     double T[6], T_min[6], T_max[6]; /* two methods x two msg sizes */
     FILE * sample_file;
     double t0, t1;
+
+    * n_samples = 0;
 
     if ( pid == 0 && sample_file_name ) {
         sample_file = fopen( sample_file_name, "w" );
@@ -574,6 +577,8 @@ int measure_lincost( int pid, int nprocs, int repeat,
     *beta_memcpy_min = (T_min[5] - T_max[4])/msg_size;
     *beta_memcpy_max = (T_max[5] - T_min[4])/msg_size;
 
+    *n_samples = niters;
+
 exit:
     /* free resources */
     for ( i = 0; i < ncomms; ++i ) {
@@ -771,7 +776,8 @@ int bsp_sample_get_avg_time( const void * s,
 int measure_bsp_params( int pid, int nprocs, int repeat,
         int word_size, int total_size, int min_niters, int niters, 
         int ncomms, conf_interval_method_t conf_interval_method,
-        const char * sample_file_name,
+        int * n_samples,
+        const char * sample_file_name, 
         double * L, double * L_min, double * L_max,
         double * o, double * o_min, double * o_max,
         double * g, double * g_min, double * g_max, 
@@ -787,6 +793,8 @@ int measure_bsp_params( int pid, int nprocs, int repeat,
     int *offsets;  /* index into samples */
     double *T, *T_min, *T_max; /* averages + confidence interval */
     double t0, t1 ;
+
+    *n_samples = 0;
 
     if ( pid == 0 && sample_file_name ) {
         sample_file = fopen( sample_file_name, "w" );
@@ -1047,6 +1055,7 @@ int measure_bsp_params( int pid, int nprocs, int repeat,
         o_min[k] = ( T_min[_2n_w] - T_max[_n_2w]) / n;
         o_max[k] = ( T_max[_2n_w] - T_min[_n_2w]) / n;
     }
+    *n_samples = niters;
 
 exit:
     /* free resources */
@@ -1082,8 +1091,8 @@ int parse_params( int argc, char ** argv,
         double * conf_level, double * ci_rel, 
         ci_method_t * ci_method ,
         int * min_niters, int * max_niters,
-        int * repeat, int * word_size, 
-        int * max_total_bytes, 
+        int * repeat, 
+        int * avg_total_bytes, 
         int * mes_lincost, 
         char * sample_file_name, int max_file_name_length )
 {
@@ -1099,7 +1108,7 @@ int parse_params( int argc, char ** argv,
                     "[--conf-interval-method=<bootstrap|sample>] "
                     "[--min-samples=<number>] [--max-samples=<number>] "
                     "[--word-size=<bytes>] "
-                    "[--max-total-bytes=<bytes>] "
+                    "[--avg-total-bytes=<bytes>] "
                     "[--save-sample-data=<file name>] "
                     "[--bsp|--lincost]\n",
                     argv[0]);
@@ -1140,10 +1149,10 @@ int parse_params( int argc, char ** argv,
             *repeat = atoi( val );
         }
         else if ( (val = get_param(argv[i], "--word-size=") ) ) {
-            *word_size = atoi( val );
+            *msg_size = atoi( val );
         }
-        else if ( (val = get_param(argv[i], "--max-total-bytes=") ) ) {
-            *max_total_bytes = atoi( val );
+        else if ( (val = get_param(argv[i], "--avg-total-bytes=") ) ) {
+            *avg_total_bytes = atoi( val );
         }
         else if ( (val = get_param(argv[i], "--bsp") ) ) {
             *mes_lincost = 0;
@@ -1189,8 +1198,7 @@ int main( int argc, char ** argv )
     int niters = 1000;
     int ncomms = 10;
     int msg_size = 10000;
-    int word_size = 10000;
-    int max_total_bytes = 2500000;
+    int avg_total_bytes = 2500000;
     int error = 0;
     bsp_begin( bsp_nprocs() );
     signal( SIGINT, interrupt );
@@ -1207,7 +1215,7 @@ int main( int argc, char ** argv )
     if (!pid) error = parse_params( argc, argv, 
             &ncomms, &msg_size, &conf_level, &ci_rel, &ci_method,
             &niters, &max_niters, &repeat,
-            & word_size, & max_total_bytes,
+            & avg_total_bytes,
             & lincost_mode,
             & sample_file_name[0], sizeof(sample_file_name)  );
 
@@ -1225,46 +1233,44 @@ int main( int argc, char ** argv )
     bsp_bcast( 0, &niters, sizeof(niters));
     bsp_bcast( 0, &max_niters, sizeof(max_niters));
     bsp_bcast( 0, &repeat, sizeof(repeat));
-    bsp_bcast( 0, &word_size, sizeof(word_size) );
-    bsp_bcast( 0, &max_total_bytes, sizeof(max_total_bytes) );
+    bsp_bcast( 0, &avg_total_bytes, sizeof(avg_total_bytes) );
     bsp_bcast( 0, &lincost_mode, sizeof(lincost_mode) );
     /* do not broadcast sample_file_name, because it is not necessary */
 
     if (!pid) printf(
-           "# Number of processes    = %d\n"
-           "# Confidence level       = %.2f%%\n"
-           "# Max confidence interval= %.2f%%\n"
-           "# Confidence interval method= %s\n"
-           "# Random process layouts = %d\n"
-           "# Max number of samples  = %d\n"
-           "# Granularity            = %d\n"
-           "# Save samples to        = %s\n"
-           "# Size of max h-relation  = %d bytes\n",
+           "# Number of processes       = %10d (bsprun -n)\n"
+           "# Confidence level          = %10.2f%% (--conf-level)\n"
+           "# Max confidence interval   = %10.2f%% (--conf-interval)\n"
+           "# Confidence interval method= %10s (--conf-interval-method)\n"
+           "# Random process layouts    = %10d (--ntopos)\n"
+           "# Min number of samples     = %10d (--min-samples)\n"
+           "# Max number of samples     = %10d (--max-samples)\n"
+           "# Granularity               = %10d (--granularity)\n"
+           "# Save samples to           = %s (--save-sample-data)\n"
+           "# Average communication vol.= %10d bytes (--avg-total-bytes)\n"
+           "# Typical message size      = %10d bytes (--msg-size or --word-size)\n",
            nprocs, 100.0*conf_level, 100.0*ci_rel,
            ci_method == SUBSAMPLE? "subsample" :
            ci_method == BOOTSTRAP ? "bootstrap" : "UNKNOWN",
            ncomms,
-           max_niters, repeat, 
+           niters, max_niters, repeat, 
            sample_file_name[0]=='\0'?"NA":sample_file_name,
-           max_total_bytes );
+           avg_total_bytes, msg_size );
 
     if (!pid && lincost_mode )
         printf( "\n"
-                "# Measuring parameters of linear cost model\n"
-                "# Typical message size   = %d bytes\n",
-                msg_size );
+                "# Measuring parameters of linear cost model\n" );
 
     if (!pid && !lincost_mode)
         printf("\n"
-               "# Measuring BSP machine parameters\n"
-               "# Word size               = %d bytes\n",
-               word_size );
+               "# Measuring BSP machine parameters\n" );
 
                 
 
     do { 
         double t0, t1, dbl_niters;
         int error;
+        int performed_samples = 0;
 
         if (!pid)
             printf("#\n"
@@ -1276,8 +1282,9 @@ int main( int argc, char ** argv )
         t0 = bsp_time();
         if (lincost_mode) {
             error = measure_lincost( pid, nprocs, repeat, msg_size,
-                max_total_bytes, min_niters, niters, ncomms,
+                avg_total_bytes, min_niters, niters, ncomms,
                 ci_method==SUBSAMPLE?subsample:bootstrap,
+                & performed_samples,
                 sample_file_name[0] == '\0' ? NULL : sample_file_name,
                 &alpha_msg, &alpha_msg_min, &alpha_msg_max,
                 &alpha_rma, &alpha_rma_min, &alpha_rma_max,
@@ -1291,16 +1298,17 @@ int main( int argc, char ** argv )
                 const char * min_n_hp_str = getenv( "BSPONMPI_P2P_N_HP");
                 if (min_n_hp_str) {
                     int n = atoi( min_n_hp_str );
-                    if (n > word_size) {
+                    if (n > msg_size ) {
                         fprintf(stderr, "WARNING: Word size should be taken "
                                 "greater than %d\n", n );
                     }
                 }
             }
 
-            error = measure_bsp_params( pid, nprocs, repeat, 2*word_size,
-                max_total_bytes, min_niters, niters, ncomms, 
+            error = measure_bsp_params( pid, nprocs, repeat, msg_size,
+                avg_total_bytes, min_niters, niters, ncomms, 
                 ci_method==SUBSAMPLE?subsample:bootstrap,
+                & performed_samples,
                 sample_file_name[0] == '\0' ? NULL : sample_file_name,
                 L, L_min, L_max, o, o_min, o_max, g, g_min, g_max,
                 conf_level );
@@ -1308,20 +1316,14 @@ int main( int argc, char ** argv )
 
         t1 = bsp_time();
 
-        if (error) {
-            if (!pid)
-                printf("# Interrupted: target precision was not achieved\n");
-             break;
-        }
-            
-        if (!pid && lincost_mode) {
-            printf("#     Sampling time was %g seconds\n"
+        if (!pid && lincost_mode && performed_samples > 0) {
+            printf("#     Sampling time was %g seconds; Number of samples %d\n"
                     "# MSG:  alpha = %12.4g [ %12.4g - %12.4g ] ;"
                     "beta =  %12.4g [ %12.4g - %12.4g ] \n"
                     "# RMA:  alpha = %12.4g [ %12.4g - %12.4g ] ;"
                     "beta =  %12.4g [ %12.4g - %12.4g ] \n"
                     "# MEMCPY: beta= %12.4g [ %12.4g - %12.4g ]\n",
-                    t1-t0,
+                    t1-t0, performed_samples,
                     alpha_msg, alpha_msg_min, alpha_msg_max,
                     beta_msg, beta_msg_min, beta_msg_max,
                     alpha_rma, alpha_rma_min, alpha_rma_max,
@@ -1329,8 +1331,9 @@ int main( int argc, char ** argv )
                     beta_memcpy, beta_memcpy_min, beta_memcpy_max );
         }
 
-        if (!pid && !lincost_mode) {
-            printf("#     Sampling time was %g seconds\n", t1-t0);
+        if (!pid && !lincost_mode && performed_samples > 0) {
+            printf("#     Sampling time was %g seconds; "
+                   "Number of samples %d\n", t1-t0, performed_samples );
             for ( i = 0; i < N_BSP_METHODS; ++i ) {
                 printf( "# %5s :: L = %12.4g [ %12.4g - %12.4g ] ;"
                         " o = %12.4g [ %12.4g - %12.4g ] ;"
@@ -1341,6 +1344,12 @@ int main( int argc, char ** argv )
                         g[i], g_min[i], g_max[i]);
             }
         }
+        if (error) {
+            if (!pid)
+                printf("# Interrupted: target precision was not achieved\n");
+             break;
+        }
+            
         speed_estimate = (t1-t0)/niters;
 
         if ( lincost_mode ) {
@@ -1392,7 +1401,7 @@ int main( int argc, char ** argv )
         if ( alpha_rma < 0 || alpha_msg < 0 ) {
             printf("# WARNING Point-to-point latency was measured to be negative.\n"
                    "#         This may be caused by super-linear cost of sending a\n"
-                   "#         message. Reduce communication volume with --max-total-bytes\n");
+                   "#         message. Reduce communication volume with --avg-total-bytes\n");
         }
         if ( beta_rma < 0 || beta_msg < 0 || beta_memcpy < 0 ) {
             printf("# WARNING Reciprocal throughput was measured to be negative.\n"
@@ -1437,7 +1446,7 @@ int main( int argc, char ** argv )
             if ( o[i] < 0 ) {
                 printf("# WARNING Message overhead was measured to be negative.\n"
                        "#         Decrease the word size with --word-size and/or\n"
-                       "#         increase the total volume with --max-total-bytes.\n");
+                       "#         increase the total volume with --avg-total-bytes.\n");
             }
         }
 

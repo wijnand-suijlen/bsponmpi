@@ -19,7 +19,7 @@ run-time is bounded by
 
                                 W + g H + L S
 
-where W, the local computation, H, the total communiation volume, and S, the
+where W, the local computation, H, the local communiation volume, and S, the
 number of supersteps, are determined by the program and g, the message gap
 (i.e. reciprocal throughput), and L, the latency, are determined by the
 machine. 
@@ -84,6 +84,14 @@ Programs can be run through the bsprun command, which is a simple wrapper
 around mpirun/mpiexec
 
   $ bsprun -n 5 ./helloworld
+
+
+High Performance
+----------------
+
+High performance can only be achieved if bsprun is invoked with the correctly
+tuned cost-function parameters. See the manuals of bompiprobe and bsprun on how
+to obtain correct estimates and how to apply them.
 
 
 Installation customization
