@@ -55,7 +55,7 @@ std::size_t LinCost::get_bruck_vol()
     std::size_t min_m = 0;
     std::size_t p2p_volume = 0, relation = 0;
     int logP = 1 + int_log2( m_nprocs-1 );
-    for ( unsigned i = m_sizes.size(); i > 1; --i ) {
+    for ( std::size_t i = m_sizes.size(); i > 1; --i ) {
         std::size_t m = m_sizes[i-1];
 
         double cost = logP * ( m_alpha + m_beta * m_nprocs * m ) + 

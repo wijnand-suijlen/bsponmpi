@@ -8,6 +8,40 @@
 extern "C" {
 #endif
 
+/* copied from https://gcc.gnu.org/wiki/Visibility */
+#if defined DOXYGEN
+  #define DLL_PUBLIC
+  #define DLL_LOCAL
+#elif defined _WIN32 || defined __CYGWIN__
+  #ifdef BUILDING_DLL
+    #ifdef __GNUC__
+      #define DLL_PUBLIC __attribute__ ((dllexport))
+    #elif defined __clang__
+      #define DLL_PUBLIC __attribute__ ((dllexport))
+    #else
+      #define DLL_PUBLIC __declspec(dllexport)
+    #endif
+  #else
+    #ifdef __GNUC__
+      #define DLL_PUBLIC __attribute__ ((dllimport))
+    #elif defined __clang__
+      #define DLL_PUBLIC __attribute__ ((dllimport))
+    #else
+      #define DLL_PUBLIC __declspec(dllimport) 
+    #endif
+  #endif
+  #define DLL_LOCAL
+#else
+  #if __GNUC__ >= 4 || defined __clang__
+    #define DLL_PUBLIC __attribute__ ((visibility ("default")))
+    #define DLL_LOCAL  __attribute__ ((visibility ("hidden")))
+  #else
+    #define DLL_PUBLIC
+    #define DLL_LOCAL
+  #endif
+#endif
+
+
 /** \defgroup BSC Bulk Synchronous Collectives 
  *
  * This library defines a collectives library for BSPlib. It differs from the
@@ -116,7 +150,7 @@ typedef bsp_pid_t bsc_pid_t;
 typedef void * bsc_group_t;
 
 /** The group that holds all processes. */
-extern const bsc_group_t bsc_all;
+DLL_PUBLIC extern const bsc_group_t bsc_all;
 
 /** A collective function that partitions all processes in disjoint groups.
  * All processes must collectively engage in the call to this function, while
@@ -129,7 +163,7 @@ extern const bsc_group_t bsc_all;
  * 
  * \returns An object representing the group
  */
-bsc_group_t bsc_group_create_partition( unsigned symbol );
+DLL_PUBLIC bsc_group_t bsc_group_create_partition( unsigned symbol );
 
 /** A collective function that groups all processes in neighbourhoods. 
  * All processes must collectively engage in the call to this function, while
@@ -146,7 +180,7 @@ bsc_group_t bsc_group_create_partition( unsigned symbol );
  * 
  * \returns An object representing the group
  */
-bsc_group_t bsc_group_create_neighbourhood( bsc_pid_t * neighbours, 
+DLL_PUBLIC bsc_group_t bsc_group_create_neighbourhood( bsc_pid_t * neighbours, 
         bsc_size_t size );
 
 /** Frees resources held to maintain bookkeeping for this group. 
@@ -154,7 +188,7 @@ bsc_group_t bsc_group_create_neighbourhood( bsc_pid_t * neighbours,
  * \param group The group to be destroyed.
  * 
  */
-void bsc_group_destroy( bsc_group_t group );
+DLL_PUBLIC void bsc_group_destroy( bsc_group_t group );
 
 /**
  * @}
@@ -183,7 +217,7 @@ typedef enum bsc_request {
  * \returns The BSP cost parameter \f$g\f$ for the specified type of requests
  *          and specified size.
  */
-double bsc_g(bsc_request_t type, int word_size);
+DLL_PUBLIC double bsc_g(bsc_request_t type, int word_size);
 
 /** BSP cost parameter \f$\ell\f$, denoting the synchronisation latency.
  * This can be used to choose the best algorithm, depending
@@ -192,7 +226,7 @@ double bsc_g(bsc_request_t type, int word_size);
  * \returns The BSP cost parameter \f$\ell\f$ for the specified type of
  *          requests.
  */
-double bsc_L(bsc_request_t type);
+DLL_PUBLIC double bsc_L(bsc_request_t type);
 
 /**
  * @}
@@ -211,17 +245,17 @@ double bsc_L(bsc_request_t type);
 /** The special delay value to use with bsc_sync() to proceed execution of all
  * outstanding requests and to perform a global barrier synchronisation. This
  * ends the current epoch and starts a new one. */
-extern const bsc_step_t bsc_flush;
+DLL_PUBLIC extern const bsc_step_t bsc_flush;
 
 /** The special delay value that denotes the first superstep of an epoch.
  * This number is equal to zero.
  *
  * \see #bsc_flush */
-extern const bsc_step_t bsc_start;
+DLL_PUBLIC extern const bsc_step_t bsc_start;
 
 /** The current superstep number. This is equal to zero at the start of an epoch.
  */
-bsc_step_t bsc_current(void);
+DLL_PUBLIC bsc_step_t bsc_current(void);
 
 /** Completes requests until superstep \a until is started. If #bsc_flush is given,
  * it ends an epoch and starts a new one by completing all outstanding requests
@@ -237,7 +271,7 @@ bsc_step_t bsc_current(void);
  * \returns The superstep number after the synchronisation. This will be equal
  *          to \a until unless #bsc_flush was used, in which case it is zero.
  */
-bsc_step_t bsc_sync( bsc_step_t until );
+DLL_PUBLIC bsc_step_t bsc_sync( bsc_step_t until );
 
 
 /** Requests a bsp_put() to be executed in \a depends supersteps from now.
@@ -253,7 +287,7 @@ bsc_step_t bsc_sync( bsc_step_t until );
  *
  * \returns  The superstep number when this bsp_put() has completed
  */
-bsc_step_t bsc_put( bsc_step_t depends, bsc_pid_t dst_pid, 
+DLL_PUBLIC bsc_step_t bsc_put( bsc_step_t depends, bsc_pid_t dst_pid, 
         const void * src, void * dst, bsc_size_t offset, bsc_size_t size);
 
 /** Requests a bsp_get() to be executed in \a depends supersteps from now.
@@ -268,7 +302,7 @@ bsc_step_t bsc_put( bsc_step_t depends, bsc_pid_t dst_pid,
  
  * \returns  The superstep number when this bsp_get() has completed
 */
-bsc_step_t bsc_get( bsc_step_t depends, bsc_pid_t src_pid, 
+DLL_PUBLIC bsc_step_t bsc_get( bsc_step_t depends, bsc_pid_t src_pid, 
         const void * src, bsc_size_t offset, void * dst, bsc_size_t size);
 
 /** A function pointer that points to an implementation of an associative
@@ -298,7 +332,7 @@ typedef void (*bsc_reduce_t)(void * a, const void * a0,
  *
  * \returns  The superstep number when this reduction has completed
  */
-bsc_step_t bsc_exec_reduce( bsc_step_t depends, 
+DLL_PUBLIC bsc_step_t bsc_exec_reduce( bsc_step_t depends, 
         bsc_reduce_t reducer, void * a, const void * a0,
         const void * xs, bsc_size_t size );
 
@@ -380,7 +414,7 @@ typedef struct bsc_collective {
  * \param  group   The process group 
  * \param  params  The collective operation parameters
  */
-bsc_step_t bsc_collective( bsc_step_t depends, 
+DLL_PUBLIC bsc_step_t bsc_collective( bsc_step_t depends, 
        const bsc_collective_t * collective,
        bsc_pid_t root, bsc_group_t group, 
        bsc_coll_params_t params ) ;
@@ -422,7 +456,7 @@ bsc_step_t bsc_collective( bsc_step_t depends,
  *
  * \returns The superstep number that this collective will have been completed.
  */
-bsc_step_t bsc_scatter( bsc_step_t depends,
+DLL_PUBLIC bsc_step_t bsc_scatter( bsc_step_t depends,
                         bsc_pid_t root, bsc_group_t group,
                        const void * src, void *dst, bsc_size_t size );
 
@@ -446,7 +480,7 @@ bsc_step_t bsc_scatter( bsc_step_t depends,
  *
  * \returns The superstep number that this collective will have been completed.
  */
-bsc_step_t bsc_gather( bsc_step_t depends, 
+DLL_PUBLIC bsc_step_t bsc_gather( bsc_step_t depends, 
                        bsp_pid_t root, bsc_group_t group,
                        const void * src, void *dst, bsc_size_t size );
 
@@ -468,7 +502,7 @@ bsc_step_t bsc_gather( bsc_step_t depends,
  *
  * \returns The superstep number that this collective will have been completed.
  */
-bsc_step_t bsc_allgather( bsc_step_t depends, bsc_group_t group,
+DLL_PUBLIC bsc_step_t bsc_allgather( bsc_step_t depends, bsc_group_t group,
                         const void * src, void * dst, bsc_size_t size );
 
 /** Schedules a collective total-exchange operation. This is a collective call
@@ -489,7 +523,7 @@ bsc_step_t bsc_allgather( bsc_step_t depends, bsc_group_t group,
  *
  * \returns The superstep number that this collective will have been completed.
  */
-bsc_step_t bsc_alltoall( bsc_step_t depends, bsc_group_t group,
+DLL_PUBLIC bsc_step_t bsc_alltoall( bsc_step_t depends, bsc_group_t group,
                         const void * src, void * dst, bsc_size_t size );
 
 /** Schedules a collective broadcast operation. This is a collective call
@@ -511,7 +545,7 @@ bsc_step_t bsc_alltoall( bsc_step_t depends, bsc_group_t group,
  *
  * \returns The superstep number that this collective will have been completed.
  */
-bsc_step_t bsc_bcast( bsc_step_t depends,
+DLL_PUBLIC bsc_step_t bsc_bcast( bsc_step_t depends,
                       bsp_pid_t root, bsc_group_t group, 
                       const void * src, void * dst, bsc_size_t size );
 
@@ -545,7 +579,7 @@ bsc_step_t bsc_bcast( bsc_step_t depends,
  *
  * \returns The superstep number that this collective will have been completed.
  */
-bsc_step_t bsc_reduce( bsc_step_t depends, 
+DLL_PUBLIC bsc_step_t bsc_reduce( bsc_step_t depends, 
         bsc_pid_t root, bsc_group_t group,
         const void * src, void * dst, void * tmp_space,
         bsc_reduce_t reducer, const void * zero, 
@@ -580,7 +614,7 @@ bsc_step_t bsc_reduce( bsc_step_t depends,
  *
  * \returns The superstep number that this collective will have been completed.
  */
-bsc_step_t bsc_allreduce( bsc_step_t depends, bsc_group_t group,
+DLL_PUBLIC bsc_step_t bsc_allreduce( bsc_step_t depends, bsc_group_t group,
         const void * src, void * dst, void * tmp_space,
         bsc_reduce_t reducer, const void * zero,
         bsc_size_t nmemb, bsc_size_t size );
@@ -621,7 +655,7 @@ bsc_step_t bsc_allreduce( bsc_step_t depends, bsc_group_t group,
  *
  * \returns The superstep number that this collective will have been completed.
  */
-bsc_step_t bsc_scan( bsc_step_t depends, bsc_group_t group,
+DLL_PUBLIC bsc_step_t bsc_scan( bsc_step_t depends, bsc_group_t group,
         const void * src, void * dst, void * tmp_space, 
         bsc_reduce_t reducer, const void * zero,
         bsc_size_t nmemb, bsc_size_t size );
@@ -642,28 +676,28 @@ bsc_step_t bsc_scan( bsc_step_t depends, bsc_group_t group,
 
 
 /** Definition for bsc_scatter() */
-extern const bsc_collective_t * const bsc_coll_scatter;
+DLL_PUBLIC extern const bsc_collective_t * const bsc_coll_scatter;
 
 /** Definition for bsc_gather() */
-extern const bsc_collective_t * const bsc_coll_gather;
+DLL_PUBLIC extern const bsc_collective_t * const bsc_coll_gather;
 
 /** Definition for bsc_allgather() */
-extern const bsc_collective_t * const bsc_coll_allgather;
+DLL_PUBLIC extern const bsc_collective_t * const bsc_coll_allgather;
 
 /** Definition for bsc_alltoall() */
-extern const bsc_collective_t * const bsc_coll_alltoall;
+DLL_PUBLIC extern const bsc_collective_t * const bsc_coll_alltoall;
 
 /** Definition for bsc_bcast */
-extern const bsc_collective_t * const bsc_coll_bcast;
+DLL_PUBLIC extern const bsc_collective_t * const bsc_coll_bcast;
 
 /** Definition for bsc_reduce */
-extern const bsc_collective_t * const bsc_coll_reduce;
+DLL_PUBLIC extern const bsc_collective_t * const bsc_coll_reduce;
 
 /** Definition for bsc_allreduce */
-extern const bsc_collective_t * const bsc_coll_allreduce;
+DLL_PUBLIC extern const bsc_collective_t * const bsc_coll_allreduce;
 
 /** Definition for bsc_scan */
-extern const bsc_collective_t * const bsc_coll_scan;
+DLL_PUBLIC extern const bsc_collective_t * const bsc_coll_scan;
 
 
 /**

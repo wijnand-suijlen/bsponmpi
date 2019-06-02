@@ -4,6 +4,8 @@
 #include "tictoc.h"
 #endif
 
+#include "mpisizet.h"
+
 #include <algorithm>
 #include <cstring>
 #include <mpi.h>
@@ -137,15 +139,12 @@ void A2A::exchange( )
         std::size_t max_send = *std::max_element( m_send_sizes.begin(),
                                m_send_sizes.begin() + m_nprocs );
 
-        assert( std::numeric_limits<std::size_t>::max() <=
-                std::numeric_limits<unsigned long>::max() );
-
-        unsigned long global_comm_send[3] = 
+        std::size_t global_comm_send[3] = 
             { m_send_cap, max_send, pref_bruck_vol };
-        unsigned long global_comm_recv[3];
+        std::size_t global_comm_recv[3];
 
         MPI_Allreduce( global_comm_send, global_comm_recv,
-                3, MPI_UNSIGNED_LONG, MPI_MAX, m_comm );
+                3, MY_MPI_SIZE_T, MPI_MAX, m_comm );
 
         new_cap       = global_comm_recv[0];
         max_recv      = global_comm_recv[1];
@@ -188,8 +187,8 @@ void A2A::exchange( )
 #endif
         }
         // In small exchanges, Bruck's algorithm will be used again
-        MPI_Alltoall( m_small_send_buf.data(), sm, MPI_BYTE,
-                m_small_recv_buf.data(), sm, MPI_BYTE,
+        MPI_Alltoall( m_small_send_buf.data(), int(sm), MPI_BYTE,
+                m_small_recv_buf.data(), int(sm), MPI_BYTE,
                 m_comm );
 
         for (int p = 0; p < m_nprocs; ++p ) {
@@ -220,8 +219,8 @@ void A2A::exchange( )
             while ( size > 0 ) {
                 std::size_t s = std::min( m_max_msg_size, size );
                 //size_t s = size;
-                MPI_Put( m_send_bufs.data() + o1, s, MPI_BYTE,
-                        p, o2, s, MPI_BYTE, m_recv_win );
+                MPI_Put( m_send_bufs.data() + o1, int(s), MPI_BYTE,
+                        p, o2, int(s), MPI_BYTE, m_recv_win );
                 size -= s;
                 o1 += s;
                 o2 += s;
@@ -254,7 +253,8 @@ void A2A::exchange( )
             for (int p = 0; p < m_nprocs; ++p ) {
                 if (m_reqs[p] != MPI_REQUEST_NULL) continue;
 
-                int recv_size = std::min( m_max_msg_size, m_recv_sizes[p] );
+                std::size_t recv_size 
+                    = std::min( m_max_msg_size, m_recv_sizes[p] );
 #ifdef PROFILE
                 tr.add_bytes( recv_size );
 #endif
@@ -262,7 +262,7 @@ void A2A::exchange( )
                 int tag = 0;
                 if (recv_size > 0 )
                     MPI_Irecv( m_recv_bufs.data() + m_recv_pos[p],
-                            recv_size, MPI_BYTE, p,
+                            int( recv_size ), MPI_BYTE, p,
                             tag, m_comm, & m_reqs[p] );
                 
                 m_recv_sizes[p] -= recv_size;
@@ -276,7 +276,8 @@ void A2A::exchange( )
             for (int p = 0; p < m_nprocs; ++p ) {
                 if (m_reqs[m_nprocs + p] != MPI_REQUEST_NULL) continue;
 
-                int send_size = std::min( m_max_msg_size, m_send_sizes[p] );
+                std::size_t send_size 
+                    = std::min( m_max_msg_size, m_send_sizes[p] );
 #ifdef PROFILE
                 ts.add_bytes( send_size );
 #endif
@@ -285,11 +286,11 @@ void A2A::exchange( )
                 if (send_size > 0 ) {
                     if (first_time)
                      MPI_Irsend( m_send_bufs.data() + m_send_pos[p],
-                            send_size, MPI_BYTE, p,
+                            int( send_size ), MPI_BYTE, p,
                             tag, m_comm, & m_reqs[m_nprocs + p ] );
                     else
                      MPI_Isend( m_send_bufs.data() + m_send_pos[p],
-                            send_size, MPI_BYTE, p,
+                            int( send_size ), MPI_BYTE, p,
                             tag, m_comm, & m_reqs[m_nprocs + p ] );
                 }
                 
@@ -299,7 +300,7 @@ void A2A::exchange( )
             
             first_time = false;
 
-            MPI_Waitsome( m_reqs.size(), m_reqs.data(), &outcount, 
+            MPI_Waitsome( int( m_reqs.size() ), m_reqs.data(), &outcount, 
                     m_ready.data(), MPI_STATUSES_IGNORE );
         } while (outcount != MPI_UNDEFINED );
 

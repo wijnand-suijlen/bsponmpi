@@ -87,7 +87,7 @@ TEST( bsc_scan_3tree, success() )
  
     ready = bsc_scan_qtree_single( ready, bsc_all, 
             &x, &y3, &tmp, prefix_sum, &zero, n3, sizeof(x[0]), 
-            ceil(sqrt(bsp_nprocs())) );
+            (bsc_pid_t) ceil(sqrt(bsp_nprocs())) );
 
     bsc_sync( ready );
 

@@ -1,4 +1,5 @@
 #include "tictoc.h"
+#include "mpisizet.h"
 #include <cstdio>
 #include <iostream>
 #include <iomanip>
@@ -30,15 +31,15 @@ namespace bsplib {
         out << std::setprecision(3);
         for (size_t i = 1; i < s_timers.size(); ++i ) {
 
-            long local_count = s_timers[i].count, max_count = 0;
-            MPI_Allreduce( &local_count, &max_count, 1, MPI_LONG, 
+            std::size_t local_count = s_timers[i].count, max_count = 0;
+            MPI_Allreduce( &local_count, &max_count, 1, MY_MPI_SIZE_T, 
                     MPI_MAX, comm );
             if (max_count == 0 ) continue;
 
             record[s]     = sec( s_timers[i].time );
             record[mb]    = s_timers[i].nbytes * 1e-6;
             record[mbs]   = record[mb] / record[s];
-            record[count] = s_timers[i].count;
+            record[count] = 1.0 * s_timers[i].count;
 
             MPI_Allgather( record.data(), 4, MPI_DOUBLE,
                     allrecords.data(), 4, MPI_DOUBLE,

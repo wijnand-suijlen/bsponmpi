@@ -82,7 +82,7 @@ void Unbuf :: start( )
        u.addr = next_addr;
        u.size -= size;
        const int tag = u.tag;
-       MPI_Irecv( addr, size, MPI_BYTE, u.pid, tag, m_comm, &m_reqs[j]);
+       MPI_Irecv( addr, int(size), MPI_BYTE, u.pid, tag, m_comm, &m_reqs[j]);
    }
 
    MPI_Barrier( m_comm ); // so we can use ready sends
@@ -95,7 +95,7 @@ void Unbuf :: start( )
        u.addr = next_addr;
        u.size -= size;
        const int tag = u.tag;
-       MPI_Irsend( addr, size, MPI_BYTE, u.pid, tag, m_comm, &m_reqs[j]);
+       MPI_Irsend( addr, int(size), MPI_BYTE, u.pid, tag, m_comm, &m_reqs[j]);
    }
 
    m_ready.resize( m_reqs.size() );
@@ -106,7 +106,7 @@ void Unbuf :: wait( )
     while (true)
     {
         int outcount = MPI_UNDEFINED;
-        MPI_Waitsome( m_reqs.size(), m_reqs.data(), &outcount, 
+        MPI_Waitsome( int(m_reqs.size()), m_reqs.data(), &outcount, 
                 m_ready.data(), MPI_STATUSES_IGNORE );
     
         if (outcount == MPI_UNDEFINED )
@@ -125,7 +125,8 @@ void Unbuf :: wait( )
                const int tag = u.tag;
                
                if (size > 0) 
-                MPI_Irecv( addr, size, MPI_BYTE, u.pid, tag, m_comm, &m_reqs[r]);
+                MPI_Irecv( addr, int(size), MPI_BYTE, 
+                           u.pid, tag, m_comm, &m_reqs[r]);
             }
             else
             {
@@ -138,7 +139,8 @@ void Unbuf :: wait( )
                const int tag = u.tag;
 
                if (size > 0)
-                MPI_Isend(addr, size, MPI_BYTE, u.pid, tag, m_comm, &m_reqs[r]);
+                MPI_Isend(addr, int(size), MPI_BYTE, 
+                          u.pid, tag, m_comm, &m_reqs[r]);
             }
         }
     }

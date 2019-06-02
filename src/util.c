@@ -158,8 +158,8 @@ universal_hash_function_t new_universal_hash_function( size_t * seed,
        unsigned buckets )
 {
     universal_hash_function_t result;
-    result.mult = SIZE_MAX * rand_next( seed );
-    result.add  = SIZE_MAX * rand_next( seed );
+    result.mult = (size_t) (SIZE_MAX * rand_next( seed ));
+    result.add  = (size_t) (SIZE_MAX * rand_next( seed ));
     result.log2_buckets = int_log2( buckets );
     return result;
 }
@@ -271,7 +271,7 @@ static void hash_table_increase_buckets( hash_table_t * table )
         hash_table_bucket_t * b = table->buckets[i].next;
         while (b) {
             hash_table_bucket_t * c = b->next;
-            j = hash( new_ghash, (* table->hash )( b->data ) );
+            j = (unsigned) hash( new_ghash, (* table->hash )( b->data ) );
             
             b->next = new_table[j].next;
             new_table[j].next = b;
@@ -332,7 +332,7 @@ void * hash_table_new_item( hash_table_t * table, void * key )
 
     for ( try = 0; try < 5; ++try ) {
         unsigned collisions = 0;
-        unsigned i = hash( table->ghash, (* table->hash )( key ) );
+        unsigned i = (unsigned) hash( table->ghash, (* table->hash )( key ) );
         b = & table->buckets[i].next;
         
         while (*b) {
@@ -372,7 +372,7 @@ found_item:
 
 void * hash_table_get_item( const hash_table_t * table, void * key )
 {
-    unsigned i = hash( table->ghash, (* table->hash )( key ) );
+    unsigned i = (unsigned) hash( table->ghash, (* table->hash )( key ) );
     const hash_table_bucket_t *b = table->buckets[i].next;
 
     while (b) {
@@ -386,7 +386,7 @@ void * hash_table_get_item( const hash_table_t * table, void * key )
 
 void * hash_table_delete_item( hash_table_t * table, void * key )
 {
-    unsigned i = hash( table->ghash, (* table->hash )( key ) );
+    unsigned i = (unsigned) hash( table->ghash, (* table->hash )( key ) );
     hash_table_bucket_t **b = & table->buckets[i].next;
    
     while (*b) {

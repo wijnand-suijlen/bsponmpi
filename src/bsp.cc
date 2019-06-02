@@ -82,8 +82,8 @@ void bsp_abort_va( const char * format, va_list ap )
     if (s_expect_abort_msg) {
         char buffer[200];
         std::vsnprintf(buffer, sizeof(buffer), format, ap );
-        int len = strlen( s_expect_abort_msg );
-        if (len > int(sizeof(buffer))) len = sizeof(buffer);
+        size_t len = strlen( s_expect_abort_msg );
+        if (len > sizeof(buffer)) len = sizeof(buffer);
         // test equality of prefix
         if ( strncmp( buffer, s_expect_abort_msg, len ) == 0 ) {
             s_expect_abort_msg = NULL;
@@ -546,7 +546,7 @@ void bsp_set_tagsize( bsp_size_t * tag_nbytes )
     if (*tag_nbytes < 0 )
         bsp_abort("bsp_set_tagsize: Tag size may not be negative\n");
 
-    *tag_nbytes = s_bsmp->set_tag_size( *tag_nbytes );
+    *tag_nbytes = static_cast<bsp_size_t>(s_bsmp->set_tag_size( *tag_nbytes ));
 }
 
 void bsp_send( bsp_pid_t pid, const void * tag, const void * payload,
@@ -597,8 +597,8 @@ void bsp_qsize( bsp_size_t * nmessages, bsp_size_t * accum_nbytes )
                 " type allows only %zu\n", s_bsmp->total_payload(),
                 bsp_size_max );
 
-   * nmessages = s_bsmp->n_total_messages();
-   * accum_nbytes = s_bsmp->total_payload();
+   * nmessages = static_cast<bsp_size_t>( s_bsmp->n_total_messages() );
+   * accum_nbytes = static_cast<bsp_size_t>( s_bsmp->total_payload() );
 }
 
 void bsp_get_tag( bsp_size_t * status, void * tag )
@@ -621,7 +621,7 @@ void bsp_get_tag( bsp_size_t * status, void * tag )
         *status = bsp_size_t(-1);
     }
     else {
-        *status = s_bsmp->payload_size();
+        *status = static_cast<bsp_size_t>( s_bsmp->payload_size() );
         std::memcpy( tag, s_bsmp->tag(), tag_size );
     }
 }
@@ -672,7 +672,7 @@ bsp_size_t bsp_hpmove( void ** tag_ptr, void ** payload_ptr )
      *payload_ptr = s_bsmp->payload();
      size_t size = s_bsmp->payload_size();
      s_bsmp->pop();
-     return size;
+     return static_cast<bsp_size_t>( size );
 }
 
 //// MulticoreBSP for C compatibility layer follows here
@@ -888,8 +888,8 @@ void mcbsp_qsize( mcbsp_nprocs_t * packets,
                 " type allows only %zu\n", s_bsmp->total_payload(),
                 mcbsp_size_max );
 
-   * packets = s_bsmp->n_total_messages();
-   * total_size = s_bsmp->total_payload();
+   * packets = static_cast<mcbsp_nprocs_t>( s_bsmp->n_total_messages() );
+   * total_size = static_cast<mcbsp_size_t>( s_bsmp->total_payload() );
 }
 
 

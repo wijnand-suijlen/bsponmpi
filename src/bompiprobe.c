@@ -1,3 +1,6 @@
+#ifdef _MSC_VER
+#define _CRT_SECURE_NO_WARNINGS
+#endif
 #include <bsp.h>
 #include <bsc.h>
 #include <mpi.h>
@@ -111,7 +114,7 @@ void permute( size_t * rng, void * data,
     void * tmp = malloc( size );
     char * xs = data;
     while (nmemb > 1 ){
-        int i = nmemb * rand_next(rng);
+        int i = (int) (nmemb * rand_next(rng));
         if (i != nmemb - 1 ) {
             memcpy( tmp, xs + i * size, size);
             memcpy( xs + i * size, xs + (nmemb-1)*size, size );
@@ -295,7 +298,7 @@ int bootstrap( size_t * rng, void * samples, int sample_bytes,
 
         for ( i = 0; i < n_avgs; i++) {
             for ( j = 0; j < n; ++j ) {
-                int r = rand_next(rng) * n;
+                int r = (int) (rand_next(rng) * n);
                 memcpy( bootstrap_sample + sample_bytes * j,
                         offset_samples + sample_bytes * r,
                         sample_bytes );
@@ -346,7 +349,7 @@ int measure_lincost( int pid, int nprocs, int repeat,
     MPI_Request * reqs = 0; 
     int * pid_perms;
     MPI_Win * wins;  MPI_Comm * comms;
-    const int n_avgs = 10.0 / (1.0 - conf_level);
+    const int n_avgs = (int) (10.0 / (1.0 - conf_level));
     const int max_h = total_size / msg_size;
     int o[7];  /* two methods x two msg sizes + 1 */
     double T[6], T_min[6], T_max[6]; /* two methods x two msg sizes */
@@ -413,7 +416,7 @@ int measure_lincost( int pid, int nprocs, int repeat,
                 "communication infrastructure\n",
                 nprocs,  2*total_size,
                 (long) niters * (long) sizeof(samples[0]),
-                (long) 2*max_h*sizeof(MPI_Request),
+                2*max_h * (long) sizeof(MPI_Request),
                ncomms * (long) sizeof(MPI_Win) +
                ncomms * (long) sizeof(MPI_Comm) +
                nprocs * (long) sizeof(pid_perms[0]) );
@@ -789,7 +792,7 @@ int measure_bsp_params( int pid, int nprocs, int repeat,
     size_t rng = 0;
     FILE * sample_file = NULL;
     int i, j, k, my_error=0, glob_error=0;
-    const int n_avgs = 10.0 / (1.0 - conf_level);
+    const int n_avgs = (int) (10.0 / (1.0 - conf_level));
     int *offsets;  /* index into samples */
     double *T, *T_min, *T_max; /* averages + confidence interval */
     double t0, t1 ;

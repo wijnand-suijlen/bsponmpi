@@ -80,9 +80,18 @@ typedef struct state {
 static double load_param(const char * param, double default_val, 
         const char * func ) 
 {
+    double result = HUGE_VAL;
     char * numend = NULL;
+#if HAS_DUPENV_S_WIN32
+    char * str = NULL;
+    if (_dupenv_s( &str, NULL , param ))
+        return default_val;
+#else
     char * str = getenv(param);
-    double result = str?strtod( str, &numend ):default_val;
+#endif
+    
+    result = str?strtod( str, &numend ):default_val;
+    
     if ( (str && numend == str) || result == HUGE_VAL 
             || result == -HUGE_VAL ) {
         result = default_val;
@@ -91,6 +100,9 @@ static double load_param(const char * param, double default_val,
                         " Using default: %g\n", 
                         func, param, result );
     }
+#if HAS_DUPENV_S_WIN32
+    free(str);
+#endif
     return result;
 }
 
@@ -98,7 +110,7 @@ static double s_g[BSC_N_REQUEST_TYPES];
 static double s_o[BSC_N_REQUEST_TYPES];
 static double s_L[BSC_N_REQUEST_TYPES];
 
-void load_param_g_once(void)
+static void load_param_g_once(void)
 {
     const char * env_names_g[] = { 
         "BSC_PUT_G", "BSP_HPPUT_G", "BSP_GET_G",
@@ -114,7 +126,7 @@ void load_param_g_once(void)
         }
 }
 
-void load_param_L_once(void) {
+static void load_param_L_once(void) {
     const char * env_names[] = { 
         "BSC_PUT_L", "BSP_HPPUT_L", "BSP_GET_L",
         "BSP_HPGET_L", "BSP_SEND_L" } ;
@@ -207,14 +219,14 @@ double bsc_L(bsc_request_t type)
 }
 #endif
 
-int collcoa_is_equal( const void * a, const void * b )
+static int collcoa_is_equal( const void * a, const void * b )
 {
     const coll_request_t * x = a, * y = b;
     return x->coll == y->coll && x->root == y->root
         && x->group == y->group ;
 }
 
-size_t collcoa_hash( const void * a )
+static size_t collcoa_hash( const void * a )
 {
     const coll_request_t * x = a;
     return ((size_t) x->coll)*2 +
@@ -820,7 +832,7 @@ double bsc_costs_std_root_p_tree_put(  bsc_group_t group,
     bsc_size_t i;
     group_t * g = group;
     bsc_pid_t P = g?g->size:bsp_nprocs() ;
-    bsc_pid_t root_P = ceil(sqrt(P));
+    bsc_pid_t root_P = (bsc_pid_t) ceil(sqrt(P));
     double one_phase = bsc_L(BSC_PUT); 
     for ( i = 0; i < n ; ++i )
         one_phase += (root_P - 1) * bsc_g(BSC_PUT, set[i].size) * set[i].size;
@@ -834,7 +846,7 @@ double bsc_costs_std_root_p_tree_get(  bsc_group_t group,
     bsc_size_t i;
     group_t * g = group;
     bsc_pid_t P = g?g->size:bsp_nprocs() ;
-    bsc_pid_t root_P = ceil(sqrt(P));
+    bsc_pid_t root_P = (bsc_pid_t) ceil(sqrt(P));
     double one_phase = bsc_L(BSC_GET); 
     for ( i = 0; i < n ; ++i )
         one_phase += (root_P - 1) * bsc_g(BSC_GET, set[i].size) * set[i].size;
@@ -1049,7 +1061,7 @@ bsc_step_t bsc_alltoall( bsc_step_t depends, bsc_group_t group,
 }
 
 
-bsc_step_t bsc_bcast_qtree_single( bsc_step_t depends,
+DLL_PUBLIC bsc_step_t bsc_bcast_qtree_single( bsc_step_t depends,
                       bsp_pid_t root, bsc_group_t group, 
                       const void * src, void * dst, bsc_size_t size,
                       bsc_pid_t q )
@@ -1112,7 +1124,7 @@ bsc_step_t bsc_bcast_root_p_tree_multiple( bsc_step_t depends,
                       bsc_coll_params_t * params, bsc_size_t n)
 {
     group_t * g = group;
-    bsc_pid_t P = g?g->size:bsp_nprocs(), root_n = ceil(sqrt(P)) ;
+    bsc_pid_t P = g?g->size:bsp_nprocs(), root_n = (bsc_pid_t) ceil(sqrt(P));
     bsc_size_t i;
     bsc_step_t finished = depends;
     for ( i = 0; i < n ; ++i ) {
@@ -1125,7 +1137,7 @@ bsc_step_t bsc_bcast_root_p_tree_multiple( bsc_step_t depends,
 
 
 
-bsc_step_t bsc_bcast_2phase( bsc_step_t depends,
+DLL_PUBLIC bsc_step_t bsc_bcast_2phase( bsc_step_t depends,
                       bsp_pid_t root, bsc_group_t group, 
                       bsc_coll_params_t * params, bsc_size_t n )
 {
@@ -1257,7 +1269,7 @@ bsc_step_t bsc_bcast( bsc_step_t depends, bsc_pid_t root, bsc_group_t group,
 
 
 
-bsc_step_t bsc_reduce_qtree_single( bsc_step_t depends, 
+DLL_PUBLIC bsc_step_t bsc_reduce_qtree_single( bsc_step_t depends, 
         bsc_pid_t root, bsc_group_t group,
         const void * src, void * dst, void * tmp_space,
         bsc_reduce_t reducer, const void * zero,
@@ -1338,7 +1350,7 @@ bsc_step_t bsc_reduce_root_p_tree_multiple( bsc_step_t depends,
                       bsc_coll_params_t * params, bsc_size_t n)
 {
     group_t * g = group;
-    bsc_pid_t P = g?g->size:bsp_nprocs(), root_P = ceil(sqrt(P)) ;
+    bsc_pid_t P = g?g->size:bsp_nprocs(), root_P = (bsc_pid_t) ceil(sqrt(P));
     bsc_size_t i;
     bsc_step_t finished = depends;
     for ( i = 0; i < n ; ++i ) {
@@ -1386,7 +1398,7 @@ bsc_step_t bsc_reduce( bsc_step_t depends,
 }
 
 
-bsc_step_t bsc_allreduce_qtree_single( 
+DLL_PUBLIC bsc_step_t bsc_allreduce_qtree_single( 
         bsc_step_t depends, bsc_group_t group,
         const void * src, void * dst, void * tmp_space,
         bsc_reduce_t reducer, const void * zero,
@@ -1460,7 +1472,7 @@ bsc_step_t bsc_allreduce_root_p_tree_multiple( bsc_step_t depends,
                       bsc_coll_params_t * params, bsc_size_t n)
 {
     group_t * g = group;
-    bsc_pid_t P = g?g->size:bsp_nprocs(), root_P = ceil(sqrt(P)) ;
+    bsc_pid_t P = g?g->size:bsp_nprocs(), root_P = (bsc_pid_t) ceil(sqrt(P));
     bsc_size_t i;
     bsc_step_t finished = depends;
     (void) root;
@@ -1509,8 +1521,8 @@ bsc_step_t bsc_allreduce( bsc_step_t depends, bsc_group_t group,
     return bsc_collective( depends, bsc_coll_allreduce, 0, group, p );
 }
 
-bsc_step_t bsc_scan_qtree_single( bsc_step_t depends, bsc_group_t group,
-        const void * src, void * dst, void * tmp_space, 
+DLL_PUBLIC bsc_step_t bsc_scan_qtree_single( bsc_step_t depends, 
+        bsc_group_t group, const void * src, void * dst, void * tmp_space, 
         bsc_reduce_t reducer, const void * zero,
         bsc_size_t nmemb, bsc_size_t size,
         int q )
@@ -1599,7 +1611,7 @@ bsc_step_t bsc_scan_root_p_tree_multiple( bsc_step_t depends,
                       bsc_coll_params_t * params, bsc_size_t n)
 {
     group_t * g = group;
-    bsc_pid_t P = g?g->size:bsp_nprocs(), root_P = ceil(sqrt(P)) ;
+    bsc_pid_t P = g?g->size:bsp_nprocs(), root_P = (bsc_pid_t) ceil(sqrt(P));
     bsc_size_t i;
     bsc_step_t finished = depends;
     (void) root;

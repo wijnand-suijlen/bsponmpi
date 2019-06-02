@@ -37,7 +37,7 @@ TEST( bsc_allreduce_qtree_root_p, success() )
 
     ready = bsc_allreduce_qtree_single( bsc_start, bsc_all, 
             &x, &y, &tmp, sum, &zero, 1, sizeof(x), 
-            ceil(sqrt(bsp_nprocs())) );
+            (bsc_pid_t) ceil(sqrt(bsp_nprocs())) );
 
     bsc_sync( ready );
 

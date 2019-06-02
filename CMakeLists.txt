@@ -407,7 +407,7 @@ if (ENABLE_LARGE_TESTS)
     #add_mpi_test( send_size_endtag 2 )
 endif()
 
-if (BASH)
+if (BASH AND NOT WIN32)
   configure_file( build_tests.sh.in build_tests.sh @ONLY)
   add_test( NAME build_tests COMMAND ${BASH} build_tests.sh )
 endif()
