@@ -432,7 +432,6 @@ if (DOXYGEN_FOUND)
                    ${man3}/BSP_DRMA.3
                    ${man3}/BSP_SPMD.3
                    ${man3}/BSP_TYPES.3
-                   ${man3}/MCBSP.3
                    ${man3}/bsp_abort.3
                    ${man3}/bsp_begin.3
                    ${man3}/bsp_end.3
@@ -455,6 +454,73 @@ if (DOXYGEN_FOUND)
                    ${man3}/bsp_size_t.3
                    ${man3}/bsp_sync.3
                    ${man3}/bsp_time.3
+
+                   ${man3}/MCBSP.3
+                   ${man3}/mcbsp_begin.3
+                   ${man3}/mcbsp_get_tag.3 
+                   ${man3}/mcbsp_hpput.3
+                   ${man3}/mcbsp_nprocs_t.3
+                   ${man3}/mcbsp_pid_t.3    
+                   ${man3}/mcbsp_push_reg.3  
+                   ${man3}/mcbsp_qsize.3  
+                   ${man3}/mcbsp_set_tagsize.3
+                   ${man3}/mcbsp_get.3    
+                   ${man3}/mcbsp_hpget.3    
+                   ${man3}/mcbsp_move.3   
+                   ${man3}/mcbsp_pid.3       
+                   ${man3}/mcbsp_pop_reg.3  
+                   ${man3}/mcbsp_put.3       
+                   ${man3}/mcbsp_send.3   
+                   ${man3}/mcbsp_size_t.3
+
+                   ${man3}/BSC.3
+                   ${man3}/BSC_TYPEDEFS.3
+                   ${man3}/BSC_GROUP.3
+                   ${man3}/BSC_INTROSP.3
+                   ${man3}/BSC_PRIM.3
+                   ${man3}/BSC_COLLS.3
+                   ${man3}/BSC_COLLS_BLOCKS.3
+                   ${man3}/bsc_all.3
+                   ${man3}/bsc_allgather.3
+                   ${man3}/bsc_allreduce.3
+                   ${man3}/bsc_alltoall.3
+                   ${man3}/bsc_bcast.3
+                   ${man3}/bsc_coll_alg_t.3
+                   ${man3}/bsc_coll_allgather.3
+                   ${man3}/bsc_coll_allreduce.3
+                   ${man3}/bsc_coll_alltoall.3
+                   ${man3}/bsc_coll_bcast.3
+                   ${man3}/bsc_coll_cost_t.3
+                   ${man3}/bsc_collective.3
+                   ${man3}/bsc_collective_t.3
+                   ${man3}/bsc_coll_gather.3
+                   ${man3}/bsc_coll_params_t.3
+                   ${man3}/bsc_coll_reduce.3
+                   ${man3}/bsc_coll_scan.3
+                   ${man3}/bsc_coll_scatter.3
+                   ${man3}/bsc_coll_steps_t.3
+                   ${man3}/bsc_current.3
+                   ${man3}/bsc_exec_reduce.3
+                   ${man3}/bsc_flush.3
+                   ${man3}/bsc_g.3
+                   ${man3}/bsc_gather.3
+                   ${man3}/bsc_get.3
+                   ${man3}/bsc_group_create_neighbourhood.3
+                   ${man3}/bsc_group_create_partition.3
+                   ${man3}/bsc_group_destroy.3
+                   ${man3}/bsc_group_t.3
+                   ${man3}/bsc_L.3
+                   ${man3}/bsc_pid_t.3
+                   ${man3}/bsc_put.3
+                   ${man3}/bsc_reduce.3
+                   ${man3}/bsc_reduce_t.3
+                   ${man3}/bsc_scan.3
+                   ${man3}/bsc_scatter.3
+                   ${man3}/bsc_size_t.3
+                   ${man3}/bsc_start.3
+                   ${man3}/bsc_step_t.3
+                   ${man3}/bsc_sync.3
+
             DESTINATION share/man/man3/ )
 
 
