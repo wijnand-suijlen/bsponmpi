@@ -1240,25 +1240,30 @@ int main( int argc, char ** argv )
     bsp_bcast( 0, &lincost_mode, sizeof(lincost_mode) );
     /* do not broadcast sample_file_name, because it is not necessary */
 
-    if (!pid) printf(
+    if (!pid) {
+        printf(
            "# Number of processes       = %10d (bsprun -n)\n"
            "# Confidence level          = %10.2f%% (--conf-level)\n"
            "# Max confidence interval   = %10.2f%% (--conf-interval)\n"
            "# Confidence interval method= %10s (--conf-interval-method)\n"
-           "# Random process layouts    = %10d (--ntopos)\n"
+           "# Random process layouts    = %10d (--ntopos)\n",
+           nprocs, 100.0*conf_level, 100.0*ci_rel,
+           ci_method == SUBSAMPLE? "subsample" :
+           ci_method == BOOTSTRAP ? "bootstrap" : "UNKNOWN",
+           ncomms
+           );
+
+        printf(
            "# Min number of samples     = %10d (--min-samples)\n"
            "# Max number of samples     = %10d (--max-samples)\n"
            "# Granularity               = %10d (--granularity)\n"
            "# Save samples to           = %s (--save-sample-data)\n"
            "# Average communication vol.= %10d bytes (--avg-total-bytes)\n"
            "# Typical message size      = %10d bytes (--msg-size or --word-size)\n",
-           nprocs, 100.0*conf_level, 100.0*ci_rel,
-           ci_method == SUBSAMPLE? "subsample" :
-           ci_method == BOOTSTRAP ? "bootstrap" : "UNKNOWN",
-           ncomms,
            niters, max_niters, repeat, 
            sample_file_name[0]=='\0'?"NA":sample_file_name,
            avg_total_bytes, msg_size );
+    }
 
     if (!pid && lincost_mode )
         printf( "\n"
