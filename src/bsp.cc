@@ -452,7 +452,7 @@ void bsp_hpput( bsp_pid_t pid, const void * src, void * dst,
                   dst_slot.addr, dst_slot.addr, dst_slot.size, pid );
 
     if (pid == s_spmd->pid() )
-        memcpy( dst, src, nbytes);
+        std::memcpy(static_cast<char *>(dst) + offset, src, nbytes);
     else
         s_rdma->hpput( src, pid, dst_slot_id, offset, nbytes );
 
@@ -530,7 +530,7 @@ void bsp_hpget( bsp_pid_t pid, const void * src, bsp_size_t offset,
                   src_slot.addr, src_slot.addr, src_slot.size, pid );
 
     if (pid == s_spmd->pid() )
-        memcpy( dst, src, nbytes);
+        std::memcpy(dst, static_cast<const char *>(src) + offset, nbytes);
     else
         s_rdma->hpget( pid, src_slot_id , offset, dst, nbytes );
 }
@@ -762,10 +762,14 @@ void mcbsp_hpput( mcbsp_pid_t pid, const void * src,
                   dst_slot.addr, dst_slot.addr, dst_slot.size, pid );
 
     if (pid == mcbsp_pid_t(s_spmd->pid()) )
-        memcpy( const_cast<void *>(dst), src, size );
+    {
+        char * d = static_cast<char *>(const_cast<void *>(dst));
+        std::memcpy(d + offset, src, size );
+    }
     else
+    {
         s_rdma->hpput( src, pid, dst_slot_id, offset, size );
-
+    }
 }
 
 void mcbsp_get( mcbsp_pid_t pid, const void * src,
@@ -828,10 +832,14 @@ void mcbsp_hpget( mcbsp_pid_t pid, const void * src,
                   src_slot.addr, src_slot.addr, src_slot.size, pid );
 
     if (pid == mcbsp_pid_t(s_spmd->pid()) )
-        memcpy( const_cast<void *>(dst), src, size );
+    {
+        const char * s = static_cast<const char *>(src);
+        std::memcpy( const_cast<void *>(dst), s + offset, size );
+    }
     else
+    {
         s_rdma->hpget( pid, src_slot_id , offset, const_cast<void*>(dst), size );
-
+    }
 }
 
 void mcbsp_set_tagsize( mcbsp_size_t * size )
