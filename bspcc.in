@@ -36,7 +36,7 @@ trap onexit_clean EXIT
 function add_source_or_object()
 {
     case $1 in
-        *.o|*.a) objects=( "${objects[@]}" "$1" )
+        *.o|*.a|*.so) objects=( "${objects[@]}" "$1" )
               ;;
         *) sources=( "${sources[@]}" "$1" )
             ;;
