@@ -281,5 +281,7 @@ The author would like to thank
 
   - Hugo Cartwright for some early testing on Windows 10
 
+  - Thomas Koopman for finding a bug in the bsp_hpput/hpget implementation.
+    The bug caused local unbuffered communication to be lost.
 
 
